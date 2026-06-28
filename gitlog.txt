@@ -1,0 +1,63 @@
+txttoTTS versiyon günlüğü
+=======================
+
+v0.1.0 (2026-06-26) — MVP
+- İlk sürüm
+- Chatterbox Multilingual V3 (Türkçe native, language_id="tr")
+- PyQt6 arayüz: Üret, Çal, Dur, Kaydet WAV, Kaydet MP3
+- Cümle bazlı chunking (regex, max 400 karakter)
+- Üç katmanlı GPU dispatcher: PyTorch CUDA → ONNX/DirectML → CPU
+- ONNX/DirectML altyapısı kurulu, model v0.1.1'de eklenecek
+- sounddevice + pydub ile ses çalma (Qt6 codec sınırı yok)
+- requirements.txt bölümlenmiş (Core / GPU / GUI / Ses)
+
+v0.1.1 (2026-06-27) — Plan 1-15
+- **Chunker sayı koruması:** "2024. yılında", "3.14", "sayfa 12. bölümde" gibi ifadeler artık yanlış bölünmüyor. SENTENCE_SPLIT regex'i sayı korumalı.
+- **app.py refactor:** 1412 satır tek dosya 5 dosyaya bölündü (app/ paketi + 30 satır giriş).
+- **Süre tahmini:** speed + pause parametreleri dahil; 8 test.
+- **DirectML koşullu kurulum:** AMD/Arc varsa ve NVIDIA yoksa; yoksa atlanır (~50-150 MB tasarruf).
+- **Sıcak Anlatıcı preset:** robotik ses için optimize (speed 0.88, exag 0.65, temp 0.55, pause 0.50).
+- **Referans ses uyarısı:** banner + modal; ilk üretimde onay penceresi.
+- **MP3 kalite:** 128 / 192 / 320 kbps seçimi, "Konuşma/Podcast/Yüksek kalite" etiketleri.
+- **Geçmiş arama:** QLineEdit + canlı filtre (ad + metin).
+- **Aynı Ayarlarla Üret:** history'den tek tıkla preset + ayarları yükle ve üret.
+- **Klavye kısayolları:** Ctrl+Enter, Ctrl+S, Ctrl+Shift+S, Ctrl+Shift+V.
+- **Sentez başı sessiz kırpma:** trim_leading_silence pure helper (max 500 ms).
+- **Toplu üretim kuyruğu:** metin/dosya ekle, sırayla üret, WAV otomatik kaydet.
+- **Karanlık mod:** Fusion style + QPalette (Açık / Karanlık / Sistem).
+- **Üretim sayacı:** kalıcı (state/settings.json).
+- **Last path göstergesi:** status_label'da dosya adı.
+- **Chunk uyarısı:** >20 info, >50 onay.
+- **Dil tooltip:** 16 dil için örnek cümle.
+- **Tüm Ayarları Sıfırla:** Sistem grubu butonu (geçmiş korunur).
+- **Sıcak Anlatıcı hızlı buton:** banner'da tek tık.
+- **Trash'e taşıma:** send2trash ile Geri Dönüşüm'e taşı (fallback os.remove).
+- **Geçmiş preset/speed:** `[preset • speed]` formatı.
+- **Trash'e taşıma:** send2trash ile Geri Dönüşüm'e taşı (fallback os.remove).
+- **Geçmiş preset/speed:** `[preset • speed]` formatı.
+- **Smoke test güçlendirme:** light + --full modu; unit test otomatik keşfi.
+- **Toplam:** ~36 unit test (5 dosya: chunker, duration_estimate, trim_leading_silence, queue_split_lines, file_utils).
+
+v0.1.1-hotfix (2026-06-28)
+- **workers.py kritik fix:** `engine_settings` filtresi eklendi. settings dict'i UI anahtarlarını (`mp3_bitrate`, `pause_between_chunks`) da içeriyordu; bunlar doğrudan `TTSEngine.synthesize()`'a geçirilince TypeError fırlatıyordu. Artık sadece izinli 9 anahtar (language_id, exaggeration, cfg_weight, audio_prompt_path, temperature, repetition_penalty, min_p, top_p, speed) geçiriliyor.
+- **Preset default'ları güncellendi:** Chatterbox Multilingual V3 model kartı + kaynak kodu önerilerine göre:
+  - `cfg_weight`: 0.30-0.55 aralığına (önce 0.45-0.75)
+  - `temperature`: 0.40-0.90 aralığına (önce 0.30-0.90, dengeli 0.65)
+  - `repetition_penalty`: 1.30-1.60 (önce 1.80-2.20; model default 1.2)
+  - Amaç: robotik ses şikâyeti için en etkili kaldıraçlar (cfg + temp düşür, repetition default'a yaklaştır).
+- **Dokunulmayanlar:** `Referans sese sadık` cfg=0.75 korundu (voice clone için yüksek olmalı).
+
+Notlar:
+- Tüm değişiklikler geriye uyumlu (eski ayar/history dosyaları çalışır).
+- Bash classifier plan boyunca kapalıydı; testler henüz çalıştırılmadı (Plan 16 ile doğrulanacak).
+- Push + tag (v0.1.1) kullanıcı onayı bekliyor.
+- v0.2.0-dev (devam ediyor)
+- **Plan 17/17 (ONNX export iskelet):**
+  - `scripts/export_onnx.py` argparse tabanlı CLI; `export_t3` NotImplementedError placeholder (gerçek export Plan 17 sonrası).
+  - `tts_engine.py` `OnnxEngine` parametrik (model_dir, device); ORT session yükleme + provider seçimi; model yoksa sessizce CPU fallback.
+  - `models/README.md` export/DirectML dokümantasyonu.
+  - `tests/test_onnx_engine.py` skip-if-no-model pattern; import + provider testleri.
+  - README'ye "ONNX/DirectML" bölümü.
+  - **Bash açılınca:** gerçek T3 export implementasyonu (chatterbox-tts API incelemesi gerekir).
+  - Plan 18: S3Gen ONNX. Plan 19: Vocoder ONNX.
+- Plan 17/17: ONNX export (gerçek DirectML modeli) — sonraki büyük iş.

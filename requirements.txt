@@ -1,0 +1,32 @@
+# txttoTTS - bağımlılıklar (bölümlenmiş)
+
+# Core - TTS motoru (Chatterbox Multilingual V3, Türkçe native)
+chatterbox-tts
+torch
+torchaudio
+
+# GPU - AMD/NVIDIA hızlandırma (DirectML)
+# v0.1.0: provider kontrolü aktif, model yok (CPU'ya düşer)
+# v0.1.1: scripts/export_onnx.py ile model doldurulur
+# Koşullu kurulum: scripts/setup_env.py + scripts/gpu_detect.py:has_directml_capable_gpu()
+# - AMD/Intel Arc varsa ve NVIDIA yoksa kurulur.
+# - Diğer durumlarda atlanır (~50-150 MB tasarruf).
+# onnxruntime-directml
+
+# GUI - PyQt6 (pencere, thread, sinyal)
+PyQt6
+
+# Sayısal ses verisi
+numpy
+
+# Ses çalma - sounddevice (tensor/dosya ayrımı yok, MP3/WAV çalar)
+sounddevice
+
+# WAV kayıt - soundfile (en basit, ek bağımlılık yok)
+soundfile
+
+# MP3 kayıt - pydub (ffmpeg'e delege eder; sistemde ffmpeg gerekir)
+pydub
+
+# Trash - çöp kutusuna taşıma (cross-platform; Windows'ta Geri Dönüşüm)
+send2trash

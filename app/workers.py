@@ -1,0 +1,172 @@
+"""
+txttoTTS - arka plan iş parçacıkları.
+
+Üç bileşen:
+  - TqdmProgressBridge: terminal tqdm çıktısını Qt sinyaline çevirir
+  - SynthWorker: sentez işlemini UI'ı bloklamadan yapar
+  - EngineLoader: motor yükleme uzun sürerse ayrı thread'de çalıştırır
+"""
+from __future__ import annotations
+
+import contextlib
+import logging
+import re
+import sys
+import time
+
+from PyQt6.QtCore import QThread, pyqtSignal
+
+from tts_engine import TTSEngine
+
+__all__ = ["TqdmProgressBridge", "SynthWorker", "EngineLoader"]
+
+log = logging.getLogger(__name__)
+
+
+class TqdmProgressBridge:
+    """Terminale yazılan TQDM ilerlemesini Qt sinyaline çevirir."""
+
+    _PROGRESS_RE = re.compile(r"(\d+)%.*?\|\s*(\d+)/(\d+)\s*\[(\d+:\d+)<(\d+:\d+),\s*([^\]]+/s)\]")
+
+    def __init__(self, emit_progress, chunk_index: int, total_chunks: int, passthrough=None):
+        self.emit_progress = emit_progress
+        self.chunk_index = chunk_index
+        self.total_chunks = total_chunks
+        self.passthrough = passthrough
+        self._buffer = ""
+        self._last_percent = -1
+
+    def write(self, text: str) -> int:
+        if not text:
+            return 0
+        if self.passthrough:
+            self.passthrough.write(text)
+            self.passthrough.flush()
+        self._buffer = (self._buffer + text)[-1200:]
+        match = self._PROGRESS_RE.search(self._buffer.replace("\r", "\n"))
+        if match:
+            percent = int(match.group(1))
+            current = int(match.group(2))
+            total = int(match.group(3))
+            elapsed = match.group(4)
+            remaining = match.group(5)
+            rate = match.group(6)
+            if percent != self._last_percent:
+                self._last_percent = percent
+                self.emit_progress.emit(
+                    self.chunk_index,
+                    self.total_chunks,
+                    percent,
+                    current,
+                    total,
+                    elapsed,
+                    remaining,
+                    rate,
+                )
+        return len(text)
+
+    def flush(self) -> None:
+        if self.passthrough:
+            self.passthrough.flush()
+
+    def isatty(self) -> bool:
+        return bool(self.passthrough and self.passthrough.isatty())
+
+
+class SynthWorker(QThread):
+    """Uzun işlemleri UI'ı bloklamadan arka planda yapar."""
+
+    chunk_started = pyqtSignal(int, int, str)
+    sampling_progress = pyqtSignal(int, int, int, int, int, str, str, str)
+    chunk_done = pyqtSignal(int, int, float)
+    finished_ok = pyqtSignal(object, int)
+    cancelled = pyqtSignal(str)
+    failed = pyqtSignal(str)
+
+    def __init__(self, engine: TTSEngine, chunks: list[str], settings: dict):
+        super().__init__()
+        self.engine = engine
+        self.chunks = chunks
+        self.settings = settings
+        self._cancel_requested = False
+
+    def request_cancel(self):
+        self._cancel_requested = True
+
+    def run(self):
+        try:
+            if not self.chunks:
+                self.failed.emit("Boş metin.")
+                return
+
+            waves = []
+            sr = None
+            total = len(self.chunks)
+            for index, text_chunk in enumerate(self.chunks, start=1):
+                if self._cancel_requested:
+                    self.cancelled.emit("Üretim kullanıcı tarafından durduruldu.")
+                    return
+
+                self.chunk_started.emit(index, total, text_chunk)
+                started_at = time.perf_counter()
+                stdout_stream = TqdmProgressBridge(self.sampling_progress, index, total, sys.__stdout__)
+                stderr_stream = TqdmProgressBridge(self.sampling_progress, index, total, sys.__stderr__)
+                with contextlib.redirect_stdout(stdout_stream), contextlib.redirect_stderr(stderr_stream):
+                    raw = self.settings.copy()
+                    pause_seconds = float(raw.pop("pause_between_chunks", 0) or 0)
+                    allowed = {
+                        "language_id", "exaggeration", "cfg_weight", "audio_prompt_path",
+                        "temperature", "repetition_penalty", "min_p", "top_p", "speed",
+                    }
+                    engine_settings = {k: v for k, v in raw.items() if k in allowed}
+                    wav, s = self.engine.synthesize(text_chunk, **engine_settings)
+                elapsed = time.perf_counter() - started_at
+                wav_cpu = wav.cpu()
+                waves.append(wav_cpu)
+                sr = s
+                if pause_seconds > 0 and index < total:
+                    import torch
+
+                    pause_samples = int(pause_seconds * sr)
+                    if pause_samples > 0:
+                        waves.append(torch.zeros(wav_cpu.shape[:-1] + (pause_samples,), dtype=wav_cpu.dtype))
+                self.chunk_done.emit(index, total, elapsed)
+
+            if sr is None:
+                self.failed.emit("Ses örnekleme oranı alınamadı.")
+                return
+
+            import torch
+
+            merged = torch.cat(waves, dim=-1)
+            self.finished_ok.emit(merged, sr)
+        except Exception as e:
+            log.exception("Sentez hatası")
+            self.failed.emit(str(e))
+
+
+class EngineLoader(QThread):
+    """Model yükleme uzun sürebilir; ayrı thread'de kullanıcıya bildirir."""
+
+    ok = pyqtSignal(object)
+    fail = pyqtSignal(str)
+    status = pyqtSignal(str)
+
+    def __init__(self, status_callback=None, parent=None):
+        super().__init__(parent)
+        self._status_callback = status_callback
+
+    def run(self):
+        try:
+            self._emit("Kurulu donanım ve hızlandırma seçenekleri kontrol ediliyor...")
+            engine = TTSEngine(status_callback=self._emit)
+            self.ok.emit(engine)
+        except Exception as e:
+            log.exception("Motor yüklenemedi")
+            self.fail.emit(str(e))
+
+    def _emit(self, message: str):
+        log.info(message)
+        self.status.emit(message)
+        if self._status_callback:
+            self._status_callback(message)
