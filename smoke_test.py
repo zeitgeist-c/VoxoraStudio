@@ -73,7 +73,7 @@ def check_local_imports() -> bool:
 
 
 def check_environment() -> bool:
-    """GPU, DirectML, ffmpeg bilgisi."""
+    """GPU, DirectML, ffmpeg, Perth, Chatterbox bilgisi."""
     _section("3/4 Ortam bilgisi")
     try:
         import torch
@@ -81,6 +81,9 @@ def check_environment() -> bool:
         print(f"  CUDA: {torch.cuda.is_available()}")
         if torch.cuda.is_available():
             print(f"  GPU: {torch.cuda.get_device_name(0)}")
+            print(f"  CUDA versiyon: {torch.version.cuda}")
+            t = torch.tensor([1.0], device="cuda") + 2
+            print(f"  CUDA tensor test: {t.item()}")
     except Exception as e:
         print(f"  torch error: {e}")
 
@@ -107,6 +110,19 @@ def check_environment() -> bool:
                 print(f"  [BİLGİ] gpu_detect atlandı: {e}")
         except Exception as e:
             print(f"  onnxruntime error: {e}")
+
+    try:
+        import perth
+        w = perth.PerthImplicitWatermarker()
+        print(f"  perth watermarker: {type(w).__module__}")
+    except Exception as e:
+        print(f"  [BİLGİ] perth watermarker yok: {e}")
+
+    try:
+        from chatterbox.mtl_tts import ChatterboxMultilingualTTS
+        print("  chatterbox import: OK")
+    except Exception as e:
+        print(f"  [BİLGİ] chatterbox import: {e}")
 
     ffmpeg = "Var" if shutil.which("ffmpeg") else "Yok"
     print(f"  ffmpeg: {ffmpeg}")

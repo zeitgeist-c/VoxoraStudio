@@ -2,6 +2,8 @@
 REM txttoTTS setup - Python 3.11 venv + akilli GPU/CPU kurulumu
 
 cd /d "%~dp0"
+set "PROJECT_ROOT=%CD%"
+set "PYTHONPATH=%PROJECT_ROOT%"
 
 echo ============================================================
 echo txttoTTS kurulum
@@ -20,7 +22,7 @@ if errorlevel 1 (
 
 echo.
 echo [2/5] Internet kontrol...
-py -3.11 -c "import socket; s=socket.create_connection(('pypi.org',443),8); s.close(); print('[OK] Internet erisimi var.')" 
+py -3.11 -c "import socket; s=socket.create_connection(('pypi.org',443),8); s.close(); print('[OK] Internet erisimi var.')"
 if errorlevel 1 (
     echo [HATA] Internet baglantisi dogrulanamadi.
     echo Bu kurulum paketleri indirmek icin internet ister.
@@ -30,7 +32,7 @@ if errorlevel 1 (
 
 echo.
 echo [3/5] Donanim kontrol...
-py -3.11 -c "from scripts.gpu_detect import has_nvidia_gpu, has_amd_gpu, has_directml_capable_gpu; n=has_nvidia_gpu(); a=has_amd_gpu(); d=has_directml_capable_gpu(); print('[BILGI] NVIDIA GPU:', 'var' if n else 'yok'); print('[BILGI] AMD/Intel/DirectML adayi GPU:', 'var' if a else 'yok'); print('[BILGI] Kurulum hedefi:', 'cuda' if n else ('directml' if d else 'cpu'))"
+py -3.11 -c "import sys; sys.path.insert(0, '%PROJECT_ROOT%'); from scripts.gpu_detect import has_nvidia_gpu, has_amd_gpu, has_directml_capable_gpu; n=has_nvidia_gpu(); a=has_amd_gpu(); d=has_directml_capable_gpu(); print('[BILGI] NVIDIA GPU:', 'var' if n else 'yok'); print('[BILGI] AMD/Intel/DirectML adayi GPU:', 'var' if a else 'yok'); print('[BILGI] Kurulum hedefi:', 'cuda' if n else ('directml' if d else 'cpu'))"
 if errorlevel 1 (
     echo [UYARI] Donanim kontrolu tamamlanamadi. Kurulum CPU fallback ile devam edebilir.
 )
@@ -48,7 +50,7 @@ if not exist ".venv\Scripts\python.exe" (
 
 echo.
 echo [5/5] Paketler kuruluyor ve dogrulaniyor...
-".venv\Scripts\python.exe" scripts\setup_env.py
+"%PROJECT_ROOT%\.venv\Scripts\python.exe" -m scripts.setup_env
 if errorlevel 1 (
     echo [HATA] Kurulum basarisiz.
     pause

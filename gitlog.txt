@@ -1,6 +1,18 @@
 txttoTTS versiyon günlüğü
 =======================
 
+v0.2.1 (2026-06-30) — CUDA sağlamlık + kurulum onarımı
+- **scripts/__init__.py oluşturuldu:** `-m scripts.setup_env` modül çalıştırması artık mümkün.
+- **setup.bat:** `PYTHONPATH` eklendi, `scripts\setup_env.py` yerine `-m scripts.setup_env` kullanıldı, proje kökü `PROJECT_ROOT` ile sabitlendi.
+- **run.bat:** `PYTHONPATH` eklendi, `[OK] PyTorch CUDA aktif` mesajı eklendi, GPU adı parse hatası düzeltildi.
+- **install_check.bat:** 7 adımlı kapsamlı kontrole yükseltildi (Python → CUDA/PyTorch+tensor test → Chatterbox → Perth → kritik paketler → ffmpeg).
+- **scripts/setup_env.py:** `ensure_cuda_torch()` eklendi (Chatterbox sonrası PyTorch CPU build'ini CUDA ile değiştirir), `check_perth_watermarker()` eklendi (otomatik resemble-perth kurar), `check_chatterbox_import()` eklendi. CUDA doğrulaması başarısızsa hata kodu döndürür. `str.replace('~','')` hatası düzeltildi (temp klasör temizleme).
+- **smoke_test.py:** Perth watermarker, Chatterbox import ve CUDA tensor testi eklendi.
+- **requirements.txt:** `resemble-perth` eklendi.
+- **file_utils.py:** `safe_remove_to_trash("")` boş yol hatası düzeltildi (send2trash takılması).
+- **Tüm __pycache__/ temizlendi.**
+- **4 bug fix + çok sayıda sağlamlık iyileştirmesi.**
+
 v0.1.0 (2026-06-26) — MVP
 - İlk sürüm
 - Chatterbox Multilingual V3 (Türkçe native, language_id="tr")

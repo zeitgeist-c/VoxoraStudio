@@ -2,7 +2,7 @@
 
 Chatterbox Multilingual V3 tabanlı, PyQt6 arayüzlü Türkçe metin -> ses dönüştürücü.
 
-**Versiyon:** v0.1.1 (2026-06-27) — bkz. [gitlog.txt](gitlog.txt)
+**Versiyon:** v0.2.1 (2026-06-30) — bkz. [gitlog.txt](gitlog.txt)
 
 ## Durum
 
