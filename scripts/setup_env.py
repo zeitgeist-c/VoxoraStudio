@@ -20,6 +20,7 @@ CUDA_INDEXES = [
 ]
 CPU_INDEX = "https://download.pytorch.org/whl/cpu"
 DIRECTML_PACKAGE = "onnxruntime-directml"
+PERTH_PACKAGE = "resemble-perth"
 
 
 def run(args: list[str], *, check: bool = True) -> subprocess.CompletedProcess:
@@ -32,7 +33,6 @@ def pip_install(args: list[str], *, check: bool = True) -> subprocess.CompletedP
 
 
 def check_internet() -> None:
-    """Internetli kurulum varsayilir; pip indirmeleri oncesi hizli kontrol."""
     try:
         with socket.create_connection(("pypi.org", 443), timeout=8):
             pass
@@ -78,6 +78,32 @@ def torch_import_ok() -> bool:
     return result.returncode == 0
 
 
+def check_perth_watermarker() -> bool:
+    print("[BILGI] Perth watermarker kontrolu...")
+    code = (
+        "import importlib; "
+        "try: "
+        "  import perth; "
+        "  w = perth.PerthImplicitWatermarker(); "
+        "  print('[OK] Perth watermarker:', type(w).__module__); "
+        "except Exception as e: "
+        "  print('[HATA] Perth watermarker:', e); "
+        "  raise SystemExit(1)"
+    )
+    result = subprocess.run([str(PYTHON), "-c", code], cwd=ROOT)
+    if result.returncode == 0:
+        print("[OK] Perth watermarker hazir.")
+        return True
+    print("[BILGI] Perth watermarker eksik. resemble-perth kuruluyor...")
+    pip_install([PERTH_PACKAGE], check=False)
+    result = subprocess.run([str(PYTHON), "-c", code.replace("raise SystemExit(1)", "")], cwd=ROOT)
+    if result.returncode == 0:
+        print("[OK] Perth watermarker kuruldu.")
+        return True
+    print("[UYARI] Perth watermarker kurulamadi. Bu hata yapmazsa sorun yok.")
+    return False
+
+
 def install_torch(target: str) -> None:
     if target == "cuda":
         for label, index_url in CUDA_INDEXES:
@@ -98,6 +124,26 @@ def install_torch(target: str) -> None:
     if not torch_import_ok():
         raise RuntimeError("PyTorch kurulumu dogrulanamadi.")
     print("[OK] CPU PyTorch hazir.")
+
+
+def ensure_cuda_torch(target: str) -> None:
+    if target != "cuda":
+        return
+    if torch_cuda_available():
+        return
+    print("[UYARI] PyTorch CUDA aktif degil (bilesenler CPU build'i eylemnis olabilir).")
+    print("[BILGI] Temiz CUDA kurulumu yapiliyor...")
+    remove_code = (
+        "import shutil, site, os; "
+        "site_packages = site.getsitepackages()[0]; "
+        "for name in ['torch', 'torchaudio', '~torch', '~torchaudio']: "
+        "  p = os.path.join(site_packages, name); "
+        "  if os.path.isdir(p): "
+        "    try: shutil.rmtree(p, ignore_errors=True); print('silindi:', p); "
+        "    except: print('silinemedi:', p)"
+    )
+    subprocess.run([str(PYTHON), "-c", remove_code], cwd=ROOT)
+    install_torch("cuda")
 
 
 def install_directml_if_needed(target: str) -> None:
@@ -149,6 +195,20 @@ def install_project_requirements() -> None:
         pip_install(["--upgrade", *packages])
 
 
+def check_chatterbox_import() -> bool:
+    print("[BILGI] Chatterbox import kontrolu...")
+    code = (
+        "try: "
+        "  from chatterbox.mtl_tts import ChatterboxMultilingualTTS; "
+        "  print('[OK] Chatterbox import basarili'); "
+        "except Exception as e: "
+        "  print('[HATA] Chatterbox import:', e); "
+        "  raise SystemExit(1)"
+    )
+    result = subprocess.run([str(PYTHON), "-c", code], cwd=ROOT)
+    return result.returncode == 0
+
+
 def verify_imports() -> None:
     print("[BILGI] Import testi...")
     code = (
@@ -166,10 +226,38 @@ def main() -> int:
     target = selected_install_target()
     print_hardware_report(target)
     pip_install(["--upgrade", "pip"])
+
+    # 1) Once PyTorch install (AI dagiticilar icin)
     install_torch(target)
-    install_directml_if_needed(target)
+
+    # 2) Proje gereksinimleri (chatterbox-tts vb.)
     install_project_requirements()
+
+    # 3) DirectML (opsiyonel)
+    install_directml_if_needed(target)
+
+    # 4) CUDA hedefi ise PyTorch'un CPU build'e dusmediginden emin ol
+    ensure_cuda_torch(target)
+
+    # 5) Perth watermarker kontrolu
+    check_perth_watermarker()
+
+    # 6) Chatterbox import dogrulama
+    check_chatterbox_import()
+
+    # 7) Son dogrulama
     verify_imports()
+
+    # 8) CUDA dogrulama raporu
+    if target == "cuda":
+        if torch_cuda_available():
+            print("[OK] PyTorch CUDA AKTIF. GPU kullanima hazir.")
+        else:
+            print("[HATA] NVIDIA GPU bulundu ama PyTorch CUDA aktif degil.")
+            print("[HATA] Lutfen NVIDIA CUDA Toolkit ve suruculeri kontrol edin.")
+            print("[HATA] Manuel kurulum: .venv\\Scripts\\python.exe -m pip install --force-reinstall torch torchaudio --index-url https://download.pytorch.org/whl/cu128")
+            return 1
+
     print(f"[OK] Kurulum tamamlandi. Aktif kurulum yolu: {target}")
     return 0
 

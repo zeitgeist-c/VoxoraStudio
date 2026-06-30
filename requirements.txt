@@ -30,3 +30,6 @@ pydub
 
 # Trash - çöp kutusuna taşıma (cross-platform; Windows'ta Geri Dönüşüm)
 send2trash
+
+# Perth watermarker - Chatterbox Multilingual TTS watermark
+resemble-perth

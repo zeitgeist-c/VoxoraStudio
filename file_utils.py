@@ -39,6 +39,10 @@ def safe_remove_to_trash(path: str) -> tuple[bool, str | None]:
     Returns:
         (ok, error_message). hata yoksa error_message None.
     """
+    if not path or not path.strip():
+        return False, "Dosya yolu boş."
+    if not os.path.exists(path):
+        return False, f"Dosya bulunamadı: {path}"
     try:
         from send2trash import send2trash
         send2trash(path)
