@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import (
 )
 
 from .constants import REFERENCE_SAMPLE_TEXT
+from .theme import application_icon
 
 __all__ = ["ModelLoadDialog", "VoiceGuideDialog", "SynthesisDialog"]
 
@@ -30,6 +31,7 @@ class ModelLoadDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setWindowIcon(application_icon())
         self.setWindowTitle("Model hazırlanıyor")
         self.setModal(False)
         self.resize(560, 320)
@@ -93,6 +95,7 @@ class VoiceGuideDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setWindowIcon(application_icon())
         self.setWindowTitle("Ses Örneği Rehberi")
         self.resize(640, 420)
 
@@ -145,6 +148,7 @@ class SynthesisDialog(QDialog):
 
     def __init__(self, total_chunks: int, parent=None):
         super().__init__(parent)
+        self.setWindowIcon(application_icon())
         self.total_chunks = max(total_chunks, 1)
         self.setWindowTitle("Ses üretiliyor")
         self.setModal(False)

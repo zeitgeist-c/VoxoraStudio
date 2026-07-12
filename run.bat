@@ -1,6 +1,12 @@
 @echo off
 REM txttoTTS launcher
 REM Eksik paket varsa veya NVIDIA PC'de CUDA aktif degilse kurulumu otomatik tamamlar.
+REM Cift tiklandiginda kalici bir terminal penceresi gostermeden calistir.
+REM Hata ayiklamak icin: set TXTOTTS_SHOW_CONSOLE=1 && run.bat
+if not defined TXTOTTS_HIDDEN if not defined TXTOTTS_SHOW_CONSOLE (
+    start "" wscript.exe "%~dp0run_hidden.vbs"
+    exit /b
+)
 
 cd /d "%~dp0"
 set "PROJECT_ROOT=%CD%"
