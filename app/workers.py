@@ -5,6 +5,7 @@ txttoTTS - arka plan iş parçacıkları.
   - TqdmProgressBridge: terminal tqdm çıktısını Qt sinyaline çevirir
   - SynthWorker: sentez işlemini UI'ı bloklamadan yapar
   - EngineLoader: motor yükleme uzun sürerse ayrı thread'de çalıştırır
+  - CompressWorker: ses sıkıştırma işlemini UI'ı bloklamadan yapar
 """
 from __future__ import annotations
 
@@ -16,9 +17,10 @@ import time
 
 from PyQt6.QtCore import QThread, pyqtSignal
 
+import audio_compressor
 from tts_engine import TTSEngine
 
-__all__ = ["TqdmProgressBridge", "SynthWorker", "EngineLoader"]
+__all__ = ["TqdmProgressBridge", "SynthWorker", "EngineLoader", "CompressWorker"]
 
 log = logging.getLogger(__name__)
 
@@ -120,6 +122,9 @@ class SynthWorker(QThread):
                     }
                     engine_settings = {k: v for k, v in raw.items() if k in allowed}
                     wav, s = self.engine.synthesize(text_chunk, **engine_settings)
+                if self._cancel_requested:
+                    self.cancelled.emit("?retim kullan?c? taraf?ndan durduruldu.")
+                    return
                 elapsed = time.perf_counter() - started_at
                 wav_cpu = wav.cpu()
                 waves.append(wav_cpu)
@@ -170,3 +175,36 @@ class EngineLoader(QThread):
         self.status.emit(message)
         if self._status_callback:
             self._status_callback(message)
+
+
+class CompressWorker(QThread):
+    """Ses dosyalarını arka planda sıkıştırır."""
+
+    file_done = pyqtSignal(object)
+    all_finished = pyqtSignal()
+    cancelled = pyqtSignal()
+
+    def __init__(self, file_paths: list[str], bitrate: str = "48k", channels: int = 1, output_dir: str | None = None):
+        super().__init__()
+        self.file_paths = file_paths
+        self.bitrate = bitrate
+        self.channels = channels
+        self.output_dir = output_dir
+        self._cancel_requested = False
+
+    def request_cancel(self):
+        self._cancel_requested = True
+
+    def run(self):
+        for path in self.file_paths:
+            if self._cancel_requested:
+                self.cancelled.emit()
+                return
+            result = audio_compressor.compress_to_opus(
+                path, bitrate=self.bitrate, channels=self.channels, output_dir=self.output_dir
+            )
+            self.file_done.emit(result)
+        if self._cancel_requested:
+            self.cancelled.emit()
+            return
+        self.all_finished.emit()
