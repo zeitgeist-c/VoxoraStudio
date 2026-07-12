@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 
 import numpy as np
 import sounddevice as sd
@@ -16,11 +17,30 @@ import torch
 
 log = logging.getLogger(__name__)
 
+
+def _bundled_bin(name: str) -> str | None:
+    """Exe içine gömülü ffmpeg/ffprobe yolunu döndürür."""
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        p = os.path.join(sys._MEIPASS, "bin", name)
+        if os.path.exists(p):
+            return p
+    return None
+
+
 # ffmpeg yoksa pydub MP3 okuyamaz; lazy import + uyarı.
 try:
     from pydub import AudioSegment
 
     _HAS_PYDUB = True
+    # Exe içine gömülü ffmpeg varsa pydub'a bildir
+    _ffmpeg = _bundled_bin("ffmpeg.exe")
+    _ffprobe = _bundled_bin("ffprobe.exe")
+    if _ffmpeg:
+        AudioSegment.converter = _ffmpeg
+        log.info("ffmpeg bundled: %s", _ffmpeg)
+    if _ffprobe:
+        AudioSegment.ffprobe = _ffprobe
+        log.info("ffprobe bundled: %s", _ffprobe)
 except Exception as e:
     _HAS_PYDUB = False
     log.warning("pydub yüklenemedi: %s (MP3 çalma/kayıt devre dışı)", e)

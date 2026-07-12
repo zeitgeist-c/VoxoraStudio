@@ -15,3 +15,5 @@ DEFAULT_MAX_CHARS_PER_CHUNK = 400
 # Çıktı
 DEFAULT_OUTPUT_DIR = "outputs"
 DEFAULT_LOG_DIR = "logs"
+
+
