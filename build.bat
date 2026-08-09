@@ -1,6 +1,6 @@
 @echo off
 REM Voxora Studio PyInstaller build - .exe uretimi
-REM Uyari: Olusan klasor ~5 GB olabilir (torch + CUDA DLL'leri icerir).
+REM Hizli acilan tasinabilir klasor + es adli EXE/BAT uretir.
 REM Cikti: dist\VoxoraStudio-X.Y.Z\VoxoraStudio-X.Y.Z.exe + .bat
 
 cd /d "%~dp0"
@@ -56,14 +56,11 @@ echo.
     --hidden-import "pydub" ^
     --hidden-import "send2trash" ^
     --hidden-import "numpy" ^
-    --collect-all "torch" ^
-    --collect-all "torchaudio" ^
     --collect-all "perth" ^
     --exclude-module "matplotlib" ^
     --exclude-module "pandas" ^
     --exclude-module "notebook" ^
     --exclude-module "IPython" ^
-    --exclude-module "setuptools" ^
     --exclude-module "pip" ^
     --copy-metadata "requests" ^
     --add-data "bin;bin" ^

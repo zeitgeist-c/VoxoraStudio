@@ -1,6 +1,20 @@
 Voxora Studio versiyon günlüğü
 =======================
 
+v0.3.2 (2026-08-09) — Hızlı ve konsolsuz başlangıç
+- Her açılışta yüzlerce MB çıkaran `onefile` yerine optimize edilmiş `onedir` pakete dönüldü.
+- EXE pencere modunda üretildi; uygulama açıkken boş CMD penceresi kalmaz.
+- BAT eş adlı EXE'yi başlatır, argümanları iletir ve hemen kapanır.
+- PyTorch geliştirme dosyaları dışarıda ve Setuptools/Jaraco çalışma bağımlılıkları içeride tutuldu.
+
+v0.3.1 (2026-08-09) — Dağıtım paketi düzeltmesi
+- Teslim klasörü yalnızca sürümü eşleşen EXE ve BAT dosyalarını içerir.
+- BAT, yanındaki EXE'yi kendi dizininden çalıştırır ve tüm argümanları iletir.
+- PyInstaller `onefile` paketine geçirildi; PyTorch geliştirme `.lib` ve header dosyalarının gereksiz paketlenmesi engellendi.
+- Test BAT'ı başlangıç ve hata çıktısını gösterebilsin diye kararlı EXE konsol destekli üretildi.
+- PyInstaller `pkg_resources` başlangıcı için gereken Setuptools/Jaraco bileşenleri pakette korundu.
+- Başka bilgisayara taşınabilen sürümlü ZIP/EXE teslim akışı yeniden doğrulandı.
+
 v0.3.0 (2026-08-09) — Voxora Studio kararlı marka ve arayüz sürümü
 - Uygulama kimliği önceki ürün adından Voxora Studio'ya taşındı; yeni logo, ikonlar ve modern tema eklendi.
 - Üretim, arşiv, sıkıştırma ve ayar ekranları yeniden düzenlendi; dar pencere yerleşimleri sağlamlaştırıldı.

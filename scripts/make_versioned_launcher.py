@@ -18,6 +18,7 @@ def launcher_text(exe_name: str) -> str:
         "setlocal\r\n"
         "cd /d \"%~dp0\"\r\n"
         f"start \"Voxora Studio\" \"%~dp0{exe_name}\" %*\r\n"
+        "exit /b 0\r\n"
     )
 
 
