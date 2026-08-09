@@ -23,21 +23,26 @@ class BrandingContractTests(unittest.TestCase):
             "Chatterbox Multilingual • Yerel üretim",
         )
         self.assertEqual(branding.LOG_FILENAME, "VoxoraStudio.log")
-        self.assertEqual(branding.__version__, "0.3.0")
-        self.assertEqual(branding.PACKAGE_STEM, "VoxoraStudio-0.3.0")
-        self.assertEqual(branding.EXECUTABLE_NAME, "VoxoraStudio-0.3.0.exe")
+        self.assertEqual(branding.__version__, "0.3.2")
+        self.assertEqual(branding.PACKAGE_STEM, "VoxoraStudio-0.3.2")
+        self.assertEqual(branding.EXECUTABLE_NAME, "VoxoraStudio-0.3.2.exe")
 
     def test_release_build_is_driven_by_authoritative_version(self):
         build_text = (REPO_ROOT / "build.bat").read_text(encoding="utf-8")
         self.assertIn('findstr /b "__version__" app\\version.py', build_text)
         self.assertIn('set "PACKAGE_STEM=VoxoraStudio-%APP_VERSION%"', build_text)
         self.assertIn("scripts\\make_versioned_launcher.py", build_text)
+        self.assertIn("--onedir", build_text)
+        self.assertIn("--noconsole", build_text)
+        self.assertNotIn('--collect-all "torch"', build_text)
+        self.assertNotIn('--exclude-module "setuptools"', build_text)
 
     def test_versioned_launcher_targets_exact_matching_exe(self):
         from scripts.make_versioned_launcher import launcher_text
 
         launcher = launcher_text(branding.EXECUTABLE_NAME)
         self.assertIn(f'"%~dp0{branding.EXECUTABLE_NAME}" %*', launcher)
+        self.assertTrue(launcher.endswith("exit /b 0\r\n"))
 
 
 class LegacyBrandGuardTests(unittest.TestCase):
