@@ -1,162 +1,825 @@
-"""Central visual theme and reusable UI styling for txttoTTS."""
+"""Central design tokens and application styling for Voxora Studio."""
 from __future__ import annotations
 
-import sys
-from pathlib import Path
+from copy import deepcopy
+from typing import Any
 
-from PyQt6.QtGui import QColor, QIcon, QPalette, QPixmap
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QColor, QPalette
 
-ACCENT = "#7c5cff"
-
-
-def asset_path(filename: str) -> str:
-    """Return an asset path that works in source and PyInstaller builds."""
-    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-        base = Path(sys._MEIPASS) / "app" / "assets"
-    else:
-        base = Path(__file__).resolve().parent / "assets"
-    return str(base / filename)
-
-
-def application_icon() -> QIcon:
-    """Return the shared txttoTTS brand icon."""
-    return QIcon(asset_path("txttotts-logo.png"))
+from .icons import (
+    action_icon,
+    application_icon,
+    apply_icon,
+    asset_path,
+    button_icon,
+    menu_icon,
+    navigation_icon,
+    ui_icon,
+)
 
 
-_NAV_PATHS = {
-    "generate": '<path d="M12 2l1.3 4.2L17.5 7.5l-4.2 1.3L12 13l-1.3-4.2L6.5 7.5l4.2-1.3L12 2Z"/><path d="M18.5 14l.8 2.7 2.7.8-2.7.8-.8 2.7-.8-2.7-2.7-.8 2.7-.8.8-2.7Z"/>',
-    "history": '<circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/>',
-    "compress": '<path d="M8 3v5H3M16 3v5h5M8 21v-5H3M16 21v-5h5"/><path d="M8 8 4 4M16 8l4-4M8 16l-4 4M16 16l4 4"/>',
-    "settings": '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3v-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.09A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.14.37.36.71.66 1 .3.29.68.48 1.1.54H21v4h-.09A1.7 1.7 0 0 0 19.4 15Z"/>',
-    "menu": '<path d="M4 7h16M4 12h16M4 17h16"/>',
+# Brand colors live with the visual system rather than being repeated in QSS.
+ACCENT = "#8B5CF6"
+ACCENT_SECONDARY = "#22D3EE"
+
+_STRUCTURE_TOKENS: dict[str, dict[str, int]] = {
+    "radius": {
+        "small": 7,
+        "medium": 10,
+        "large": 14,
+        "card": 16,
+        "pill": 999,
+    },
+    "spacing": {
+        "xxs": 4,
+        "xs": 6,
+        "sm": 8,
+        "md": 12,
+        "lg": 16,
+        "xl": 20,
+        "xxl": 24,
+    },
+    "control": {
+        "small_height": 30,
+        "medium_height": 38,
+        "large_height": 46,
+        "icon_size": 18,
+    },
+    "motion": {
+        "fast_ms": 120,
+        "standard_ms": 160,
+        "sidebar_ms": 180,
+    },
 }
 
+_DARK_COLORS = {
+    "window": "#080A12",
+    "surface": "#0E1220",
+    "surface_alt": "#131929",
+    "surface_raised": "#192137",
+    "surface_hover": "#202A43",
+    "sidebar": "#090C17",
+    "sidebar_hover": "#151C30",
+    "sidebar_active": "#211B3A",
+    "border": "#252E46",
+    "border_strong": "#3C4968",
+    "divider": "#1C2437",
+    "text": "#F7F8FC",
+    "text_secondary": "#C0C7D8",
+    "text_muted": "#8E99B0",
+    "text_disabled": "#596276",
+    "placeholder": "#68738A",
+    "accent": ACCENT,
+    "accent_hover": "#9F86FA",
+    "accent_pressed": "#7149E6",
+    "accent_soft": "#2A204A",
+    "accent_border": "#6F56C9",
+    "accent_text": "#FFFFFF",
+    "secondary": ACCENT_SECONDARY,
+    "secondary_hover": "#67E8F9",
+    "secondary_soft": "#102C38",
+    "selection": "#49368C",
+    "selection_text": "#FFFFFF",
+    "focus": "#A78BFA",
+    "danger": "#FF7389",
+    "danger_hover": "#FF8EA0",
+    "danger_pressed": "#E34F69",
+    "danger_soft": "#351923",
+    "danger_border": "#743143",
+    "warning": "#F6C85F",
+    "warning_soft": "#2B2415",
+    "warning_border": "#70591F",
+    "success": "#54D6A1",
+    "success_soft": "#123126",
+    "success_border": "#256A50",
+    "info": "#67C7FF",
+    "info_soft": "#122A3A",
+    "info_border": "#255E7C",
+    "scrollbar": "#3C4760",
+    "scrollbar_hover": "#596783",
+}
 
-def _line_icon(path_data: str, color: str) -> QPixmap:
-    svg = f'''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">{path_data}</svg>'''
-    pixmap = QPixmap()
-    pixmap.loadFromData(svg.encode("utf-8"), "SVG")
-    return pixmap
+_LIGHT_COLORS = {
+    "window": "#F3F5FA",
+    "surface": "#FFFFFF",
+    "surface_alt": "#F7F8FC",
+    "surface_raised": "#EEF1F8",
+    "surface_hover": "#E7EBF5",
+    "sidebar": "#FBFCFF",
+    "sidebar_hover": "#F0F2FA",
+    "sidebar_active": "#EEE9FF",
+    "border": "#DCE1EC",
+    "border_strong": "#B9C2D4",
+    "divider": "#E8EBF2",
+    "text": "#181B26",
+    "text_secondary": "#3E4658",
+    "text_muted": "#667085",
+    "text_disabled": "#9AA3B3",
+    "placeholder": "#8A94A6",
+    "accent": "#7652E8",
+    "accent_hover": "#6844DB",
+    "accent_pressed": "#5937C7",
+    "accent_soft": "#EEE9FF",
+    "accent_border": "#A993F2",
+    "accent_text": "#FFFFFF",
+    "secondary": "#087F9A",
+    "secondary_hover": "#086A81",
+    "secondary_soft": "#E4F8FC",
+    "selection": "#DCD2FF",
+    "selection_text": "#201742",
+    "focus": "#7652E8",
+    "danger": "#C93855",
+    "danger_hover": "#B62845",
+    "danger_pressed": "#9E213B",
+    "danger_soft": "#FFF0F3",
+    "danger_border": "#E9A6B3",
+    "warning": "#8A6110",
+    "warning_soft": "#FFF8DF",
+    "warning_border": "#E4C76F",
+    "success": "#167A56",
+    "success_soft": "#E9F9F2",
+    "success_border": "#8ACDAF",
+    "info": "#176B96",
+    "info_soft": "#EAF7FD",
+    "info_border": "#8FCBE7",
+    "scrollbar": "#B7C0D1",
+    "scrollbar_hover": "#929DB1",
+}
+
+# Public snapshots are intentionally read-only by convention.  Use
+# ``theme_tokens`` to receive a defensive copy for local calculations.
+DARK_THEME_TOKENS = {"name": "dark", "colors": _DARK_COLORS, **_STRUCTURE_TOKENS}
+LIGHT_THEME_TOKENS = {"name": "light", "colors": _LIGHT_COLORS, **_STRUCTURE_TOKENS}
+THEME_TOKENS = {"dark": DARK_THEME_TOKENS, "light": LIGHT_THEME_TOKENS}
 
 
-def navigation_icon(name: str) -> QIcon:
-    """Return a crisp icon with separate normal and selected colors."""
-    path_data = _NAV_PATHS[name]
-    icon = QIcon()
-    icon.addPixmap(_line_icon(path_data, "#aeb5c5"), QIcon.Mode.Normal, QIcon.State.Off)
-    icon.addPixmap(_line_icon(path_data, "#d8d0ff"), QIcon.Mode.Normal, QIcon.State.On)
-    return icon
+def _system_theme(app) -> str:
+    """Resolve and remember the native color scheme before we replace it."""
+    if app is None:
+        return "dark"
+
+    try:
+        remembered = app.property("voxoraSystemTheme")
+    except (AttributeError, RuntimeError):
+        remembered = None
+
+    resolved: str | None = None
+    try:
+        scheme = app.styleHints().colorScheme()
+        scheme_name = getattr(scheme, "name", str(scheme)).lower()
+        if scheme == Qt.ColorScheme.Dark or "dark" in scheme_name:
+            resolved = "dark"
+        elif scheme == Qt.ColorScheme.Light or "light" in scheme_name:
+            resolved = "light"
+    except (AttributeError, RuntimeError, TypeError):
+        pass
+
+    # Older Qt releases do not expose colorScheme().  In that case retain the
+    # palette result captured before Voxora first installed its own palette.
+    if resolved is None and remembered in {"dark", "light"}:
+        return remembered
+
+    if resolved is None:
+        try:
+            window = app.palette().color(QPalette.ColorRole.Window)
+            text = app.palette().color(QPalette.ColorRole.WindowText)
+            # Relative lightness is more reliable for high-contrast palettes.
+            resolved = "dark" if window.lightness() < text.lightness() else "light"
+        except (AttributeError, RuntimeError, TypeError):
+            resolved = "dark"
+
+    try:
+        app.setProperty("voxoraSystemTheme", resolved)
+    except (AttributeError, RuntimeError):
+        pass
+    return resolved
 
 
-def menu_icon() -> QIcon:
-    return QIcon(_line_icon(_NAV_PATHS["menu"], "#d8d0ff"))
+def resolve_theme(app, theme: str | None) -> str:
+    """Resolve ``light``, ``dark`` or ``system`` to a concrete theme.
 
-def apply_application_theme(app, theme: str) -> str:
-    """Apply a light, dark or system-derived theme."""
-    app.setStyle("Fusion")
-    if theme == "system":
-        theme = "dark" if app.palette().color(QPalette.ColorRole.Window).lightness() < 128 else "light"
-    if theme not in {"light", "dark"}:
-        theme = "light"
-    dark = theme == "dark"
-    colors = {
-        "window": "#0b0d12" if dark else "#f3f5fa",
-        "base": "#11141b" if dark else "#ffffff",
-        "alt": "#181c25" if dark else "#edf0f7",
-        "text": "#f4f5f8" if dark else "#191c24",
-        "button": "#1b202b" if dark else "#ffffff",
-        "highlight": ACCENT if dark else "#6547e8",
-    }
+    Missing, malformed and future/unknown values deliberately fall back to the
+    cinematic dark theme, which is the safe default for a fresh installation.
+    """
+    requested = theme.strip().lower() if isinstance(theme, str) else ""
+    if requested == "system":
+        return _system_theme(app)
+    return requested if requested in {"dark", "light"} else "dark"
+
+
+def theme_tokens(theme: str | None, app=None) -> dict[str, Any]:
+    """Return a defensive token snapshot for a requested theme."""
+    resolved = resolve_theme(app, theme)
+    return deepcopy(THEME_TOKENS[resolved])
+
+
+def current_theme(app=None) -> str:
+    """Return the active resolved theme, defaulting safely to dark."""
+    if app is None:
+        try:
+            from PyQt6.QtWidgets import QApplication
+
+            app = QApplication.instance()
+        except (ImportError, RuntimeError):
+            app = None
+    if app is not None:
+        try:
+            active = app.property("voxoraTheme")
+            if active in {"dark", "light"}:
+                return active
+        except (AttributeError, RuntimeError):
+            pass
+    return "dark"
+
+
+def _application_palette(colors: dict[str, str]) -> QPalette:
     palette = QPalette()
-    for role, key in (
-        (QPalette.ColorRole.Window, "window"), (QPalette.ColorRole.Base, "base"),
-        (QPalette.ColorRole.AlternateBase, "alt"), (QPalette.ColorRole.Button, "button"),
-        (QPalette.ColorRole.WindowText, "text"), (QPalette.ColorRole.Text, "text"),
-        (QPalette.ColorRole.ButtonText, "text"), (QPalette.ColorRole.Highlight, "highlight"),
+    roles = {
+        QPalette.ColorRole.Window: "window",
+        QPalette.ColorRole.WindowText: "text",
+        QPalette.ColorRole.Base: "surface",
+        QPalette.ColorRole.AlternateBase: "surface_alt",
+        QPalette.ColorRole.ToolTipBase: "surface_raised",
+        QPalette.ColorRole.ToolTipText: "text",
+        QPalette.ColorRole.Text: "text",
+        QPalette.ColorRole.Button: "surface_raised",
+        QPalette.ColorRole.ButtonText: "text",
+        QPalette.ColorRole.BrightText: "accent_text",
+        QPalette.ColorRole.Light: "surface_hover",
+        QPalette.ColorRole.Midlight: "surface_raised",
+        QPalette.ColorRole.Mid: "border",
+        QPalette.ColorRole.Dark: "border_strong",
+        QPalette.ColorRole.Shadow: "window",
+        QPalette.ColorRole.Highlight: "accent",
+        QPalette.ColorRole.HighlightedText: "selection_text",
+        QPalette.ColorRole.Link: "secondary",
+        QPalette.ColorRole.LinkVisited: "accent",
+        QPalette.ColorRole.PlaceholderText: "placeholder",
+    }
+    for role, token in roles.items():
+        palette.setColor(role, QColor(colors[token]))
+
+    for role in (
+        QPalette.ColorRole.WindowText,
+        QPalette.ColorRole.Text,
+        QPalette.ColorRole.ButtonText,
+        QPalette.ColorRole.PlaceholderText,
     ):
-        palette.setColor(role, QColor(colors[key]))
-    palette.setColor(QPalette.ColorRole.HighlightedText, QColor("#ffffff"))
-    palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(colors["alt"]))
-    palette.setColor(QPalette.ColorRole.ToolTipText, QColor(colors["text"]))
-    palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text, QColor("#737988"))
-    palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, QColor("#737988"))
-    app.setPalette(palette)
-    app.setStyleSheet(_stylesheet(theme))
-    return theme
+        palette.setColor(QPalette.ColorGroup.Disabled, role, QColor(colors["text_disabled"]))
+    palette.setColor(
+        QPalette.ColorGroup.Disabled,
+        QPalette.ColorRole.Button,
+        QColor(colors["surface_alt"]),
+    )
+    palette.setColor(
+        QPalette.ColorGroup.Disabled,
+        QPalette.ColorRole.Highlight,
+        QColor(colors["border_strong"]),
+    )
+    return palette
+
+
+def apply_application_theme(app, theme: str | None) -> str:
+    """Apply a tokenized theme and return the resolved ``dark``/``light`` name."""
+    if app is not None:
+        _system_theme(app)
+    resolved = resolve_theme(app, theme)
+    if app is None:
+        return resolved
+
+    tokens = THEME_TOKENS[resolved]
+    colors = tokens["colors"]
+    app.setStyle("Fusion")
+    app.setProperty("voxoraTheme", resolved)
+    app.setProperty("voxoraIconForeground", colors["text"])
+    app.setProperty("voxoraIconMuted", colors["text_muted"])
+    app.setProperty("voxoraIconAccent", colors["accent_hover"])
+    app.setProperty("voxoraIconDanger", colors["danger"])
+    app.setProperty("voxoraIconContrast", colors["accent_text"])
+    app.setProperty("voxoraIconDisabled", colors["text_disabled"])
+    app.setPalette(_application_palette(colors))
+    app.setStyleSheet(_stylesheet(resolved))
+
+    # Theme-aware QIconEngine instances read the properties above.  Scheduling
+    # a repaint makes already-mounted icons update in the same theme pass.
+    try:
+        for widget in app.allWidgets():
+            refresh_icon = getattr(widget, "refresh_icon", None)
+            if callable(refresh_icon):
+                refresh_icon()
+            widget.update()
+    except (AttributeError, RuntimeError):
+        pass
+    return resolved
 
 
 def _stylesheet(theme: str) -> str:
-    dark = theme == "dark"
-    bg = "#0b0d12" if dark else "#f3f5fa"
-    surface = "#12151d" if dark else "#ffffff"
-    surface_2 = "#191d27" if dark else "#f6f7fb"
-    border = "#292e3b" if dark else "#dfe3ec"
-    text = "#f4f5f8" if dark else "#191c24"
-    muted = "#9ba3b4" if dark else "#667085"
-    hover = "#242938" if dark else "#e9eaf5"
-    danger = "#ff5d73" if dark else "#d92d4a"
-    spin_up = asset_path("spin-up.svg").replace("\\", "/")
-    spin_down = asset_path("spin-down.svg").replace("\\", "/")
+    t = THEME_TOKENS[resolve_theme(None, theme)]
+    c = t["colors"]
+    r = t["radius"]
+    s = t["spacing"]
+    h = t["control"]
+
     return f"""
-    * {{ font-family: 'Segoe UI'; font-size: 10pt; }}
-    QMainWindow, QDialog {{ background: {bg}; color: {text}; }}
-    QWidget#appShell, QWidget#pageRoot {{ background: {bg}; }}
-    QFrame#sidebar {{ background: #0f1118; border-right: 1px solid {border}; }}
-    QLabel#brandTitle {{ font-size: 10pt; font-weight: 700; color: #ffffff; }}
-    QLabel#brandSubtitle {{ color: {muted}; font-size: 8pt; }}
-    QLabel[muted="true"] {{ color: {muted}; }}
-    QLabel#pageTitle {{ font-size: 20pt; font-weight: 700; color: {text}; }}
-    QLabel#pageSubtitle {{ color: {muted}; }}
-    QPushButton {{ background: {surface_2}; color: {text}; border: 1px solid {border}; border-radius: 8px; padding: 8px 13px; min-height: 18px; }}
-    QPushButton:hover {{ background: {hover}; border-color: #484f62; }}
-    QPushButton:pressed {{ background: #30364a; }}
-    QPushButton:disabled {{ color: #737988; background: {surface}; border-color: {border}; }}
-    QPushButton[primary="true"] {{ background: {ACCENT}; color: white; border-color: {ACCENT}; font-weight: 700; }}
-    QPushButton[primary="true"]:hover {{ background: #8c73ff; border-color: #8c73ff; }}
-    QPushButton[danger="true"] {{ color: {danger}; }}
-    QPushButton[nav="true"] {{ background: transparent; border: none; text-align: left; color: #aeb5c5; padding: 11px 6px; font-weight: 600; }}
-    QPushButton[nav="true"]:hover {{ background: #191d28; color: white; }}
-    QPushButton[nav="true"]:checked {{ background: #25203d; color: #cfc5ff; border-left: 3px solid {ACCENT}; }}
-    QPushButton[nav="true"][collapsed="true"] {{ text-align: center; padding: 0; border-radius: 8px; }}
-    QPushButton[nav="true"][collapsed="true"]:checked {{ background: #25203d; border-left: none; border-bottom: 2px solid {ACCENT}; }}
-    QPushButton[collapsed="true"] {{ padding: 0; }}
-    QGroupBox {{ background: {surface}; border: 1px solid {border}; border-radius: 12px; margin-top: 12px; padding: 18px 14px 14px; font-weight: 700; }}
-    QGroupBox::title {{ subcontrol-origin: margin; left: 14px; padding: 0 6px; color: {text}; }}
-    QTextEdit, QPlainTextEdit, QLineEdit, QListWidget, QComboBox, QDoubleSpinBox {{ background: {surface_2}; color: {text}; border: 1px solid {border}; border-radius: 8px; padding: 7px; selection-background-color: {ACCENT}; }}
-    QTextEdit:focus, QPlainTextEdit:focus, QLineEdit:focus, QListWidget:focus, QComboBox:focus, QDoubleSpinBox:focus {{ border-color: {ACCENT}; }}
-    QListWidget::item {{ padding: 9px; border-bottom: 1px solid {border}; }}
-    QListWidget::item:selected {{ background: #332a57; color: white; border-radius: 5px; }}
-    QComboBox::drop-down {{ border: none; width: 26px; }}
-    QDoubleSpinBox {{ padding-right: 28px; }}
-    QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {{
-        subcontrol-origin: border; width: 24px; background: {surface};
-        border-left: 1px solid {border};
+    * {{
+        font-family: "Segoe UI Variable Text", "Segoe UI";
+        font-size: 10pt;
     }}
-    QDoubleSpinBox::up-button {{ subcontrol-position: top right; border-top-right-radius: 7px; border-bottom: 1px solid {border}; }}
-    QDoubleSpinBox::down-button {{ subcontrol-position: bottom right; border-bottom-right-radius: 7px; }}
-    QDoubleSpinBox::up-button:hover, QDoubleSpinBox::down-button:hover {{ background: {hover}; }}
-    QDoubleSpinBox::up-arrow {{ image: url("{spin_up}"); width: 10px; height: 7px; }}
-    QDoubleSpinBox::down-arrow {{ image: url("{spin_down}"); width: 10px; height: 7px; }}
-    QProgressBar {{ background: {surface_2}; border: none; border-radius: 5px; height: 10px; text-align: center; }}
-    QProgressBar::chunk {{ background: {ACCENT}; border-radius: 5px; }}
-    QScrollArea {{ border: none; background: transparent; }}
-    QScrollBar:vertical {{ background: transparent; width: 10px; margin: 3px; }}
-    QScrollBar::handle:vertical {{ background: #454b5b; border-radius: 4px; min-height: 30px; }}
-    QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
-    QFrame#statusBar {{ background: {surface}; border-top: 1px solid {border}; }}
-    QFrame#voiceWarningPanel {{ background: #2b2416; border: 1px solid #735c20; border-radius: 10px; }}
-    QFrame#voiceWarningPanel QLabel {{ color: #f2cf75; }}
-    QToolTip {{ background: {surface_2}; color: {text}; border: 1px solid {border}; padding: 5px; }}
+    QWidget {{
+        color: {c['text']};
+        selection-background-color: {c['selection']};
+        selection-color: {c['selection_text']};
+    }}
+    QWidget:disabled {{ color: {c['text_disabled']}; }}
+    QMainWindow, QDialog, QMessageBox {{
+        background: {c['window']};
+        color: {c['text']};
+    }}
+    QWidget#appShell, QWidget#pageRoot {{ background: {c['window']}; }}
+    QWidget#pageBody, QStackedWidget#workspacePages, QStackedWidget#pageActionStack {{
+        background: transparent;
+        border: none;
+    }}
+    QStackedWidget {{ background: transparent; border: none; }}
+
+    /* Sidebar and brand lockup */
+    QFrame#sidebar {{
+        background: {c['sidebar']};
+        border: none;
+        border-right: 1px solid {c['divider']};
+    }}
+    QLabel#brandTitle {{
+        color: {c['text']};
+        font-size: 11pt;
+        font-weight: 750;
+    }}
+    QLabel#brandSubtitle, QLabel#sidebarAttribution {{
+        color: {c['text_muted']};
+        font-size: 8pt;
+        font-weight: 600;
+    }}
+    QPushButton[nav="true"] {{
+        background: transparent;
+        color: {c['text_muted']};
+        border: 1px solid transparent;
+        border-radius: {r['medium']}px;
+        padding: {s['md'] - 2}px {s['sm'] + 1}px;
+        text-align: left;
+        font-weight: 650;
+    }}
+    QPushButton[nav="true"]:hover {{
+        background: {c['sidebar_hover']};
+        color: {c['text']};
+        border-color: {c['border']};
+    }}
+    QPushButton[nav="true"]:pressed {{ background: {c['surface_hover']}; }}
+    QPushButton[nav="true"]:focus {{ border-color: {c['focus']}; }}
+    QPushButton[nav="true"]:checked {{
+        background: {c['sidebar_active']};
+        color: {c['accent_hover']};
+        border-color: {c['accent_border']};
+        border-left: 3px solid {c['accent']};
+    }}
+    QPushButton[nav="true"][collapsed="true"] {{
+        padding: 0;
+        text-align: center;
+    }}
+    QPushButton[nav="true"][collapsed="true"]:checked {{
+        border-left: 1px solid {c['accent_border']};
+        border-bottom: 3px solid {c['accent']};
+    }}
+    QPushButton[collapsed="true"] {{ padding: 0; }}
+
+    /* Typography and reusable surfaces */
+    QLabel {{ background: transparent; color: {c['text']}; }}
+    QLabel[muted="true"], QLabel#cardSubtitle, QLabel#pageSubtitle,
+    QLabel#dialogSubtitle, QLabel#dialogStatus {{ color: {c['text_muted']}; }}
+    QLabel#pageTitle {{
+        color: {c['text']};
+        font-size: 22pt;
+        font-weight: 760;
+    }}
+    QLabel#pageSubtitle {{ font-size: 10pt; }}
+    QLabel#cardTitle {{ color: {c['text']}; font-size: 12pt; font-weight: 700; }}
+    QLabel#cardSubtitle {{ font-size: 9pt; }}
+    QLabel#dialogTitle {{ color: {c['text']}; font-size: 15pt; font-weight: 750; }}
+    QLabel#dialogGuidance {{ color: {c['text_secondary']}; }}
+    QFrame#pageHeader, QWidget#pageHeaderActions {{ background: transparent; border: none; }}
+    QFrame#sectionCard, QGroupBox {{
+        background: {c['surface']};
+        border: 1px solid {c['border']};
+        border-radius: {r['card']}px;
+    }}
+    QGroupBox {{
+        margin-top: 14px;
+        padding: 18px 14px 14px 14px;
+        font-weight: 700;
+    }}
+    QGroupBox::title {{
+        subcontrol-origin: margin;
+        subcontrol-position: top left;
+        left: 14px;
+        padding: 0 7px;
+        color: {c['text']};
+        background: {c['surface']};
+    }}
+    QFrame#waveformView, QWidget#waveformView {{
+        background: {c['surface_alt']};
+        border: 1px solid {c['border']};
+        border-radius: {r['large']}px;
+    }}
+
+    /* Semantic status pills */
+    QLabel#statusPill {{
+        color: {c['text_secondary']};
+        background: {c['surface_raised']};
+        border: 1px solid {c['border']};
+        border-radius: 12px;
+        padding: 2px 9px;
+        font-size: 8.5pt;
+        font-weight: 700;
+    }}
+    QLabel#statusPill[tone="info"] {{ color: {c['info']}; background: {c['info_soft']}; border-color: {c['info_border']}; }}
+    QLabel#statusPill[tone="success"] {{ color: {c['success']}; background: {c['success_soft']}; border-color: {c['success_border']}; }}
+    QLabel#statusPill[tone="warning"] {{ color: {c['warning']}; background: {c['warning_soft']}; border-color: {c['warning_border']}; }}
+    QLabel#statusPill[tone="danger"] {{ color: {c['danger']}; background: {c['danger_soft']}; border-color: {c['danger_border']}; }}
+
+    /* Buttons: secondary is the safe default */
+    QPushButton, QToolButton {{
+        min-height: {h['medium_height'] - 18}px;
+        padding: {s['sm']}px {s['lg'] - 2}px;
+        color: {c['text']};
+        background: {c['surface_raised']};
+        border: 1px solid {c['border']};
+        border-radius: {r['medium']}px;
+        font-weight: 650;
+    }}
+    QPushButton:hover, QToolButton:hover {{
+        color: {c['text']};
+        background: {c['surface_hover']};
+        border-color: {c['border_strong']};
+    }}
+    QPushButton:pressed, QToolButton:pressed {{
+        background: {c['surface_alt']};
+        border-color: {c['accent_border']};
+        padding-top: 9px;
+        padding-bottom: 7px;
+    }}
+    QPushButton:focus, QToolButton:focus {{ border: 2px solid {c['focus']}; }}
+    QPushButton:disabled, QToolButton:disabled {{
+        color: {c['text_disabled']};
+        background: {c['surface_alt']};
+        border-color: {c['border']};
+    }}
+    QPushButton#actionButton[size="small"] {{ min-height: {h['small_height'] - 14}px; padding: 6px 10px; font-size: 9pt; }}
+    QPushButton#actionButton[size="large"] {{ min-height: {h['large_height'] - 18}px; padding: 10px 18px; font-size: 10.5pt; }}
+
+    QPushButton#actionButton[variant="primary"],
+    QPushButton[buttonRole="primary"], QPushButton[primary="true"] {{
+        color: {c['accent_text']};
+        background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+            stop:0 {c['accent']}, stop:1 {c['secondary']});
+        border: 1px solid {c['accent_hover']};
+        font-weight: 750;
+    }}
+    QPushButton#actionButton[variant="primary"]:hover,
+    QPushButton[buttonRole="primary"]:hover, QPushButton[primary="true"]:hover {{
+        background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+            stop:0 {c['accent_hover']}, stop:1 {c['secondary_hover']});
+        border: 2px solid {c['accent_hover']};
+    }}
+    QPushButton#actionButton[variant="primary"]:pressed,
+    QPushButton[buttonRole="primary"]:pressed, QPushButton[primary="true"]:pressed {{
+        background: {c['accent_pressed']};
+        border-color: {c['accent_pressed']};
+    }}
+    QPushButton#actionButton[variant="primary"]:focus,
+    QPushButton[buttonRole="primary"]:focus, QPushButton[primary="true"]:focus {{
+        border: 2px solid {c['accent_text']};
+    }}
+    QPushButton#actionButton[variant="secondary"], QPushButton[buttonRole="secondary"] {{
+        color: {c['text']};
+        background: {c['surface_raised']};
+        border-color: {c['border_strong']};
+    }}
+    QPushButton#actionButton[variant="secondary"]:hover, QPushButton[buttonRole="secondary"]:hover {{
+        color: {c['accent_hover']};
+        background: {c['accent_soft']};
+        border-color: {c['accent_border']};
+    }}
+    QPushButton#actionButton[variant="ghost"], QPushButton[buttonRole="ghost"] {{
+        color: {c['text_secondary']};
+        background: transparent;
+        border-color: transparent;
+    }}
+    QPushButton#actionButton[variant="ghost"]:hover, QPushButton[buttonRole="ghost"]:hover {{
+        color: {c['text']};
+        background: {c['surface_hover']};
+        border-color: {c['border']};
+    }}
+    QPushButton#actionButton[variant="icon"], QPushButton[buttonRole="icon"] {{
+        min-width: {h['medium_height']}px;
+        max-width: {h['medium_height']}px;
+        padding: 0;
+        background: transparent;
+        border-color: transparent;
+    }}
+    QPushButton#actionButton[variant="icon"][size="small"] {{
+        min-width: {h['small_height']}px;
+        max-width: {h['small_height']}px;
+    }}
+    QPushButton#actionButton[variant="icon"][size="large"] {{
+        min-width: {h['large_height']}px;
+        max-width: {h['large_height']}px;
+    }}
+    QPushButton#actionButton[variant="icon"]:hover, QPushButton[buttonRole="icon"]:hover {{
+        background: {c['surface_hover']};
+        border-color: {c['border']};
+    }}
+    QPushButton#actionButton[variant="destructive"], QPushButton[buttonRole="destructive"],
+    QPushButton[danger="true"] {{
+        color: {c['danger']};
+        background: {c['danger_soft']};
+        border-color: {c['danger_border']};
+    }}
+    QPushButton#actionButton[variant="destructive"]:hover,
+    QPushButton[buttonRole="destructive"]:hover, QPushButton[danger="true"]:hover {{
+        color: {c['accent_text']};
+        background: {c['danger_hover']};
+        border-color: {c['danger_hover']};
+    }}
+    QPushButton#actionButton[variant="destructive"]:pressed,
+    QPushButton[buttonRole="destructive"]:pressed, QPushButton[danger="true"]:pressed {{
+        color: {c['accent_text']};
+        background: {c['danger_pressed']};
+        border-color: {c['danger_pressed']};
+    }}
+    QPushButton#actionButton[variant="secondary"]:focus,
+    QPushButton#actionButton[variant="ghost"]:focus,
+    QPushButton#actionButton[variant="icon"]:focus,
+    QPushButton#actionButton[variant="destructive"]:focus,
+    QPushButton[buttonRole="secondary"]:focus,
+    QPushButton[buttonRole="ghost"]:focus,
+    QPushButton[buttonRole="icon"]:focus,
+    QPushButton[buttonRole="destructive"]:focus,
+    QPushButton[danger="true"]:focus {{ border: 2px solid {c['focus']}; }}
+    QPushButton#actionButton:disabled,
+    QPushButton[buttonRole="primary"]:disabled,
+    QPushButton[buttonRole="secondary"]:disabled,
+    QPushButton[buttonRole="ghost"]:disabled,
+    QPushButton[buttonRole="icon"]:disabled,
+    QPushButton[buttonRole="destructive"]:disabled,
+    QPushButton[primary="true"]:disabled, QPushButton[danger="true"]:disabled {{
+        color: {c['text_disabled']};
+        background: {c['surface_alt']};
+        border: 1px solid {c['border']};
+    }}
+    QPushButton[busy="true"] {{
+        color: {c['text_muted']};
+        background: {c['surface_raised']};
+        border-color: {c['border_strong']};
+    }}
+    QPushButton#actionButton[busy="true"][variant="primary"],
+    QPushButton[busy="true"][buttonRole="primary"] {{
+        color: {c['accent_text']};
+        background: {c['accent_pressed']};
+        border: 1px solid {c['accent_border']};
+    }}
+
+    /* Text, list and numeric controls */
+    QTextEdit, QPlainTextEdit, QLineEdit, QListWidget, QTreeWidget, QTableWidget,
+    QComboBox, QSpinBox, QDoubleSpinBox {{
+        color: {c['text']};
+        background: {c['surface_alt']};
+        border: 1px solid {c['border']};
+        border-radius: {r['medium']}px;
+        padding: {s['sm']}px {s['md'] - 2}px;
+    }}
+    QTextEdit:hover, QPlainTextEdit:hover, QLineEdit:hover, QListWidget:hover,
+    QComboBox:hover, QSpinBox:hover, QDoubleSpinBox:hover {{ border-color: {c['border_strong']}; }}
+    QTextEdit:focus, QPlainTextEdit:focus, QLineEdit:focus, QListWidget:focus,
+    QTreeWidget:focus, QTableWidget:focus, QComboBox:focus, QSpinBox:focus,
+    QDoubleSpinBox:focus {{ border: 2px solid {c['focus']}; }}
+    QTextEdit:disabled, QPlainTextEdit:disabled, QLineEdit:disabled, QListWidget:disabled,
+    QComboBox:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled {{
+        color: {c['text_disabled']};
+        background: {c['surface']};
+        border-color: {c['divider']};
+    }}
+    QListWidget::item, QTreeWidget::item {{
+        color: {c['text_secondary']};
+        padding: 9px 8px;
+        border: none;
+        border-bottom: 1px solid {c['divider']};
+    }}
+    QListWidget::item:hover, QTreeWidget::item:hover {{ background: {c['surface_hover']}; color: {c['text']}; }}
+    QListWidget::item:selected, QTreeWidget::item:selected {{
+        background: {c['selection']};
+        color: {c['selection_text']};
+        border-radius: {r['small']}px;
+    }}
+    QComboBox {{ padding-right: 30px; }}
+    QComboBox::drop-down {{ border: none; width: 28px; }}
+    QComboBox QAbstractItemView {{
+        color: {c['text']};
+        background: {c['surface_raised']};
+        border: 1px solid {c['border_strong']};
+        border-radius: {r['small']}px;
+        padding: 5px;
+        selection-background-color: {c['selection']};
+        selection-color: {c['selection_text']};
+    }}
+    QSpinBox, QDoubleSpinBox {{ padding-right: 29px; }}
+    QSpinBox::up-button, QSpinBox::down-button,
+    QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {{
+        subcontrol-origin: border;
+        width: 25px;
+        background: {c['surface']};
+        border-left: 1px solid {c['border']};
+    }}
+    QSpinBox::up-button, QDoubleSpinBox::up-button {{
+        subcontrol-position: top right;
+        border-top-right-radius: {r['small']}px;
+        border-bottom: 1px solid {c['border']};
+    }}
+    QSpinBox::down-button, QDoubleSpinBox::down-button {{
+        subcontrol-position: bottom right;
+        border-bottom-right-radius: {r['small']}px;
+    }}
+    QSpinBox::up-button:hover, QSpinBox::down-button:hover,
+    QDoubleSpinBox::up-button:hover, QDoubleSpinBox::down-button:hover {{ background: {c['surface_hover']}; }}
+
+    QCheckBox, QRadioButton {{ color: {c['text_secondary']}; spacing: 8px; }}
+    QCheckBox:hover, QRadioButton:hover {{ color: {c['text']}; }}
+    QCheckBox:disabled, QRadioButton:disabled {{ color: {c['text_disabled']}; }}
+    QSlider::groove:horizontal {{ height: 5px; background: {c['surface_raised']}; border-radius: 2px; }}
+    QSlider::sub-page:horizontal {{ background: {c['accent']}; border-radius: 2px; }}
+    QSlider::handle:horizontal {{
+        width: 16px;
+        margin: -6px 0;
+        background: {c['text']};
+        border: 2px solid {c['accent']};
+        border-radius: 8px;
+    }}
+    QSlider::handle:horizontal:hover {{ background: {c['accent_hover']}; border-color: {c['accent_hover']}; }}
+
+    /* Progress, scrolling and menus */
+    QProgressBar, QProgressBar#dialogProgress {{
+        min-height: 9px;
+        max-height: 9px;
+        color: transparent;
+        background: {c['surface_raised']};
+        border: none;
+        border-radius: 4px;
+        text-align: center;
+    }}
+    QProgressBar::chunk {{
+        background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+            stop:0 {c['accent']}, stop:1 {c['secondary']});
+        border-radius: 4px;
+    }}
+    QScrollArea, QAbstractScrollArea::viewport {{ background: transparent; border: none; }}
+    QScrollBar:vertical {{ background: transparent; width: 11px; margin: 3px; }}
+    QScrollBar:horizontal {{ background: transparent; height: 11px; margin: 3px; }}
+    QScrollBar::handle:vertical, QScrollBar::handle:horizontal {{
+        background: {c['scrollbar']};
+        border-radius: 4px;
+        min-height: 30px;
+        min-width: 30px;
+    }}
+    QScrollBar::handle:vertical:hover, QScrollBar::handle:horizontal:hover {{ background: {c['scrollbar_hover']}; }}
+    QScrollBar::add-line, QScrollBar::sub-line {{ width: 0; height: 0; }}
+    QMenu {{
+        color: {c['text']};
+        background: {c['surface_raised']};
+        border: 1px solid {c['border_strong']};
+        border-radius: {r['medium']}px;
+        padding: {s['xs']}px;
+    }}
+    QMenu::item {{ padding: 7px 24px 7px 10px; border-radius: {r['small']}px; }}
+    QMenu::item:selected {{ background: {c['selection']}; color: {c['selection_text']}; }}
+    QMenu::separator {{ height: 1px; background: {c['divider']}; margin: 5px 8px; }}
+
+    /* Warnings, dialogs and status chrome */
+    QFrame#voiceWarningPanel {{
+        background: {c['warning_soft']};
+        border: 1px solid {c['warning_border']};
+        border-radius: {r['large']}px;
+    }}
+    QFrame#voiceWarningPanel QLabel {{ color: {c['warning']}; }}
+    QFrame#voiceWarningPanel QLabel#warningTitle {{ font-weight: 750; }}
+    QDialog#modelLoadDialog, QDialog#voiceGuideDialog, QDialog#synthesisDialog {{
+        background: {c['window']};
+    }}
+    QFrame#sectionCard[context="dialogBody"], QWidget#dialogBody,
+    QFrame#dialogDetails, QPlainTextEdit#dialogDetails {{
+        color: {c['text_secondary']};
+        background: {c['surface']};
+        border: 1px solid {c['border']};
+        border-radius: {r['large']}px;
+    }}
+    QFrame#dialogActions, QWidget#dialogActions {{ background: transparent; border: none; }}
+    QMessageBox QLabel {{ color: {c['text']}; min-width: 260px; }}
+    QFrame#statusBar {{
+        background: {c['surface']};
+        border: none;
+        border-top: 1px solid {c['divider']};
+    }}
+    QLabel#statusMessage {{ color: {c['text_secondary']}; }}
+    QStatusBar {{ color: {c['text_muted']}; background: {c['surface']}; border-top: 1px solid {c['divider']}; }}
+    QToolTip {{
+        color: {c['text']};
+        background: {c['surface_raised']};
+        border: 1px solid {c['border_strong']};
+        border-radius: {r['small']}px;
+        padding: 6px 8px;
+    }}
     """
 
 
-def mark_muted(label) -> None:
-    label.setProperty("muted", True)
+def _repolish(widget) -> None:
+    try:
+        style = widget.style()
+        if style is not None:
+            style.unpolish(widget)
+            style.polish(widget)
+        widget.update()
+    except (AttributeError, RuntimeError):
+        pass
+
+
+def mark_muted(label, muted: bool = True) -> None:
+    label.setProperty("muted", bool(muted))
+    _repolish(label)
+
+
+def mark_button(button, variant: str = "secondary") -> None:
+    """Apply a semantic variant to a plain ``QPushButton``."""
+    normalized = "destructive" if variant == "danger" else variant
+    if normalized not in {"primary", "secondary", "ghost", "icon", "destructive"}:
+        raise ValueError(f"Unknown button variant: {variant!r}")
+    button.setProperty("variant", normalized)
+    button.setProperty("buttonRole", normalized)
+    # Transitional properties preserve older selectors and call sites.
+    button.setProperty("primary", normalized == "primary")
+    button.setProperty("danger", normalized == "destructive")
+    _repolish(button)
 
 
 def mark_primary(button) -> None:
-    button.setProperty("primary", True)
+    mark_button(button, "primary")
+
+
+def mark_secondary(button) -> None:
+    mark_button(button, "secondary")
+
+
+def mark_ghost(button) -> None:
+    mark_button(button, "ghost")
+
+
+def mark_icon(button) -> None:
+    mark_button(button, "icon")
 
 
 def mark_danger(button) -> None:
-    button.setProperty("danger", True)
+    mark_button(button, "destructive")
+
+
+mark_destructive = mark_danger
+
+
+def mark_busy(button, busy: bool = True) -> None:
+    button.setProperty("busy", bool(busy))
+    _repolish(button)
+
+
+__all__ = [
+    "ACCENT",
+    "ACCENT_SECONDARY",
+    "DARK_THEME_TOKENS",
+    "LIGHT_THEME_TOKENS",
+    "THEME_TOKENS",
+    "action_icon",
+    "application_icon",
+    "apply_application_theme",
+    "apply_icon",
+    "asset_path",
+    "button_icon",
+    "current_theme",
+    "mark_busy",
+    "mark_button",
+    "mark_danger",
+    "mark_destructive",
+    "mark_ghost",
+    "mark_icon",
+    "mark_muted",
+    "mark_primary",
+    "mark_secondary",
+    "menu_icon",
+    "navigation_icon",
+    "resolve_theme",
+    "theme_tokens",
+    "ui_icon",
+]

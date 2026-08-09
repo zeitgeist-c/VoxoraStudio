@@ -1,5 +1,5 @@
 """
-txttoTTS - uygulama sabitleri.
+Voxora Studio - uygulama sabitleri.
 
 Dil listesi, referans ses örneği metni ve üretim hazır ayarları.
 """

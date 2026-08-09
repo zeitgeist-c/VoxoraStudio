@@ -1,5 +1,5 @@
 """
-txttoTTS - metin bölücü.
+Voxora Studio - metin bölücü.
 
 Uzun metni Chatterbox'un güvenli işleyebileceği parçalara böler.
 Önce cümle sonlarını, çok uzun cümlelerde ise virgül/iki nokta/boşluk gibi

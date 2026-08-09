@@ -1,5 +1,5 @@
 """
-txttoTTS smoke test - hafif ve --full modlu.
+Voxora Studio smoke test - hafif ve --full modlu.
 
 Default (light): unit test suite + import + ortam.
 --full: light + TTS motor + sentez (ağ bağımlı).
@@ -16,14 +16,18 @@ import shutil
 import subprocess
 import sys
 import traceback
+from pathlib import Path
 
 
 # Kritik: yoksa smoke fail.
-CRITICAL_IMPORTS = ("numpy", "torch", "torchaudio", "PyQt6", "sounddevice", "soundfile", "pydub", "send2trash")
+CRITICAL_IMPORTS = (
+    "numpy", "torch", "torchaudio", "PyQt6", "sounddevice", "soundfile",
+    "pydub", "send2trash", "PyInstaller",
+)
 # Bilgilendirici: yoksa uyarı (kullanıcı isteğe bağlı).
 INFO_IMPORTS = ("onnxruntime",)
 # Yerel modüller: yoksa smoke fail.
-LOCAL_IMPORTS = ("chunker", "tts_engine", "file_utils", "config")
+LOCAL_IMPORTS = ("chunker", "tts_engine", "file_utils", "config", "app.branding")
 
 
 def _section(title: str) -> None:
@@ -100,12 +104,12 @@ def check_environment() -> bool:
             print(f"  onnx providers: {providers}")
             try:
                 from scripts.gpu_detect import has_directml_capable_gpu
-                should = has_directml_capable_gpu()
+                hardware_candidate = has_directml_capable_gpu()
                 actual = "DmlExecutionProvider" in providers
-                if should == actual:
-                    print(f"  DirectML kararı doğru: should={should}, actual={actual}")
-                else:
-                    print(f"  [UYARI] DirectML kararı yanlış: should={should}, actual={actual}")
+                print(
+                    "  DirectML: "
+                    f"donanım_adayı={hardware_candidate}, provider_kurulu={actual}"
+                )
             except Exception as e:
                 print(f"  [BİLGİ] gpu_detect atlandı: {e}")
         except Exception as e:
@@ -124,7 +128,8 @@ def check_environment() -> bool:
     except Exception as e:
         print(f"  [BİLGİ] chatterbox import: {e}")
 
-    ffmpeg = "Var" if shutil.which("ffmpeg") else "Yok"
+    bundled_ffmpeg = Path(__file__).resolve().parent / "bin" / "ffmpeg.exe"
+    ffmpeg = "Var" if shutil.which("ffmpeg") or bundled_ffmpeg.is_file() else "Yok"
     print(f"  ffmpeg: {ffmpeg}")
     return True
 
@@ -163,7 +168,7 @@ def run_integration_test(keep_output: bool) -> bool:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="txttoTTS smoke test")
+    parser = argparse.ArgumentParser(description="Voxora Studio smoke test")
     parser.add_argument("--full", action="store_true",
                         help="TTS motor + sentez dahil et (ağır, network gerekir)")
     parser.add_argument("--no-units", action="store_true",

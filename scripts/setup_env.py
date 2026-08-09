@@ -13,9 +13,10 @@ REQUIREMENTS = ROOT / "requirements.txt"
 
 # Windows + pip icin guncel PyTorch CUDA wheel kaynaklari.
 # NVIDIA varsa sirasiyla denenir; dogrulanamazsa CPU wheel'e dusulur.
+TORCH_VERSION = "2.6.0"
 CUDA_INDEXES = [
-    ("CUDA 12.8", "https://download.pytorch.org/whl/cu128"),
     ("CUDA 12.6", "https://download.pytorch.org/whl/cu126"),
+    ("CUDA 12.4", "https://download.pytorch.org/whl/cu124"),
     ("CUDA 11.8", "https://download.pytorch.org/whl/cu118"),
 ]
 CPU_INDEX = "https://download.pytorch.org/whl/cpu"
@@ -108,7 +109,7 @@ def install_torch(target: str) -> None:
     if target == "cuda":
         for label, index_url in CUDA_INDEXES:
             print(f"[BILGI] {label} destekli PyTorch kurulumu deneniyor...")
-            result = pip_install(["--upgrade", "torch", "torchaudio", "--index-url", index_url], check=False)
+            result = pip_install(["--upgrade", f"torch=={TORCH_VERSION}", f"torchaudio=={TORCH_VERSION}", "--index-url", index_url], check=False)
             if result.returncode != 0:
                 print(f"[UYARI] {label} kurulumu basarisiz. Sonraki secenek denenecek.")
                 continue
@@ -120,7 +121,7 @@ def install_torch(target: str) -> None:
         print("[UYARI] CUDA kurulumlari calismadi. CPU PyTorch'a dusuluyor.")
 
     print("[BILGI] CPU PyTorch kuruluyor...")
-    pip_install(["--upgrade", "torch", "torchaudio", "--index-url", CPU_INDEX])
+    pip_install(["--upgrade", f"torch=={TORCH_VERSION}", f"torchaudio=={TORCH_VERSION}", "--index-url", CPU_INDEX])
     if not torch_import_ok():
         raise RuntimeError("PyTorch kurulumu dogrulanamadi.")
     print("[OK] CPU PyTorch hazir.")

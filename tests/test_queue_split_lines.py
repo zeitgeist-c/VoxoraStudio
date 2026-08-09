@@ -1,5 +1,5 @@
 """
-txttoTTS - toplu üretim kuyruğu yardımcı testleri.
+Voxora Studio - toplu üretim kuyruğu yardımcı testleri.
 
 queue_split_lines pure helper'ı test eder.
 """

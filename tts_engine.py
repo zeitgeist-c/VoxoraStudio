@@ -1,5 +1,5 @@
 """
-txttoTTS - TTS motoru (üç katmanlı cihaz yönetimi).
+Voxora Studio - TTS motoru (üç katmanlı cihaz yönetimi).
 
 Sıralama:
   1) PyTorch CUDA (NVIDIA) - en hızlı

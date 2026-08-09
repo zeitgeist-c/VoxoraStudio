@@ -1,5 +1,12 @@
-txttoTTS versiyon günlüğü
+Voxora Studio versiyon günlüğü
 =======================
+
+v0.3.0 (2026-08-09) — Voxora Studio kararlı marka ve arayüz sürümü
+- Uygulama kimliği önceki ürün adından Voxora Studio'ya taşındı; yeni logo, ikonlar ve modern tema eklendi.
+- Üretim, arşiv, sıkıştırma ve ayar ekranları yeniden düzenlendi; dar pencere yerleşimleri sağlamlaştırıldı.
+- Ses sıkıştırma akışı ve gerçek kullanım günlükleri doğrulandı.
+- Tek yetkili sürüm kaynağı `app/version.py` olarak tanımlandı.
+- Dağıtım çıktıları otomatik olarak `VoxoraStudio-0.3.0.exe` ve `VoxoraStudio-0.3.0.bat` adıyla üretilir.
 
 v0.2.1 (2026-06-30) — CUDA sağlamlık + kurulum onarımı
 - **scripts/__init__.py oluşturuldu:** `-m scripts.setup_env` modül çalıştırması artık mümkün.

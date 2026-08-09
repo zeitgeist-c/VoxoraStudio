@@ -1,5 +1,5 @@
 """
-txttoTTS - file_utils birim testleri.
+Voxora Studio - file_utils birim testleri.
 """
 from __future__ import annotations
 

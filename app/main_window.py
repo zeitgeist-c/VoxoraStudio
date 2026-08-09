@@ -1,5 +1,5 @@
 """
-txttoTTS - PyQt6 ana pencere.
+Voxora Studio - PyQt6 ana pencere.
 
 Sade akış:
   - Metni yaz / panodan yapıştır
@@ -29,8 +29,8 @@ from PyQt6.QtWidgets import (
     QDoubleSpinBox,
     QFileDialog,
     QFrame,
+    QGraphicsOpacityEffect,
     QGridLayout,
-    QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -40,6 +40,7 @@ from PyQt6.QtWidgets import (
     QProgressBar,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QStackedWidget,
     QTextEdit,
     QVBoxLayout,
@@ -60,11 +61,16 @@ from .constants import (
     PRESETS,
     WARN_CHUNK_COUNT,
 )
+from .branding import BRAND_PRIMARY, BRAND_SECONDARY, DISPLAY_NAME, TECHNICAL_TAGLINE
 from .dialogs import ModelLoadDialog, SynthesisDialog, VoiceGuideDialog
+from .icons import menu_icon, navigation_icon
 from .theme import (
-    application_icon, apply_application_theme, mark_danger, mark_muted,
-    mark_primary, menu_icon, navigation_icon,
+    application_icon,
+    apply_application_theme,
+    mark_muted,
+    theme_tokens,
 )
+from .widgets import ActionButton, PageHeader, SectionCard, StatusPill, WaveformView
 from .workers import CompressWorker, EngineLoader, SynthWorker
 
 __all__ = ["MainWindow", "estimate_duration_range", "trim_leading_silence", "queue_split_lines", "apply_theme"]
@@ -155,17 +161,18 @@ def queue_split_lines(text: str) -> list[str]:
     return [line.strip() for line in text.splitlines() if line.strip()]
 
 
-def apply_theme(app, theme: str) -> None:
+def apply_theme(app, theme: str) -> str:
     """Qt temasını uygula: light / dark / system."""
-    apply_application_theme(app, theme)
+    return apply_application_theme(app, theme)
 
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("txttoTTS - Chatterbox Türkçe")
+        self.setWindowTitle(DISPLAY_NAME)
         self.setWindowIcon(application_icon())
         self.resize(1080, 760)
+        self.setMinimumSize(920, 640)
 
         self.engine = None
         self.last_wav = None
@@ -191,6 +198,8 @@ class MainWindow(QMainWindow):
         self._close_requested = False
         self._close_finalized = False
         self._settings_saved_on_close = False
+        self._resolved_theme = "dark"
+        self._page_transition = None
 
         self._build_ui()
         self._load_saved_settings()
@@ -199,34 +208,39 @@ class MainWindow(QMainWindow):
         self.update_settings_summary()
         self._init_engine_async()
         # İlk tema yükleme: ayar varsa uygula (comboBox sonradan setCurrentIndex tetikler)
-        theme = self.settings.get("theme", "system") if self.settings else "system"
-        apply_theme(QApplication.instance(), theme)
+        theme = self.settings.get("theme", "dark") if self.settings else "dark"
+        self._resolved_theme = apply_theme(QApplication.instance(), theme)
+        self._refresh_theme_icons()
 
     def _build_voice_warning_panel(self) -> QFrame:
         """Show a compact reference-voice reminder without blocking the editor."""
         panel = QFrame()
         panel.setObjectName("voiceWarningPanel")
         layout = QVBoxLayout(panel)
-        layout.setContentsMargins(12, 9, 12, 9)
-        layout.setSpacing(7)
+        layout.setContentsMargins(16, 13, 16, 13)
+        layout.setSpacing(10)
         message_row = QHBoxLayout()
-        icon = QLabel("⚠")
-        text = QLabel(
-            "Referans ses örneği seçmediniz. Varsayılan ses robotik olabilir; "
-            "10-15 sn kendi sesinizle örnek ekleyin."
-        )
+        message_row.setSpacing(10)
+        icon = StatusPill("!", "warning")
+        copy = QVBoxLayout()
+        copy.setSpacing(2)
+        title = QLabel("Ses profilini güçlendirin")
+        title.setObjectName("warningTitle")
+        text = QLabel("10-15 saniyelik temiz bir referans ses, daha doğal ve size özgü sonuç verir.")
         text.setWordWrap(True)
         message_row.addWidget(icon)
-        message_row.addWidget(text, stretch=1)
+        copy.addWidget(title)
+        copy.addWidget(text)
+        message_row.addLayout(copy, stretch=1)
         layout.addLayout(message_row)
         actions = QHBoxLayout()
         actions.addStretch(1)
-        btn_warm = QPushButton("Sıcak Anlatıcı")
+        btn_warm = ActionButton("Sıcak Anlatıcı", variant="ghost", size="small", icon_name="generate")
         btn_warm.setToolTip("Sıcak Anlatıcı hazır ayarını uygula")
         btn_warm.clicked.connect(self._apply_warm_narrator_preset)
-        btn_select = QPushButton("Ses Örneği Seç")
+        btn_select = ActionButton("Ses Örneği Seç", variant="secondary", size="small", icon_name="microphone")
         btn_select.clicked.connect(self.on_select_voice)
-        btn_guide = QPushButton("Rehber")
+        btn_guide = ActionButton("Rehber", variant="ghost", size="small", icon_name="info")
         btn_guide.clicked.connect(self.on_show_voice_sample_text)
         actions.addWidget(btn_warm)
         actions.addWidget(btn_select)
@@ -255,59 +269,56 @@ class MainWindow(QMainWindow):
         shell.setContentsMargins(0, 0, 0, 0)
         shell.setSpacing(0)
 
-        self._sidebar_expanded_width = 180
-        self._sidebar_collapsed_width = 56
+        self._sidebar_expanded_width = 208
+        self._sidebar_collapsed_width = 64
         self._sidebar_collapsed = False
 
         self.sidebar = QFrame()
         self.sidebar.setObjectName("sidebar")
         self.sidebar.setFixedWidth(self._sidebar_expanded_width)
         sidebar_layout = QVBoxLayout(self.sidebar)
-        sidebar_layout.setContentsMargins(4, 18, 4, 16)
-        sidebar_layout.setSpacing(7)
+        sidebar_layout.setContentsMargins(12, 20, 12, 16)
+        sidebar_layout.setSpacing(8)
         self._sidebar_layout = sidebar_layout
 
         self.brand_widget = QWidget()
         brand_row = QHBoxLayout()
         brand_row.setContentsMargins(0, 0, 0, 0)
-        brand_row.setSpacing(2)
+        brand_row.setSpacing(9)
         self.brand_widget.setLayout(brand_row)
         self.brand_logo = QLabel()
-        self.brand_logo.setPixmap(application_icon().pixmap(26, 26))
-        self.brand_logo.setFixedSize(28, 28)
-        self.brand_logo.setToolTip("txttoTTS Voice Studio")
+        self.brand_logo.setPixmap(application_icon().pixmap(34, 34))
+        self.brand_logo.setFixedSize(36, 36)
+        self.brand_logo.setToolTip(DISPLAY_NAME)
         self.brand_text_widget = QWidget()
         brand_text = QVBoxLayout()
         brand_text.setContentsMargins(0, 0, 0, 0)
         brand_text.setSpacing(0)
         self.brand_text_widget.setLayout(brand_text)
-        self.brand_title = QLabel("txttoTTS")
+        self.brand_title = QLabel(BRAND_PRIMARY)
         self.brand_title.setObjectName("brandTitle")
-        self.brand_subtitle = QLabel("VOICE STUDIO")
+        self.brand_subtitle = QLabel(BRAND_SECONDARY)
         self.brand_subtitle.setObjectName("brandSubtitle")
         brand_text.addWidget(self.brand_title)
         brand_text.addWidget(self.brand_subtitle)
-        self.btn_sidebar_toggle = QPushButton()
-        self.btn_sidebar_toggle.setIcon(menu_icon())
-        self.btn_sidebar_toggle.setIconSize(QSize(19, 19))
-        self.btn_sidebar_toggle.setFixedSize(34, 28)
+        self.btn_sidebar_toggle = ActionButton("", variant="icon", size="small", icon_name="menu")
         self.btn_sidebar_toggle.setToolTip("Men\u00fcy\u00fc daralt / geni\u015flet")
         brand_row.addWidget(self.brand_logo)
         brand_row.addWidget(self.brand_text_widget, stretch=1)
         brand_row.addWidget(self.btn_sidebar_toggle)
         sidebar_layout.addWidget(self.brand_widget)
         self._sidebar_top_gap = QWidget()
-        self._sidebar_top_gap.setFixedHeight(18)
+        self._sidebar_top_gap.setFixedHeight(22)
         sidebar_layout.addWidget(self._sidebar_top_gap)
 
-        self.pages = QStackedWidget()
         nav_items = [("Üretim", "generate", 0), ("Geçmiş", "history", 1), ("Sıkıştırma", "compress", 2), ("Ayarlar", "settings", 3)]
         self._nav_labels = [label for label, _, _ in nav_items]
+        self._nav_icon_names = [icon_name for _, icon_name, _ in nav_items]
         self._nav_buttons = []
         for label, icon_name, index in nav_items:
             button = QPushButton(label)
             button.setIcon(navigation_icon(icon_name))
-            button.setIconSize(QSize(18, 18))
+            button.setIconSize(QSize(19, 19))
             button.setProperty("nav", True)
             button.setCheckable(True)
             button.clicked.connect(lambda checked=False, i=index: self._switch_page(i))
@@ -315,8 +326,8 @@ class MainWindow(QMainWindow):
             self._nav_buttons.append(button)
         self._nav_buttons[0].setChecked(True)
         sidebar_layout.addStretch(1)
-        sidebar_note = QLabel("Chatterbox Multilingual\nYerel ve güvenli üretim")
-        sidebar_note.setObjectName("brandSubtitle")
+        sidebar_note = QLabel(TECHNICAL_TAGLINE.replace(" • ", "\n"))
+        sidebar_note.setObjectName("sidebarAttribution")
         sidebar_note.setWordWrap(True)
         sidebar_layout.addWidget(sidebar_note)
         self._sidebar_note = sidebar_note
@@ -325,93 +336,156 @@ class MainWindow(QMainWindow):
         content = QWidget()
         content.setObjectName("pageRoot")
         root = QVBoxLayout(content)
-        root.setContentsMargins(18, 12, 18, 10)
-        root.setSpacing(8)
+        root.setContentsMargins(24, 18, 24, 12)
+        root.setSpacing(14)
         shell.addWidget(content, stretch=1)
 
-        top_row = QHBoxLayout()
-        title_block = QVBoxLayout()
-        page_title = QLabel("Ses Üretim Stüdyosu")
-        page_title.setObjectName("pageTitle")
-        page_subtitle = QLabel("Metninizi doğal ve etkileyici bir sese dönüştürün")
-        page_subtitle.setObjectName("pageSubtitle")
-        title_block.addWidget(page_title)
-        title_block.addWidget(page_subtitle)
-        top_row.addLayout(title_block, stretch=1)
+        self.btn_generate = ActionButton("Ses Üret", variant="primary", size="large", icon_name="generate")
+        self.btn_generate.setMinimumWidth(154)
+        self.btn_compress_start = ActionButton(
+            "Sıkıştırmayı Başlat", variant="primary", size="large", icon_name="compress"
+        )
+        self._page_action_stack = QStackedWidget()
+        self._page_action_stack.setObjectName("pageActionStack")
+        self._page_action_stack.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
+        for action in (self.btn_generate, None, self.btn_compress_start, None):
+            action_page = QWidget()
+            action_layout = QHBoxLayout(action_page)
+            action_layout.setContentsMargins(0, 0, 0, 0)
+            if action is not None:
+                action_layout.addWidget(action)
+            self._page_action_stack.addWidget(action_page)
 
-        self.btn_paste = QPushButton("Yapıştır")
-        self.btn_clean_text = QPushButton("Metni Temizle")
-        self.btn_generate = QPushButton("✦  Ses Üret")
-        mark_primary(self.btn_generate)
-        self.btn_generate.setMinimumWidth(145)
-        top_row.addWidget(self.btn_paste)
-        top_row.addWidget(self.btn_clean_text)
-        top_row.addWidget(self.btn_generate)
-        root.addLayout(top_row)
+        self._page_meta = (
+            ("Ses Üretim Stüdyosu", "Metninizi doğal ve etkileyici bir sese dönüştürün"),
+            ("Üretim Arşivi", "Seslerinizi bulun, dinleyin ve yeniden kullanın"),
+            ("Ses Sıkıştırma", "Dosya boyutunu kaliteyi koruyarak küçültün"),
+            ("Stüdyo Ayarları", "Ses, çıktı ve sistem tercihlerinizi yönetin"),
+        )
+        self.page_header = PageHeader(*self._page_meta[0], action=self._page_action_stack)
+        root.addWidget(self.page_header)
+
+        self.pages = QStackedWidget()
+        self.pages.setObjectName("workspacePages")
+        self.pages.addWidget(self._build_generate_page())
+        self.pages.addWidget(self._build_history_page())
+        self.pages.addWidget(self._build_compress_page())
+        self.pages.addWidget(self._build_settings_page())
         root.addWidget(self.pages, stretch=1)
 
-        main_tab = QWidget()
-        main_layout = QVBoxLayout(main_tab)
+        status_bar = QFrame()
+        status_bar.setObjectName("statusBar")
+        status_row = QHBoxLayout(status_bar)
+        status_row.setContentsMargins(14, 8, 14, 8)
+        status_row.setSpacing(10)
+        self.engine_status_pill = StatusPill("MOTOR", "info")
+        self.stats_label = StatusPill(f"Toplam: {self.production_count} üretim", "neutral")
+        self.status_label = QLabel("Motor yükleniyor...")
+        self.status_label.setObjectName("statusMessage")
+        self.status_label.setWordWrap(True)
+        self.progress = QProgressBar()
+        self.progress.setRange(0, 0)
+        self.progress.setTextVisible(False)
+        self.progress.setMaximumWidth(180)
+        status_row.addWidget(self.engine_status_pill)
+        status_row.addWidget(self.stats_label)
+        status_row.addWidget(self.status_label, stretch=1)
+        status_row.addWidget(self.progress)
+        root.addWidget(status_bar)
+
+        self._connect_ui_signals()
+        self._setup_shortcuts()
+        self._set_button_tooltips()
+        self._set_outputs_enabled(False)
+        self._set_engine_actions_enabled(False)
+
+    def _make_scroll_page(self, body: QWidget) -> QScrollArea:
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setWidget(body)
+        return scroll
+
+    def _build_generate_page(self) -> QScrollArea:
+        body = QWidget()
+        body.setObjectName("pageBody")
+        main_layout = QVBoxLayout(body)
+        main_layout.setContentsMargins(0, 0, 0, 8)
+        main_layout.setSpacing(16)
+
+        editor_card = SectionCard("Metin Stüdyosu", "Metni hazırlayın, ses profilini kontrol edin ve üretimi başlatın.")
+        editor_toolbar = QHBoxLayout()
+        editor_toolbar.setSpacing(8)
+        self.text_stats_label = StatusPill("Karakter: 0 | Kelime: 0 | Parça: 0 | Tahmini süre: 0 sn")
+        self.settings_summary_label = StatusPill("Türkçe | Anlatıcı | 0.90x | Varsayılan ses", "info")
+        self.settings_summary_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        self.settings_summary_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self.settings_summary_label.setWordWrap(True)
+        self.btn_paste = ActionButton("Yapıştır", variant="ghost", size="small", icon_name="paste")
+        self.btn_clean_text = ActionButton("Metni Temizle", variant="ghost", size="small", icon_name="clean")
+        editor_toolbar.addWidget(self.text_stats_label)
+        editor_toolbar.addWidget(self.settings_summary_label, stretch=1)
+        editor_toolbar.addWidget(self.btn_paste)
+        editor_toolbar.addWidget(self.btn_clean_text)
+        editor_card.content_layout.addLayout(editor_toolbar)
+
+        self._voice_warning = self._build_voice_warning_panel()
+        editor_card.content_layout.addWidget(self._voice_warning)
         self.text_edit = QTextEdit()
         self.text_edit.setPlaceholderText("Türkçe metni buraya yaz veya Yapıştır düğmesiyle panodaki metni al.")
         self.text_edit.setFont(QFont("Segoe UI", 11))
-        self.text_stats_label = QLabel("Karakter: 0 | Kelime: 0 | Parça: 0 | Tahmini süre: 0 sn")
-        self.settings_summary_label = QLabel("Türkçe | Anlatıcı | 0.90x | Varsayılan ses")
-        mark_muted(self.settings_summary_label)
-        self.settings_summary_label.setWordWrap(True)
-        self.text_stats_label.setWordWrap(True)
-        main_layout.addWidget(self.text_stats_label)
-        main_layout.addWidget(self.settings_summary_label)
-        editor_actions = QHBoxLayout()
-        editor_actions.addWidget(self.btn_paste)
-        editor_actions.addWidget(self.btn_clean_text)
-        editor_actions.addStretch(1)
-        main_layout.addLayout(editor_actions)
-        self._voice_warning = self._build_voice_warning_panel()
-        main_layout.addWidget(self._voice_warning)
-        main_layout.addWidget(self.text_edit, stretch=1)
+        self.text_edit.setMinimumHeight(250)
+        editor_card.content_layout.addWidget(self.text_edit, stretch=1)
+        main_layout.addWidget(editor_card)
 
-        playback_box = QGroupBox("Son Üretilen Ses")
-        playback_layout = QVBoxLayout(playback_box)
-        playback_hint = QLabel("Üretim tamamlandığında sesiniz burada kullanıma hazır olur.")
-        mark_muted(playback_hint)
-        self.btn_play = QPushButton("▶  Oynat")
-        self.btn_stop = QPushButton("■  Durdur")
-        self.btn_save_wav = QPushButton("WAV Kaydet")
-        self.btn_save_mp3 = QPushButton("MP3 Kaydet")
-        playback_layout.addWidget(playback_hint)
+        playback_card = SectionCard("Son Üretilen Ses", "Üretim tamamlandığında sesiniz ve dalga biçimi burada görünür.")
+        self.waveform_view = WaveformView()
+        playback_card.content_layout.addWidget(self.waveform_view)
+        self.playback_hint = QLabel("Henüz bir ses üretilmedi.")
+        mark_muted(self.playback_hint)
+        playback_card.content_layout.addWidget(self.playback_hint)
+        self.btn_play = ActionButton("Oynat", variant="secondary", icon_name="play")
+        self.btn_stop = ActionButton("Durdur", variant="ghost", icon_name="stop")
+        self.btn_save_wav = ActionButton("WAV Kaydet", variant="secondary", icon_name="save")
+        self.btn_save_mp3 = ActionButton("MP3 Kaydet", variant="secondary", icon_name="download")
         playback_actions = QHBoxLayout()
         playback_actions.addStretch(1)
         playback_actions.addWidget(self.btn_play)
         playback_actions.addWidget(self.btn_stop)
         playback_actions.addWidget(self.btn_save_wav)
         playback_actions.addWidget(self.btn_save_mp3)
-        playback_layout.addLayout(playback_actions)
-        main_layout.addWidget(playback_box)
-        queue_box = QGroupBox("Toplu Üretim Kuyruğu")
-        queue_layout = QVBoxLayout(queue_box)
-        queue_buttons = QGridLayout()
-        self.btn_queue_add = QPushButton("+ Metin Ekle")
-        self.btn_queue_load = QPushButton("+ Dosyadan Yükle")
-        self.btn_queue_run = QPushButton("Üret (Tümünü)")
-        mark_primary(self.btn_queue_run)
-        self.btn_queue_clear = QPushButton("Temizle")
-        for b in (self.btn_queue_add, self.btn_queue_load, self.btn_queue_run, self.btn_queue_clear):
-            queue_buttons.addWidget(b)
-        queue_layout.addLayout(queue_buttons)
-        self.queue_list = QListWidget()
-        queue_layout.addWidget(self.queue_list, stretch=1)
-        main_layout.addWidget(queue_box)
-        main_scroll = QScrollArea()
-        main_scroll.setWidgetResizable(True)
-        main_scroll.setFrameShape(QFrame.Shape.NoFrame)
-        main_scroll.setWidget(main_tab)
-        self.pages.addWidget(main_scroll)
+        playback_card.content_layout.addLayout(playback_actions)
+        main_layout.addWidget(playback_card)
 
+        queue_card = SectionCard("Toplu Üretim Kuyruğu", "Her dolu satırı ayrı bir ses olarak sırayla üretin.")
+        queue_buttons = QGridLayout()
+        queue_buttons.setHorizontalSpacing(8)
+        self.btn_queue_add = ActionButton("Metin Ekle", variant="secondary", icon_name="add")
+        self.btn_queue_load = ActionButton("Dosyadan Yükle", variant="secondary", icon_name="upload")
+        self.btn_queue_run = ActionButton("Tümünü Üret", variant="secondary", icon_name="queue")
+        self.btn_queue_clear = ActionButton("Temizle", variant="ghost", icon_name="delete")
+        for index, button in enumerate((self.btn_queue_add, self.btn_queue_load, self.btn_queue_run, self.btn_queue_clear)):
+            queue_buttons.addWidget(button, index // 2, index % 2)
+        queue_card.content_layout.addLayout(queue_buttons)
+        self.queue_list = QListWidget()
+        self.queue_list.setMinimumHeight(150)
+        queue_card.content_layout.addWidget(self.queue_list, stretch=1)
+        main_layout.addWidget(queue_card)
+        return self._make_scroll_page(body)
+
+    def _build_settings_page(self) -> QScrollArea:
         settings_tab = QWidget()
+        settings_tab.setObjectName("pageBody")
         settings_layout = QVBoxLayout(settings_tab)
-        settings_box = QGroupBox("Ses Ayarları")
-        settings_grid = QGridLayout(settings_box)
+        settings_layout.setContentsMargins(0, 0, 0, 8)
+        settings_layout.setSpacing(16)
+
+        settings_card = SectionCard("Ses Ayarları", "Hazır bir profil seçin veya üretim karakterini ayrıntılı biçimde ayarlayın.")
+        settings_panel = QWidget()
+        settings_grid = QGridLayout(settings_panel)
+        settings_grid.setContentsMargins(0, 0, 0, 0)
+        settings_grid.setHorizontalSpacing(14)
+        settings_grid.setVerticalSpacing(12)
 
         self.preset_combo = QComboBox()
         for preset_name in PRESETS:
@@ -419,7 +493,7 @@ class MainWindow(QMainWindow):
         narrator_index = self.preset_combo.findText("Anlatıcı")
         if narrator_index >= 0:
             self.preset_combo.setCurrentIndex(narrator_index)
-        self.btn_apply_preset = QPushButton("Seç")
+        self.btn_apply_preset = ActionButton("Uygula", variant="secondary", icon_name="check")
 
         self.language_combo = QComboBox()
         for code, name in LANGUAGES.items():
@@ -478,91 +552,101 @@ class MainWindow(QMainWindow):
         settings_grid.addWidget(self.repetition_spin, 3, 3)
         settings_grid.addWidget(QLabel("Duraklama"), 4, 0)
         settings_grid.addWidget(self.pause_spin, 4, 1)
-        settings_layout.addWidget(settings_box)
+        settings_grid.setColumnStretch(1, 1)
+        settings_grid.setColumnStretch(3, 1)
+        settings_card.content_layout.addWidget(settings_panel)
+        settings_layout.addWidget(settings_card)
 
-        voice_box = QGroupBox("Ses Örneği")
-        voice_layout = QGridLayout(voice_box)
+        voice_card = SectionCard("Ses Profili", "5-20 saniyelik temiz ve tek kişilik bir kayıt kullanın.")
+        voice_panel = QWidget()
+        voice_layout = QGridLayout(voice_panel)
+        voice_layout.setContentsMargins(0, 0, 0, 0)
+        voice_layout.setSpacing(8)
         self.voice_label = QLabel("Ses örneği seçilmedi; varsayılan ses kullanılacak.")
         self.voice_label.setWordWrap(True)
-        self.btn_select_voice = QPushButton("Ses Örneği Seç")
-        self.btn_play_voice = QPushButton("Ön Dinle")
-        self.btn_sample_voice_text = QPushButton("Ses Örneği Rehberi")
-        self.btn_clear_voice = QPushButton("Varsayılana Dön")
+        self.btn_select_voice = ActionButton("Ses Örneği Seç", variant="secondary", icon_name="microphone")
+        self.btn_play_voice = ActionButton("Ön Dinle", variant="ghost", icon_name="play")
+        self.btn_sample_voice_text = ActionButton("Ses Örneği Rehberi", variant="ghost", icon_name="info")
+        self.btn_clear_voice = ActionButton("Varsayılana Dön", variant="ghost", icon_name="reset")
         self.btn_play_voice.setEnabled(False)
         self.btn_clear_voice.setEnabled(False)
-        voice_hint = QLabel("Önerilen: 5-20 saniye temiz, tek kişilik konuşma. İdeal hedef: 10-15 saniye.")
-        voice_hint.setWordWrap(True)
         voice_layout.addWidget(self.voice_label, 0, 0, 1, 4)
-        voice_layout.addWidget(voice_hint, 1, 0, 1, 4)
-        voice_layout.addWidget(self.btn_select_voice, 2, 0)
-        voice_layout.addWidget(self.btn_play_voice, 2, 1)
-        voice_layout.addWidget(self.btn_sample_voice_text, 2, 2)
-        voice_layout.addWidget(self.btn_clear_voice, 2, 3)
-        settings_layout.addWidget(voice_box)
+        voice_layout.addWidget(self.btn_select_voice, 1, 0)
+        voice_layout.addWidget(self.btn_play_voice, 1, 1)
+        voice_layout.addWidget(self.btn_sample_voice_text, 1, 2)
+        voice_layout.addWidget(self.btn_clear_voice, 1, 3)
+        voice_card.content_layout.addWidget(voice_panel)
+        settings_layout.addWidget(voice_card)
 
-        output_box = QGroupBox("Kayıt Klasörü")
-        output_layout = QGridLayout(output_box)
+        output_card = SectionCard("Kayıt ve Kalite", "Otomatik çıktı klasörünü ve MP3 kalitesini belirleyin.")
+        output_panel = QWidget()
+        output_layout = QGridLayout(output_panel)
+        output_layout.setContentsMargins(0, 0, 0, 0)
+        output_layout.setSpacing(8)
         self.output_dir_label = QLabel("")
         self.output_dir_label.setWordWrap(True)
-        self.btn_select_output_dir = QPushButton("Klasör Seç")
-        self.btn_open_output_dir = QPushButton("Klasörü Aç")
-        self.btn_reset_output_dir = QPushButton("Varsayılana Dön")
+        self.btn_select_output_dir = ActionButton("Klasör Seç", variant="secondary", icon_name="folder")
+        self.btn_open_output_dir = ActionButton("Klasörü Aç", variant="ghost", icon_name="folder-open")
+        self.btn_reset_output_dir = ActionButton("Varsayılana Dön", variant="ghost", icon_name="reset")
         output_layout.addWidget(QLabel("Varsayılan klasör"), 0, 0)
         output_layout.addWidget(self.output_dir_label, 0, 1, 1, 3)
         output_layout.addWidget(self.btn_select_output_dir, 1, 0)
         output_layout.addWidget(self.btn_open_output_dir, 1, 1)
         output_layout.addWidget(self.btn_reset_output_dir, 1, 2)
-        settings_layout.addWidget(output_box)
-
-        mp3_box = QGroupBox("MP3 Kalite")
-        mp3_layout = QGridLayout(mp3_box)
         self.mp3_bitrate_combo = QComboBox()
         self.mp3_bitrate_combo.addItem("Konuşma (128 kbps)", "128k")
         self.mp3_bitrate_combo.addItem("Podcast (192 kbps)", "192k")
         self.mp3_bitrate_combo.addItem("Yüksek kalite (320 kbps)", "320k")
-        mp3_layout.addWidget(QLabel("MP3 bitrate"), 0, 0)
-        mp3_layout.addWidget(self.mp3_bitrate_combo, 0, 1)
+        output_layout.addWidget(QLabel("MP3 bitrate"), 2, 0)
+        output_layout.addWidget(self.mp3_bitrate_combo, 2, 1, 1, 3)
         self.mp3_bitrate_combo.currentIndexChanged.connect(self._save_current_settings)
-        settings_layout.addWidget(mp3_box)
+        output_layout.setColumnStretch(3, 1)
+        output_card.content_layout.addWidget(output_panel)
+        settings_layout.addWidget(output_card)
 
-        system_box = QGroupBox("Sistem")
-        system_layout = QGridLayout(system_box)
+        system_card = SectionCard("Sistem", "Donanım durumunu ve görünüm tercihlerini yönetin.")
+        system_panel = QWidget()
+        system_layout = QGridLayout(system_panel)
+        system_layout.setContentsMargins(0, 0, 0, 0)
+        system_layout.setSpacing(8)
         self.device_label = QLabel("Cihaz: hazırlanıyor")
         self.gpu_label = QLabel("GPU: kontrol ediliyor")
-        self.btn_system_info = QPushButton("Sistem Bilgisi")
+        self.btn_system_info = ActionButton("Sistem Bilgisi", variant="secondary", icon_name="info")
         system_layout.addWidget(self.device_label, 0, 0)
         system_layout.addWidget(self.gpu_label, 0, 1)
         system_layout.addWidget(self.btn_system_info, 0, 2)
         self.theme_combo = QComboBox()
-        self.theme_combo.addItem("Açık", "light")
         self.theme_combo.addItem("Karanlık", "dark")
+        self.theme_combo.addItem("Açık", "light")
         self.theme_combo.addItem("Sistem", "system")
         self.theme_combo.currentIndexChanged.connect(self._on_theme_changed)
         system_layout.addWidget(QLabel("Tema"), 1, 0)
         system_layout.addWidget(self.theme_combo, 1, 1, 1, 2)
-        self.btn_reset_settings = QPushButton("Tüm Ayarları Sıfırla")
+        self.btn_reset_settings = ActionButton("Tüm Ayarları Sıfırla", variant="destructive", icon_name="reset")
         self.btn_reset_settings.setToolTip("Tüm ayarları varsayılana döndürür (geçmiş korunur)")
         self.btn_reset_settings.clicked.connect(self.on_reset_all_settings)
         system_layout.addWidget(self.btn_reset_settings, 2, 0, 1, 3)
-        settings_layout.addWidget(system_box)
+        system_layout.setColumnStretch(1, 1)
+        system_card.content_layout.addWidget(system_panel)
+        settings_layout.addWidget(system_card)
         settings_layout.addStretch(1)
-        settings_scroll = QScrollArea()
-        settings_scroll.setWidgetResizable(True)
-        settings_scroll.setFrameShape(QFrame.Shape.NoFrame)
-        settings_scroll.setWidget(settings_tab)
-        self.pages.addWidget(settings_scroll)
+        return self._make_scroll_page(settings_tab)
 
+    def _build_history_page(self) -> QWidget:
         history_tab = QWidget()
+        history_tab.setObjectName("pageBody")
         history_layout = QVBoxLayout(history_tab)
+        history_layout.setContentsMargins(0, 0, 0, 8)
+        history_layout.setSpacing(12)
+        history_card = SectionCard("Ses Arşivi", "Üretimlerinizi arayın, dinleyin veya aynı ayarlarla yeniden oluşturun.")
         history_tools = QGridLayout()
-        self.btn_restore_history = QPushButton("Metni Geri Al")
-        self.btn_regenerate_history = QPushButton("Aynı Ayarlarla Üret")
-        self.btn_play_history = QPushButton("Geçmişi Çal")
-        self.btn_open_history = QPushButton("Klasörde Göster")
-        self.btn_delete_history = QPushButton("Geçmişten Sil")
-        self.btn_bulk_delete_history = QPushButton("Toplu Sil")
-        mark_danger(self.btn_delete_history)
-        mark_danger(self.btn_bulk_delete_history)
+        history_tools.setSpacing(8)
+        self.btn_restore_history = ActionButton("Metni Geri Al", variant="secondary", icon_name="refresh")
+        self.btn_regenerate_history = ActionButton("Aynı Ayarlarla Üret", variant="secondary", icon_name="generate")
+        self.btn_play_history = ActionButton("Geçmişi Çal", variant="secondary", icon_name="play")
+        self.btn_open_history = ActionButton("Klasörde Göster", variant="ghost", icon_name="folder-open")
+        self.btn_delete_history = ActionButton("Geçmişten Sil", variant="destructive", icon_name="delete")
+        self.btn_bulk_delete_history = ActionButton("Toplu Sil", variant="destructive", icon_name="delete")
         for index, button in enumerate((
             self.btn_restore_history,
             self.btn_regenerate_history,
@@ -572,34 +656,45 @@ class MainWindow(QMainWindow):
             self.btn_bulk_delete_history,
         )):
             history_tools.addWidget(button, index // 3, index % 3)
-        history_layout.addLayout(history_tools)
+        history_card.content_layout.addLayout(history_tools)
         search_row = QHBoxLayout()
         self._history_search = QLineEdit()
         self._history_search.setPlaceholderText("Geçmişte ara (ad veya metin)...")
         self._history_search.setClearButtonEnabled(True)
         search_row.addWidget(self._history_search, stretch=1)
         self._history_search.textChanged.connect(self._on_history_search_changed)
-        history_layout.addLayout(search_row)
+        history_card.content_layout.addLayout(search_row)
         self.history_list = QListWidget()
-        history_layout.addWidget(self.history_list, stretch=1)
-        self.pages.insertWidget(1, history_tab)
+        history_card.content_layout.addWidget(self.history_list, stretch=1)
+        history_layout.addWidget(history_card, stretch=1)
+        return history_tab
 
-        # — Sıkıştırma sekmesi —
+    def _build_compress_page(self) -> QScrollArea:
         compress_tab = QWidget()
+        compress_tab.setObjectName("pageBody")
         compress_layout = QVBoxLayout(compress_tab)
+        compress_layout.setContentsMargins(0, 0, 0, 8)
+        compress_layout.setSpacing(14)
 
+        self.compress_files_card = SectionCard(
+            "Kaynak Dosyalar",
+            "WAV, MP3, FLAC veya OGG dosyalarını listeye ekleyin.",
+        )
         compress_buttons = QHBoxLayout()
-        self.btn_compress_add = QPushButton("Dosya Ekle")
-        self.btn_compress_clear = QPushButton("Listeyi Temizle")
+        compress_buttons.setSpacing(8)
+        self.btn_compress_add = ActionButton("Dosya Ekle", variant="secondary", icon_name="file-add")
+        self.btn_compress_clear = ActionButton("Listeyi Temizle", variant="ghost", icon_name="delete")
         compress_buttons.addWidget(self.btn_compress_add)
         compress_buttons.addWidget(self.btn_compress_clear)
-        compress_layout.addLayout(compress_buttons)
+        compress_buttons.addStretch(1)
+        self.compress_files_card.content_layout.addLayout(compress_buttons)
 
         self.compress_file_list = QListWidget()
-        compress_layout.addWidget(self.compress_file_list, stretch=1)
+        self.compress_file_list.setMinimumHeight(150)
+        self.compress_files_card.content_layout.addWidget(self.compress_file_list)
+        compress_layout.addWidget(self.compress_files_card)
 
-        options_group = QGroupBox("Sıkıştırma Ayarları")
-        options_layout = QVBoxLayout(options_group)
+        options_card = SectionCard("Sıkıştırma Ayarları", "Konuşma için dengeli Opus kalitesini ve çıktı konumunu seçin.")
 
         bitrate_row = QHBoxLayout()
         bitrate_row.addWidget(QLabel("Bitrate:"))
@@ -610,7 +705,7 @@ class MainWindow(QMainWindow):
         bitrate_row.addWidget(self.compress_bitrate_combo)
         bitrate_row.addStretch()
         self.compress_bitrate_combo.currentIndexChanged.connect(self._save_current_settings)
-        options_layout.addLayout(bitrate_row)
+        options_card.content_layout.addLayout(bitrate_row)
 
         output_dir_row = QHBoxLayout()
         output_dir_row.addWidget(QLabel("Çıktı klasörü:"))
@@ -618,45 +713,25 @@ class MainWindow(QMainWindow):
         mark_muted(self.compress_output_label)
         self.compress_output_label.setWordWrap(True)
         output_dir_row.addWidget(self.compress_output_label, stretch=1)
-        self.btn_compress_output_dir = QPushButton("Seç")
-        self.btn_compress_output_dir.setFixedWidth(50)
+        self.btn_compress_output_dir = ActionButton("Seç", variant="secondary", size="small", icon_name="folder")
         self.btn_compress_output_dir.clicked.connect(self.on_compress_select_output_dir)
-        self.btn_compress_clear_output = QPushButton("Temizle")
-        self.btn_compress_clear_output.setFixedWidth(70)
+        self.btn_compress_clear_output = ActionButton("Temizle", variant="ghost", size="small", icon_name="close")
         self.btn_compress_clear_output.clicked.connect(self.on_compress_clear_output_dir)
         output_dir_row.addWidget(self.btn_compress_output_dir)
         output_dir_row.addWidget(self.btn_compress_clear_output)
-        options_layout.addLayout(output_dir_row)
+        options_card.content_layout.addLayout(output_dir_row)
+        compress_layout.addWidget(options_card)
 
-        start_row = QHBoxLayout()
-        start_row.addStretch()
-        self.btn_compress_start = QPushButton("Sıkıştırmayı Başlat")
-        mark_primary(self.btn_compress_start)
-        start_row.addWidget(self.btn_compress_start)
-        options_layout.addLayout(start_row)
-
-        compress_layout.addWidget(options_group)
-
+        results_card = SectionCard("Sonuçlar")
         self.compress_results = QListWidget()
-        self.compress_results.setMaximumHeight(200)
-        compress_layout.addWidget(self.compress_results)
+        self.compress_results.setMinimumHeight(110)
+        self.compress_results.setMaximumHeight(180)
+        results_card.content_layout.addWidget(self.compress_results)
+        compress_layout.addWidget(results_card)
+        compress_layout.addStretch(1)
+        return self._make_scroll_page(compress_tab)
 
-        self.pages.insertWidget(2, compress_tab)
-
-        self.progress = QProgressBar()
-        self.progress.setRange(0, 0)
-        self.status_label = QLabel("Motor yükleniyor...")
-        self.status_label.setWordWrap(True)
-        self.stats_label = QLabel("Toplam: 0 üretim")
-        status_bar = QFrame()
-        status_bar.setObjectName("statusBar")
-        status_row = QHBoxLayout(status_bar)
-        status_row.setContentsMargins(12, 8, 12, 8)
-        status_row.addWidget(self.stats_label)
-        status_row.addWidget(self.status_label, stretch=1)
-        status_row.addWidget(self.progress)
-        root.addWidget(status_bar)
-
+    def _connect_ui_signals(self) -> None:
         self.btn_sidebar_toggle.clicked.connect(self._toggle_sidebar)
         self.btn_paste.clicked.connect(self.on_paste)
         self.btn_clean_text.clicked.connect(self.on_clean_text)
@@ -697,17 +772,44 @@ class MainWindow(QMainWindow):
         self.btn_compress_clear.clicked.connect(self.on_compress_clear)
         self.btn_compress_start.clicked.connect(self.on_compress_start)
 
-        self._setup_shortcuts()
-        self._set_button_tooltips()
-
-        self._set_outputs_enabled(False)
-        self._set_engine_actions_enabled(False)
-
-    def _switch_page(self, index: int):
+    def _switch_page(self, index: int, *, animate: bool = True):
         """Show a workspace page and synchronize the sidebar selection."""
+        if index < 0 or index >= self.pages.count():
+            return
+        previous_index = self.pages.currentIndex()
         self.pages.setCurrentIndex(index)
+        self._page_action_stack.setCurrentIndex(index)
+        title, subtitle = self._page_meta[index]
+        self.page_header.set_text(title, subtitle)
         for button_index, button in enumerate(self._nav_buttons):
             button.setChecked(button_index == index)
+
+        if not animate or previous_index == index:
+            return
+        if self._page_transition is not None:
+            self._page_transition.stop()
+            previous_page = getattr(self, "_transition_page", None)
+            if previous_page is not None:
+                previous_page.setGraphicsEffect(None)
+
+        page = self.pages.currentWidget()
+        effect = QGraphicsOpacityEffect(page)
+        page.setGraphicsEffect(effect)
+        animation = QPropertyAnimation(effect, b"opacity", self)
+        animation.setStartValue(0.68)
+        animation.setEndValue(1.0)
+        animation.setDuration(150)
+        animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._page_transition = animation
+        self._transition_page = page
+
+        def finish_transition():
+            page.setGraphicsEffect(None)
+            if self._page_transition is animation:
+                self._page_transition = None
+
+        animation.finished.connect(finish_transition)
+        animation.start()
 
     def _toggle_sidebar(self):
         """Collapse the navigation to an icon rail without changing page state."""
@@ -721,7 +823,7 @@ class MainWindow(QMainWindow):
             button.setProperty("collapsed", collapsed)
             self._refresh_widget_style(button)
             if collapsed:
-                button.setFixedSize(40, 38)
+                button.setFixedSize(40, 40)
             else:
                 button.setMinimumSize(0, 0)
                 button.setMaximumSize(16777215, 16777215)
@@ -730,13 +832,13 @@ class MainWindow(QMainWindow):
         self._refresh_widget_style(self.sidebar)
         self.btn_sidebar_toggle.setProperty("collapsed", collapsed)
         self._refresh_widget_style(self.btn_sidebar_toggle)
-        self.btn_sidebar_toggle.setFixedSize(40 if collapsed else 34, 34 if collapsed else 28)
+        self.btn_sidebar_toggle.setFixedSize(40 if collapsed else 32, 40 if collapsed else 32)
         if collapsed:
             self._sidebar_layout.setContentsMargins(8, 8, 8, 10)
             self._sidebar_layout.setSpacing(5)
         else:
-            self._sidebar_layout.setContentsMargins(4, 18, 4, 16)
-            self._sidebar_layout.setSpacing(7)
+            self._sidebar_layout.setContentsMargins(12, 20, 12, 16)
+            self._sidebar_layout.setSpacing(8)
         self.brand_logo.setVisible(not collapsed)
         self.brand_text_widget.setVisible(not collapsed)
         self._sidebar_top_gap.setVisible(not collapsed)
@@ -762,6 +864,17 @@ class MainWindow(QMainWindow):
         widget.style().unpolish(widget)
         widget.style().polish(widget)
         widget.update()
+
+    def _refresh_theme_icons(self):
+        """Refresh logo and semantic icons after a palette transition."""
+        if hasattr(self, "brand_logo"):
+            self.brand_logo.setPixmap(application_icon().pixmap(34, 34))
+        for button in self.findChildren(ActionButton):
+            button.refresh_icon()
+        if hasattr(self, "_nav_buttons"):
+            for button, icon_name in zip(self._nav_buttons, self._nav_icon_names):
+                button.setIcon(navigation_icon(icon_name))
+        self._refresh_compress_result_colors()
 
     def _setup_shortcuts(self):
         """Pencere kapsamı klavye kısayolları."""
@@ -800,6 +913,8 @@ class MainWindow(QMainWindow):
 
     def _on_engine_status(self, message: str):
         self.status_label.setText(message)
+        self.engine_status_pill.setText("HAZIRLANIYOR")
+        self.engine_status_pill.set_tone("info")
         if hasattr(self, "_model_dialog") and self._model_dialog:
             self._model_dialog.add_status(message)
 
@@ -807,6 +922,8 @@ class MainWindow(QMainWindow):
         self.engine = engine
         message = f"Hazır - {type(engine.engine).__name__} ({engine.device_name})"
         self.status_label.setText(message)
+        self.engine_status_pill.setText("HAZIR")
+        self.engine_status_pill.set_tone("success")
         self._reset_progress()
         self._set_engine_actions_enabled(True)
         self._refresh_system_labels()
@@ -816,6 +933,8 @@ class MainWindow(QMainWindow):
     def _on_engine_failed(self, msg: str):
         message = f"Motor yüklenemedi:\n{msg}"
         self.status_label.setText("Motor yüklenemedi.")
+        self.engine_status_pill.setText("HATA")
+        self.engine_status_pill.set_tone("danger")
         self._reset_progress()
         self._set_engine_actions_enabled(False)
         self._refresh_system_labels()
@@ -850,7 +969,11 @@ class MainWindow(QMainWindow):
         workers = [self._loader, self._synth_worker, self._compress_worker]
         running = any(worker and worker.isRunning() for worker in workers)
         if running and not self._close_requested:
-            reply = QMessageBox.question(self, "??lemler devam ediyor", "Arka plan i?lemleri g?venli ?ekilde durdurulduktan sonra program kapat?lacak. Devam edilsin mi?")
+            reply = QMessageBox.question(
+                self,
+                "İşlemler devam ediyor",
+                "Arka plan işlemleri güvenli şekilde durdurulduktan sonra program kapatılacak. Devam edilsin mi?",
+            )
             if reply != QMessageBox.StandardButton.Yes:
                 event.ignore()
                 return
@@ -861,7 +984,7 @@ class MainWindow(QMainWindow):
                 self._synth_worker.request_cancel()
             if self._compress_worker and self._compress_worker.isRunning():
                 self._compress_worker.request_cancel()
-            self.status_label.setText("?al??an i?lem tamamlan?nca program kapat?lacak...")
+            self.status_label.setText("Çalışan işlem tamamlanınca program kapatılacak...")
             event.ignore()
             return
         if running:
@@ -971,7 +1094,7 @@ class MainWindow(QMainWindow):
         bitrate_index = self.mp3_bitrate_combo.findData(bitrate)
         if bitrate_index >= 0:
             self.mp3_bitrate_combo.setCurrentIndex(bitrate_index)
-        theme = settings.get("theme", "system")
+        theme = settings.get("theme", "dark")
         theme_index = self.theme_combo.findData(theme)
         if theme_index >= 0:
             self.theme_combo.setCurrentIndex(theme_index)
@@ -990,7 +1113,8 @@ class MainWindow(QMainWindow):
         self.compress_output_dir = settings.get("compress_output_dir") or None
         if self.compress_output_dir and hasattr(self, "compress_output_label"):
             self.compress_output_label.setText(self.compress_output_dir)
-            self.compress_output_label.setStyleSheet("color: #000;")
+            self.compress_output_label.setProperty("muted", False)
+            self._refresh_widget_style(self.compress_output_label)
         cb = settings.get("compress_bitrate")
         if cb and hasattr(self, "compress_bitrate_combo"):
             idx = self.compress_bitrate_combo.findData(cb)
@@ -1018,7 +1142,7 @@ class MainWindow(QMainWindow):
             "speed": self.speed_spin.value(),
             "pause_between_chunks": self.pause_spin.value(),
             "mp3_bitrate": self.mp3_bitrate_combo.currentData() if hasattr(self, "mp3_bitrate_combo") else "192k",
-            "theme": self.theme_combo.currentData() if hasattr(self, "theme_combo") else "system",
+            "theme": self.theme_combo.currentData() if hasattr(self, "theme_combo") else "dark",
             "output_dir": self.output_dir,
             "compress_output_dir": self.compress_output_dir if hasattr(self, "compress_output_dir") else None,
             "compress_bitrate": self.compress_bitrate_combo.currentData() if hasattr(self, "compress_bitrate_combo") else "48k",
@@ -1567,7 +1691,7 @@ class MainWindow(QMainWindow):
         if bitrate_idx >= 0:
             self.mp3_bitrate_combo.setCurrentIndex(bitrate_idx)
         # Tema
-        theme_idx = self.theme_combo.findData("system")
+        theme_idx = self.theme_combo.findData("dark")
         if theme_idx >= 0:
             self.theme_combo.setCurrentIndex(theme_idx)
         # Voice
@@ -1584,8 +1708,9 @@ class MainWindow(QMainWindow):
         self.status_label.setText("Tüm ayarlar varsayılana sıfırlandı.")
 
     def _on_theme_changed(self, _index: int):
-        theme = self.theme_combo.currentData() if hasattr(self, "theme_combo") else "system"
-        apply_theme(QApplication.instance(), theme)
+        theme = self.theme_combo.currentData() if hasattr(self, "theme_combo") else "dark"
+        self._resolved_theme = apply_theme(QApplication.instance(), theme)
+        self._refresh_theme_icons()
         self._save_current_settings()
 
     def _set_outputs_enabled(self, enabled: bool):
@@ -1596,11 +1721,23 @@ class MainWindow(QMainWindow):
         self.btn_generate.setEnabled(enabled)
 
     def _set_busy(self, busy: bool, message: str | None = None):
-        self._set_engine_actions_enabled(not busy and self.engine is not None)
+        if isinstance(self.btn_generate, ActionButton):
+            if busy:
+                self.btn_generate.set_busy(True, "Üretiliyor")
+            else:
+                self.btn_generate.set_busy(False)
+                self._set_engine_actions_enabled(self.engine is not None)
+        else:
+            self._set_engine_actions_enabled(not busy and self.engine is not None)
         if message:
             self.status_label.setText(message)
         if busy:
+            self.engine_status_pill.setText("ÇALIŞIYOR")
+            self.engine_status_pill.set_tone("info")
             self.progress.setRange(0, 0)
+        elif self.engine is not None:
+            self.engine_status_pill.setText("HAZIR")
+            self.engine_status_pill.set_tone("success")
 
     def on_generate(self):
         text = self.text_edit.toPlainText().strip()
@@ -1751,6 +1888,7 @@ class MainWindow(QMainWindow):
         wav = trim_leading_silence(wav, sr)
         self.last_wav = wav
         self.last_sr = sr
+        self.waveform_view.set_data(wav)
         self._set_outputs_enabled(True)
         duration_text = f"{wav.shape[-1] / sr:.1f} sn"
         self.last_output_path = None
@@ -1771,6 +1909,12 @@ class MainWindow(QMainWindow):
         # Madde 2: Last path
         filename = os.path.basename(self.last_output_path) if self.last_output_path else "—"
         self.status_label.setText(f"{message} | Son: {filename}")
+        if self.last_output_path:
+            self.playback_hint.setText(f"{filename} • {duration_text} • {sr} Hz")
+        elif save_error:
+            self.playback_hint.setText(f"Ses hazır; otomatik kayıt tamamlanamadı: {save_error}")
+        else:
+            self.playback_hint.setText(f"Ses hazır • {duration_text} • {sr} Hz")
         if self._synth_dialog:
             self._synth_dialog.finish_ok(message)
         audio_player.play_tensor(wav, sr)
@@ -1877,13 +2021,15 @@ class MainWindow(QMainWindow):
             return
         self.compress_output_dir = directory
         self.compress_output_label.setText(directory)
-        self.compress_output_label.setStyleSheet("color: #000;")
+        self.compress_output_label.setProperty("muted", False)
+        self._refresh_widget_style(self.compress_output_label)
         self._save_current_settings()
 
     def on_compress_clear_output_dir(self):
         self.compress_output_dir = None
         self.compress_output_label.setText("(boş = orijinal dosyanın yanına kaydet)")
         mark_muted(self.compress_output_label)
+        self._refresh_widget_style(self.compress_output_label)
         self.compress_output_label.setWordWrap(True)
         self._save_current_settings()
 
@@ -1898,7 +2044,10 @@ class MainWindow(QMainWindow):
                                "winget install Gyan.FFmpeg --accept-package-agreements --accept-source-agreements")
             return
 
-        self.btn_compress_start.setEnabled(False)
+        if isinstance(self.btn_compress_start, ActionButton):
+            self.btn_compress_start.set_busy(True, "Sıkıştırılıyor")
+        else:
+            self.btn_compress_start.setEnabled(False)
         self.btn_compress_add.setEnabled(False)
         self.btn_compress_clear.setEnabled(False)
         self.compress_results.clear()
@@ -1924,25 +2073,47 @@ class MainWindow(QMainWindow):
             comp_mb = result.compressed_size / 1_048_576
             pct = (1 - result.ratio) * 100 if result.ratio else 0
             output_str = f"  → {result.output_path}" if result.output_path else ""
-            self.compress_results.addItem(
-                f"✓ {name}  {orig_mb:.1f} MB → {comp_mb:.1f} MB  (%{pct:.0f} küçüldü)"
+            self._append_compress_result(
+                f"✓ {name}  {orig_mb:.1f} MB → {comp_mb:.1f} MB  (%{pct:.0f} küçüldü)",
+                "success",
             )
-            self.compress_results.item(self.compress_results.count() - 1).setForeground(QColor("#2E7D32"))
             if output_str:
-                self.compress_results.addItem(output_str)
-                self.compress_results.item(self.compress_results.count() - 1).setForeground(QColor("#666"))
+                self._append_compress_result(output_str, "muted")
             log.info(
                 "Opus sıkıştırma başarılı: %s (%.1f MB → %.1f MB, %s, %.1f sn)",
                 name, orig_mb, comp_mb, result.bitrate, result.duration_seconds,
             )
         else:
             self._compress_fail_count += 1
-            self.compress_results.addItem(f"✗ {name}  — {result.error}")
-            self.compress_results.item(self.compress_results.count() - 1).setForeground(QColor("#C62828"))
+            self._append_compress_result(f"✗ {name}  — {result.error}", "danger")
             log.warning("Opus sıkıştırma başarısız: %s — %s", name, result.error)
 
+    def _append_compress_result(self, text: str, tone: str) -> None:
+        self.compress_results.addItem(text)
+        item = self.compress_results.item(self.compress_results.count() - 1)
+        item.setData(Qt.ItemDataRole.UserRole, tone)
+        self._style_compress_result_item(item)
+
+    def _style_compress_result_item(self, item) -> None:
+        colors = theme_tokens(self._resolved_theme)["colors"]
+        token = {
+            "success": "success",
+            "danger": "danger",
+            "muted": "text_muted",
+        }.get(item.data(Qt.ItemDataRole.UserRole), "text_secondary")
+        item.setForeground(QColor(colors[token]))
+
+    def _refresh_compress_result_colors(self) -> None:
+        if not hasattr(self, "compress_results"):
+            return
+        for index in range(self.compress_results.count()):
+            self._style_compress_result_item(self.compress_results.item(index))
+
     def _on_compress_finished(self):
-        self.btn_compress_start.setEnabled(True)
+        if isinstance(self.btn_compress_start, ActionButton):
+            self.btn_compress_start.set_busy(False)
+        else:
+            self.btn_compress_start.setEnabled(True)
         self.btn_compress_add.setEnabled(True)
         self.btn_compress_clear.setEnabled(True)
         total = self._compress_ok_count + self._compress_fail_count
@@ -1957,10 +2128,13 @@ class MainWindow(QMainWindow):
         )
 
     def _on_compress_cancelled(self):
-        self.btn_compress_start.setEnabled(True)
+        if isinstance(self.btn_compress_start, ActionButton):
+            self.btn_compress_start.set_busy(False)
+        else:
+            self.btn_compress_start.setEnabled(True)
         self.btn_compress_add.setEnabled(True)
         self.btn_compress_clear.setEnabled(True)
-        self.status_label.setText("Sikistirma guvenli sekilde durduruldu.")
+        self.status_label.setText("Sıkıştırma güvenli şekilde durduruldu.")
 
     def _reset_progress(self):
         self.progress.setRange(0, 1)

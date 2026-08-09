@@ -1,5 +1,5 @@
 """
-txttoTTS - arka plan iş parçacıkları.
+Voxora Studio - arka plan iş parçacıkları.
 
 Üç bileşen:
   - TqdmProgressBridge: terminal tqdm çıktısını Qt sinyaline çevirir

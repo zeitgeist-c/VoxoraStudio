@@ -1,8 +1,8 @@
-# txttoTTS
+# Voxora Studio
 
-Chatterbox Multilingual V3 tabanlı, PyQt6 arayüzlü Türkçe metin -> ses dönüştürücü.
+Chatterbox Multilingual V3 tabanlı, PyQt6 arayüzlü yerel metin -> ses üretim stüdyosu.
 
-**Versiyon:** v0.2.1 (2026-06-30) — bkz. [gitlog.txt](gitlog.txt)
+**Versiyon:** v0.3.0 (2026-08-09) — bkz. [gitlog.txt](gitlog.txt)
 
 ## Durum
 
@@ -41,8 +41,8 @@ winget install Gyan.FFmpeg --accept-package-agreements --accept-source-agreement
 ### Proje kurulumu
 
 ```powershell
-cd C:\Projeler\txttoTTS
-setup.bat
+cd <proje-klasörü>
+.\setup.bat
 ```
 
 `setup.bat`, kurulum başında internet, donanım ve ffmpeg durumunu kontrol eder. NVIDIA GPU varsa CUDA destekli PyTorch kurulumunu otomatik dener; doğrulanamazsa CPU kurulumuna düşer. AMD/Intel Arc gibi DirectML uyumlu GPU varsa `onnxruntime-directml` kurulur; ONNX model yoksa uygulama güvenli şekilde CPU modunda çalışır.
@@ -50,12 +50,12 @@ setup.bat
 Kurulumdan sonra hızlı kontrol:
 
 ```powershell
-install_check.bat
+.\install_check.bat
 ```
 
 ## Başka PC'ye Kurulum
 
-1. `txttoTTS` klasörünü diğer Windows bilgisayara kopyala.
+1. Proje klasörünü diğer Windows bilgisayara kopyala.
 2. Python 3.11 yoksa kur:
 
 ```powershell
@@ -71,19 +71,19 @@ winget install Gyan.FFmpeg --accept-package-agreements --accept-source-agreement
 4. Proje klasöründe kurulumu başlat:
 
 ```powershell
-setup.bat
+.\setup.bat
 ```
 
 5. Kurulumu kontrol et:
 
 ```powershell
-install_check.bat
+.\install_check.bat
 ```
 
 6. Programı çalıştır:
 
 ```powershell
-run.bat
+.\run.bat
 ```
 
 İlk çalıştırmada Chatterbox model dosyaları indirilebilir; bu birkaç dakika sürebilir.
@@ -91,14 +91,23 @@ run.bat
 ## Çalıştırma
 
 ```powershell
-run.bat
+.\run.bat
 ```
 
-veya:
+veya proje klasörü dışından:
 
 ```powershell
-C:\Projeler\txttoTTS\run.bat
+& "<proje-klasörü>\run.bat"
 ```
+
+Voxora Studio normalde terminal penceresi göstermeden başlar. Sorun ayıklamak için konsolu açık tutabilirsin:
+
+```powershell
+$env:VOXORA_SHOW_CONSOLE = "1"
+.\run.bat
+```
+
+Eski otomasyonlar için `TXTOTTS_SHOW_CONSOLE` ve `TXTOTTS_HIDDEN` değişkenleri geriye dönük uyumluluk amacıyla kabul edilir.
 
 ## Kullanım
 
@@ -173,9 +182,20 @@ Yeni üretimlerde preset adı ve hız `[Anlatıcı • 0.90x]` formatında göst
 ## Notlar
 
 - Varsayılan otomatik kayıt klasörü: `outputs/` (Ayarlar sekmesinden değiştirilebilir)
-- Loglar: `logs/`
+- Log: `logs/VoxoraStudio.log`
 - Ayar/geçmiş durumu: `state/`
 - CPU modunda ilk sentez yavaş olabilir.
+
+## Windows Paketi Oluşturma
+
+Kurulum tamamlandıktan sonra PyInstaller tabanlı taşınabilir klasörü oluştur:
+
+```powershell
+cd <proje-klasörü>
+.\build.bat
+```
+
+Paket `dist\VoxoraStudio-0.3.0\` altında eş adlı `VoxoraStudio-0.3.0.exe` ve `VoxoraStudio-0.3.0.bat` dosyalarıyla oluşur. Sürüm sonraki artışlarda `app\version.py` üzerinden otomatik okunur. Torch/CUDA çalışma dosyaları nedeniyle klasör yaklaşık 5 GB olabilir; başka bir bilgisayara taşırken klasörün tamamını kopyala. Windows görev çubuğu kimliği `Voxora.Studio` olarak değiştiği için eski sürümden kalan sabitlemenin bir kez yenilenmesi gerekebilir.
 
 ## Test
 
