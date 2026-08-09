@@ -1,5 +1,5 @@
 """
-txttoTTS - GPU tespit yardımcıları (Windows).
+Voxora Studio - GPU tespit yardımcıları (Windows).
 
 DirectML kurulum kararı: has_directml_capable_gpu() = has_amd_gpu() and not has_nvidia_gpu()
 

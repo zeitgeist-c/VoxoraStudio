@@ -1,9 +1,12 @@
 @echo off
-REM txttoTTS launcher
+REM Voxora Studio launcher
 REM Eksik paket varsa veya NVIDIA PC'de CUDA aktif degilse kurulumu otomatik tamamlar.
 REM Cift tiklandiginda kalici bir terminal penceresi gostermeden calistir.
-REM Hata ayiklamak icin: set TXTOTTS_SHOW_CONSOLE=1 && run.bat
-if not defined TXTOTTS_HIDDEN if not defined TXTOTTS_SHOW_CONSOLE (
+REM Hata ayiklamak icin: set VOXORA_SHOW_CONSOLE=1 && run.bat
+REM TXTOTTS_* degiskenleri eski kurulumlarla uyumluluk icin kabul edilir.
+if not defined VOXORA_SHOW_CONSOLE if defined TXTOTTS_SHOW_CONSOLE set "VOXORA_SHOW_CONSOLE=%TXTOTTS_SHOW_CONSOLE%"
+if not defined VOXORA_HIDDEN if defined TXTOTTS_HIDDEN set "VOXORA_HIDDEN=%TXTOTTS_HIDDEN%"
+if not defined VOXORA_HIDDEN if not defined VOXORA_SHOW_CONSOLE (
     start "" wscript.exe "%~dp0run_hidden.vbs"
     exit /b
 )

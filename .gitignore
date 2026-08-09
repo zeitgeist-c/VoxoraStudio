@@ -5,6 +5,7 @@ __pycache__/
 *.so
 .Python
 .venv/
+.tools/
 venv/
 env/
 
@@ -12,7 +13,7 @@ env/
 outputs/
 logs/
 models/
-state/*.json
+state/*
 *.wav
 *.mp3
 

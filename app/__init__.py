@@ -1,1 +1,1 @@
-"""txttoTTS uygulama paketi."""
+"""Voxora Studio uygulama paketi."""

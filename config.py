@@ -1,5 +1,5 @@
 """
-txttoTTS - varsayılanlar.
+Voxora Studio - varsayılanlar.
 """
 from __future__ import annotations
 

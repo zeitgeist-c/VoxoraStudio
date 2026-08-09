@@ -1,5 +1,5 @@
 @echo off
-REM txttoTTS kurulum kontrolu - Python, CUDA/PyTorch, Paketler, Perth, ffmpeg
+REM Voxora Studio kurulum kontrolu - Python, CUDA/PyTorch, Paketler, Perth, ffmpeg
 REM Kullanim: install_check.bat
 
 cd /d "%~dp0"
@@ -8,7 +8,7 @@ set "PYTHONPATH=%PROJECT_ROOT%"
 set "PYEXE=.venv\Scripts\python.exe"
 
 echo ============================================================
-echo txttoTTS kurulum kontrolu
+echo Voxora Studio kurulum kontrolu
 echo ============================================================
 echo.
 
@@ -95,7 +95,7 @@ echo.
 echo [6/7] Kritik paketler...
 "%PYEXE%" -c "
 import sys
-packages = ['numpy', 'torch', 'torchaudio', 'PyQt6', 'sounddevice', 'soundfile', 'pydub', 'send2trash']
+packages = ['numpy', 'torch', 'torchaudio', 'PyQt6', 'sounddevice', 'soundfile', 'pydub', 'send2trash', 'PyInstaller']
 failed = []
 for name in packages:
     try:

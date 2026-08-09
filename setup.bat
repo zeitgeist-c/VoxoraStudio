@@ -1,12 +1,12 @@
 @echo off
-REM txttoTTS setup - Python 3.11 venv + akilli GPU/CPU kurulumu
+REM Voxora Studio setup - Python 3.11 venv + akilli GPU/CPU kurulumu
 
 cd /d "%~dp0"
 set "PROJECT_ROOT=%CD%"
 set "PYTHONPATH=%PROJECT_ROOT%"
 
 echo ============================================================
-echo txttoTTS kurulum
+echo Voxora Studio kurulum
 echo ============================================================
 echo.
 

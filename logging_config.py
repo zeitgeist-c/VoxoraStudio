@@ -1,12 +1,11 @@
-"""
-txttoTTS - loglama (konsol + dosya, UTF-8).
-"""
+"""Voxora Studio loglama yapılandırması (konsol + dosya, UTF-8)."""
 import logging
 import os
 
+from app.branding import LOG_FILENAME
 from config import DEFAULT_LOG_DIR
 
-LOG_FILE = os.path.join(DEFAULT_LOG_DIR, "txttoTTS.log")
+LOG_FILE = os.path.join(DEFAULT_LOG_DIR, LOG_FILENAME)
 _FMT = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 
 

@@ -1,5 +1,5 @@
 """
-txttoTTS - PyQt6 uygulaması giriş noktası.
+Voxora Studio - PyQt6 uygulaması giriş noktası.
 
 Sınıflar `app/` paketine taşındı:
   - app.constants: LANGUAGES, PRESETS, REFERENCE_SAMPLE_TEXT
@@ -14,6 +14,7 @@ import sys
 
 from PyQt6.QtWidgets import QApplication
 
+from app.branding import APP_USER_MODEL_ID, DISPLAY_NAME, TECHNICAL_NAME
 from app.main_window import MainWindow
 from app.theme import application_icon
 from logging_config import setup_logging
@@ -26,12 +27,12 @@ def main():
     if sys.platform == "win32":
         try:
             import ctypes
-            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("txttoTTS.VoiceStudio")
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_USER_MODEL_ID)
         except Exception:
             log.debug("Windows AppUserModelID ayarlanamadı.", exc_info=True)
     app = QApplication([])
-    app.setApplicationName("txttoTTS")
-    app.setApplicationDisplayName("txttoTTS Voice Studio")
+    app.setApplicationName(TECHNICAL_NAME)
+    app.setApplicationDisplayName(DISPLAY_NAME)
     app.setWindowIcon(application_icon())
     win = MainWindow()
     win.show()

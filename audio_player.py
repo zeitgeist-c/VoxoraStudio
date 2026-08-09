@@ -1,5 +1,5 @@
 """
-txttoTTS - ses çalma (tensor / WAV / MP3 -> hoparlör).
+Voxora Studio - ses çalma (tensor / WAV / MP3 -> hoparlör).
 
 sounddevice üzerinden çaldığı için MP3 codec sorunu yok.
 QMediaPlayer kullanmıyoruz (Qt6'da MP3 codec ayrı kurulum gerektirir).

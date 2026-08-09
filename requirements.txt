@@ -1,9 +1,9 @@
-# txttoTTS - bağımlılıklar (bölümlenmiş)
+# Voxora Studio - bağımlılıklar (bölümlenmiş)
 
 # Core - TTS motoru (Chatterbox Multilingual V3, Türkçe native)
 chatterbox-tts
-torch
-torchaudio
+torch==2.6.0
+torchaudio==2.6.0
 
 # GPU - AMD/NVIDIA hızlandırma (DirectML)
 # v0.1.0: provider kontrolü aktif, model yok (CPU'ya düşer)
@@ -33,3 +33,6 @@ send2trash
 
 # Perth watermarker - Chatterbox Multilingual TTS watermark
 resemble-perth
+
+# Paketleme - build.bat ile Windows onedir paketi
+PyInstaller

@@ -1,5 +1,5 @@
 """
-txttoTTS - başta sessizlik kırpma birim testleri.
+Voxora Studio - başta sessizlik kırpma birim testleri.
 
 trim_leading_silence pure helper'ı test eder. Qt bağımlılığı yok.
 """

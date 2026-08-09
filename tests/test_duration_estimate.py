@@ -1,5 +1,5 @@
 """
-txttoTTS - süre tahmini birim testleri.
+Voxora Studio - süre tahmini birim testleri.
 
 estimate_duration_range pure helper'ı test eder. Qt bağımlılığı yok.
 """
