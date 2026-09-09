@@ -1,6 +1,13 @@
 Voxora Studio versiyon günlüğü
 =======================
 
+v0.3.3 (2026-09-09) — İnceleme, hata düzeltme ve temizlik
+- Geri Dönüşüm uyarısı: send2trash yokken silme diyaloğu KALICI silme uyarısı verir.
+- Bozuk Türkçe log mesajları düzeltildi (app_state, workers).
+- Ölü import temizliği (QTimer, menu_icon); setup_env bare-except düzeltmesi.
+- 5 ölü .spec + dist/ + build_temp/ temizlendi (~3.3 GB).
+- Test: 58 passed, 1 skipped; smoke TÜM KONTROLLER BAŞARILI.
+
 v0.3.2 (2026-08-09) — Hızlı ve konsolsuz başlangıç
 - Her açılışta yüzlerce MB çıkaran `onefile` yerine optimize edilmiş `onedir` pakete dönüldü.
 - EXE pencere modunda üretildi; uygulama açıkken boş CMD penceresi kalmaz.
