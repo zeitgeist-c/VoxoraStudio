@@ -141,7 +141,7 @@ def ensure_cuda_torch(target: str) -> None:
         "  p = os.path.join(site_packages, name); "
         "  if os.path.isdir(p): "
         "    try: shutil.rmtree(p, ignore_errors=True); print('silindi:', p); "
-        "    except: print('silinemedi:', p)"
+        "    except Exception: print('silinemedi:', p)"
     )
     subprocess.run([str(PYTHON), "-c", remove_code], cwd=ROOT)
     install_torch("cuda")
