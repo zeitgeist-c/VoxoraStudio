@@ -52,7 +52,7 @@ import audio_compressor
 from app_state import load_history, load_settings, save_history, save_settings
 import chunker
 from config import DEFAULT_OUTPUT_DIR
-from file_utils import safe_filename_from_text, safe_remove_to_trash, unique_path
+from file_utils import safe_filename_from_text, safe_remove_to_trash, trash_available, unique_path
 
 from .constants import (
     CONFIRM_CHUNK_COUNT,
@@ -159,6 +159,23 @@ def trim_leading_silence(
 def queue_split_lines(text: str) -> list[str]:
     """Çok satırlı metni dolu satırlara böler (boş olmayan, trim'li)."""
     return [line.strip() for line in text.splitlines() if line.strip()]
+
+
+def history_delete_dialog_texts(trash_ok: bool) -> tuple[str, str]:
+    """Silme diyaloğu metinleri (saf, test edilebilir).
+
+    Returns:
+        (bilgi_metni, sil_düğmesi_etiketi).
+    """
+    if trash_ok:
+        return (
+            "Ses dosyalarını Geri Dönüşüm'e taşıyabilir veya sadece geçmiş listesinden kaldırabilirsin.",
+            "Geri Dönüşüm'e Taşı",
+        )
+    return (
+        "Geri Dönüşüm kullanılamıyor (send2trash kurulu değil); dosyalar KALICI olarak silinir.",
+        "Kalıcı Sil",
+    )
 
 
 def apply_theme(app, theme: str) -> str:
@@ -1586,8 +1603,9 @@ class MainWindow(QMainWindow):
         box.setWindowTitle("Geçmişi sil")
         box.setIcon(QMessageBox.Icon.Question)
         box.setText(message)
-        box.setInformativeText("Ses dosyalarını Geri Dönüşüm'e taşıyabilir veya sadece geçmiş listesinden kaldırabilirsin.")
-        delete_files_button = box.addButton("Geri Dönüşüm'e Taşı", QMessageBox.ButtonRole.DestructiveRole)
+        info_text, delete_label = history_delete_dialog_texts(trash_available())
+        box.setInformativeText(info_text)
+        delete_files_button = box.addButton(delete_label, QMessageBox.ButtonRole.DestructiveRole)
         list_only_button = box.addButton("Sadece listeden kaldır", QMessageBox.ButtonRole.AcceptRole)
         cancel_button = box.addButton("Vazgeç", QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(list_only_button)

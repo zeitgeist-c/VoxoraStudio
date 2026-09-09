@@ -7,7 +7,20 @@ import os
 import tempfile
 import unittest
 
-from file_utils import safe_filename_from_text, safe_remove_to_trash, unique_path
+from file_utils import safe_filename_from_text, safe_remove_to_trash, trash_available, unique_path
+
+
+class TrashAvailableTests(unittest.TestCase):
+    def test_returns_bool(self):
+        self.assertIsInstance(trash_available(), bool)
+
+    def test_matches_send2trash_importability(self):
+        try:
+            import send2trash  # noqa: F401
+            expected = True
+        except ImportError:
+            expected = False
+        self.assertEqual(trash_available(), expected)
 
 
 class SafeRemoveToTrashTests(unittest.TestCase):

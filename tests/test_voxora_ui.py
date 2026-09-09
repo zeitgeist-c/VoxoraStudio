@@ -215,6 +215,14 @@ class VoxoraUiTests(unittest.TestCase):
             window.deleteLater()
             self.app.processEvents()
 
+    def test_history_delete_dialog_texts_warn_when_no_trash(self):
+        info_ok, btn_ok = main_window.history_delete_dialog_texts(True)
+        self.assertIn("Geri Dönüşüm", info_ok)
+        self.assertEqual(btn_ok, "Geri Dönüşüm'e Taşı")
+        info_no, btn_no = main_window.history_delete_dialog_texts(False)
+        self.assertIn("KALICI", info_no)
+        self.assertEqual(btn_no, "Kalıcı Sil")
+
 
 if __name__ == "__main__":
     unittest.main()

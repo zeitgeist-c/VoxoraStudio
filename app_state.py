@@ -25,7 +25,7 @@ def load_json(path: Path, default: Any) -> Any:
             if candidate.exists():
                 return json.loads(candidate.read_text(encoding="utf-8"))
         except Exception:
-            log.exception("Durum dosyas? okunamad?: %s", candidate)
+            log.exception("Durum dosyası okunamadı: %s", candidate)
     return default
 
 
@@ -38,7 +38,7 @@ def save_json(path: Path, data: Any) -> None:
             json.loads(path.read_text(encoding="utf-8"))
             shutil.copy2(path, backup)
         except Exception:
-            log.warning("Ge?ersiz durum dosyas? yedeklenmedi: %s", path)
+            log.warning("Geçersiz durum dosyası yedeklenmedi: %s", path)
     fd, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as stream:
