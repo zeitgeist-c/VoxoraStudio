@@ -21,7 +21,7 @@ import subprocess
 
 import numpy as np
 import soundfile as sf
-from PyQt6.QtCore import QEasingCurve, QParallelAnimationGroup, QPropertyAnimation, QSize, QThread, QTimer, Qt
+from PyQt6.QtCore import QEasingCurve, QParallelAnimationGroup, QPropertyAnimation, QSize, QThread, Qt
 from PyQt6.QtGui import QColor, QFont, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QApplication,
@@ -63,7 +63,7 @@ from .constants import (
 )
 from .branding import BRAND_PRIMARY, BRAND_SECONDARY, DISPLAY_NAME, TECHNICAL_TAGLINE
 from .dialogs import ModelLoadDialog, SynthesisDialog, VoiceGuideDialog
-from .icons import menu_icon, navigation_icon
+from .icons import navigation_icon
 from .theme import (
     application_icon,
     apply_application_theme,
