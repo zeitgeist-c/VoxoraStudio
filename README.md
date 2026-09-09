@@ -2,7 +2,7 @@
 
 Chatterbox Multilingual V3 tabanlı, PyQt6 arayüzlü yerel metin -> ses üretim stüdyosu.
 
-**Versiyon:** v0.3.2 (2026-08-09) — bkz. [gitlog.txt](gitlog.txt)
+**Versiyon:** v0.3.3 (2026-09-09) — bkz. [gitlog.txt](gitlog.txt)
 
 ## Durum
 
@@ -195,7 +195,7 @@ cd <proje-klasörü>
 .\build.bat
 ```
 
-Paket `dist\VoxoraStudio-0.3.2\` altında sürümlü `VoxoraStudio-0.3.2.exe`, `VoxoraStudio-0.3.2.bat` ve gerekli `_internal` çalışma klasörüyle oluşur. BAT, yanındaki EXE'yi başlatıp hemen kapanır; EXE konsol penceresi açmaz. Hızlı başlangıç için çalışma dosyaları önceden açılmış olarak tutulur. Başka bilgisayara kurulum/taşıma için tek başına EXE'yi değil, sürümlü ZIP'i veya klasörün tamamını kopyala. Sürüm sonraki artışlarda `app\version.py` üzerinden otomatik okunur.
+Paket `dist\VoxoraStudio-0.3.3\` altında sürümlü `VoxoraStudio-0.3.3.exe`, `VoxoraStudio-0.3.3.bat` ve gerekli `_internal` çalışma klasörüyle oluşur. BAT, yanındaki EXE'yi başlatıp hemen kapanır; EXE konsol penceresi açmaz. Hızlı başlangıç için çalışma dosyaları önceden açılmış olarak tutulur. Başka bilgisayara kurulum/taşıma için tek başına EXE'yi değil, sürümlü ZIP'i veya klasörün tamamını kopyala. Sürüm sonraki artışlarda `app\version.py` üzerinden otomatik okunur.
 
 ## Test
 
