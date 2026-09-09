@@ -5,7 +5,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-__all__ = ["safe_filename_from_text", "unique_path", "safe_remove_to_trash"]
+__all__ = ["safe_filename_from_text", "unique_path", "safe_remove_to_trash", "trash_available"]
 
 _SAFE_RE = re.compile(r"[^\w\-.]+", re.UNICODE)
 
@@ -31,6 +31,15 @@ def unique_path(directory: str | Path, filename: str) -> Path:
         if not next_candidate.exists():
             return next_candidate
     return directory / f"{stem}_{datetime.now().strftime('%f')}{suffix}"
+
+
+def trash_available() -> bool:
+    """Geri Dönüşüm kullanılabilir mi (send2trash kurulu mu)?"""
+    try:
+        import send2trash  # noqa: F401
+        return True
+    except ImportError:
+        return False
 
 
 def safe_remove_to_trash(path: str) -> tuple[bool, str | None]:

@@ -1,4 +1,4 @@
-"""
+r"""
 Voxora Studio smoke test - hafif ve --full modlu.
 
 Default (light): unit test suite + import + ortam.

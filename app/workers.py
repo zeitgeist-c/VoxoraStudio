@@ -123,7 +123,7 @@ class SynthWorker(QThread):
                     engine_settings = {k: v for k, v in raw.items() if k in allowed}
                     wav, s = self.engine.synthesize(text_chunk, **engine_settings)
                 if self._cancel_requested:
-                    self.cancelled.emit("?retim kullan?c? taraf?ndan durduruldu.")
+                    self.cancelled.emit("Üretim kullanıcı tarafından durduruldu.")
                     return
                 elapsed = time.perf_counter() - started_at
                 wav_cpu = wav.cpu()
