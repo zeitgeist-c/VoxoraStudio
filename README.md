@@ -4,9 +4,7 @@
 
 Chatterbox Multilingual V3 based, PyQt6 text-to-speech production studio. Turkish + multilingual, voice cloning from a reference sample, WAV/MP3 export — runs fully local with CPU/CUDA/DirectML support.
 
-![VoxoraStudio screenshots](./docs/screenshots/)
-
-> Screenshots are being added from a clean install (no sample data). The folder above will hold them.
+![Üretim stüdyosu](./docs/screenshots/01-uretim.png)
 
 ## Features
 
