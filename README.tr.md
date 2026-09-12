@@ -4,9 +4,7 @@
 
 Chatterbox Multilingual V3 tabanlı, PyQt6 arayüzlü metinden sese üretim stüdyosu. Türkçe + çok dilli, referans örnekle ses klonlama, WAV/MP3 dışa aktarma — CPU/CUDA/DirectML ile tam yerel çalışır.
 
-![VoxoraStudio ekran görüntüleri](./docs/screenshots/)
-
-> Ekran görüntüleri temiz kurulumdan ekleniyor (örnek veri yok). Yukarıdaki klasöre konacak.
+![Üretim stüdyosu](./docs/screenshots/01-uretim.png)
 
 ## Özellikler
 
