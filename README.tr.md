@@ -27,10 +27,12 @@ Gereksinim: Python 3.11 + ffmpeg (MP3 için).
 setup.bat          :: internet/donanım/ffmpeg kontrolü, CUDA yoksa CPU
 install_check.bat  :: kurulum doğrulama
 run.bat            :: konsolsuz başlat (debug: VOXORA_SHOW_CONSOLE=1)
-build.bat          :: paketleme dist\VoxoraStudio-0.3.3\ (PyInstaller onedir)
+build.bat          :: paketleme dist\VoxoraStudio-0.3.4\ (PyInstaller onedir)
 ```
 
 Test: `smoke_test.py` (light/full), `python -m unittest discover -s tests -v`.
+
+Eski otomasyonlar için `TXTOTTS_SHOW_CONSOLE` ve `TXTOTTS_HIDDEN` değişkenleri geriye dönük uyumluluk amacıyla kabul edilir (`VOXORA_SHOW_CONSOLE` / `VOXORA_HIDDEN` olarak eşlenir).
 
 ## Proje yapısı
 

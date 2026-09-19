@@ -23,9 +23,9 @@ class BrandingContractTests(unittest.TestCase):
             "Chatterbox Multilingual • Yerel üretim",
         )
         self.assertEqual(branding.LOG_FILENAME, "VoxoraStudio.log")
-        self.assertEqual(branding.__version__, "0.3.3")
-        self.assertEqual(branding.PACKAGE_STEM, "VoxoraStudio-0.3.3")
-        self.assertEqual(branding.EXECUTABLE_NAME, "VoxoraStudio-0.3.3.exe")
+        self.assertEqual(branding.__version__, "0.3.4")
+        self.assertEqual(branding.PACKAGE_STEM, "VoxoraStudio-0.3.4")
+        self.assertEqual(branding.EXECUTABLE_NAME, "VoxoraStudio-0.3.4.exe")
 
     def test_release_build_is_driven_by_authoritative_version(self):
         build_text = (REPO_ROOT / "build.bat").read_text(encoding="utf-8")
@@ -56,6 +56,10 @@ class LegacyBrandGuardTests(unittest.TestCase):
             "TXTOTTS_HIDDEN",
         },
         "README.md": {
+            "TXTOTTS_SHOW_CONSOLE",
+            "TXTOTTS_HIDDEN",
+        },
+        "README.tr.md": {
             "TXTOTTS_SHOW_CONSOLE",
             "TXTOTTS_HIDDEN",
         },

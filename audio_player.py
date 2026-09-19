@@ -75,11 +75,3 @@ def play_file(path: str, blocking: bool = False) -> None:
 
 def stop() -> None:
     sd.stop()
-
-
-def is_playing() -> bool:
-    try:
-        stream = sd.get_stream()
-        return bool(stream and stream.active)
-    except Exception:
-        return False

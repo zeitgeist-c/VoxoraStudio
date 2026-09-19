@@ -15,8 +15,6 @@ import argparse
 import sys
 from pathlib import Path
 
-import torch
-
 
 def export_t3(model, output_dir: Path, device: str = "cpu") -> Path:
     """T3 backbone'i ONNX'e export et.
