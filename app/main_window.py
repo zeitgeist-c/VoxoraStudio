@@ -1849,21 +1849,6 @@ class MainWindow(QMainWindow):
             self._synth_dialog.status_label.setText("Üretim durduruluyor...")
             self._synth_dialog.detail.appendPlainText("Üretim durduruluyor; model yanıt vermezse işlem zorla kesilecek.")
 
-    def _force_stop_synthesis(self):
-        if not self._synth_cancel_requested:
-            return
-
-        worker = self._synth_worker
-        if worker and worker.isRunning():
-            worker.request_cancel()
-
-        self._synth_worker = None
-        self._synth_cancel_requested = False
-        self._reset_progress()
-        self._set_busy(False, "Üretim durduruldu.")
-        if self._synth_dialog:
-            self._synth_dialog.finish_error("Üretim durduruldu.")
-
     def _on_synth_chunk_started(self, index: int, total: int, text: str):
         self.status_label.setText(f"Üretiliyor... Parça {index}/{total}")
         if self._synth_dialog:

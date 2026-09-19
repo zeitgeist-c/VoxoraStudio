@@ -1,6 +1,11 @@
 Voxora Studio versiyon günlüğü
 =======================
 
+v0.3.4 (2026-09-19) — Ölü kod temizliği ve belge uyumu
+- Ölü kod temizliği: kullanılmayan _force_stop_synthesis, audio_player.is_playing, T3_MODEL sabiti ve export_onnx torch importu kaldırıldı.
+- README ve README.tr: eski TXTOTTS uyumluluk değişkenleri notu geri eklendi; contract testi yeşile döndü.
+- Test: 59 passed, 1 skipped; smoke TÜM KONTROLLER BAŞARILI.
+
 v0.3.3 (2026-09-09) — İnceleme, hata düzeltme ve temizlik
 - Geri Dönüşüm uyarısı: send2trash yokken silme diyaloğu KALICI silme uyarısı verir.
 - Bozuk Türkçe log mesajları düzeltildi (app_state, workers).
