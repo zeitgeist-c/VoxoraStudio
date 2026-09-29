@@ -223,6 +223,43 @@ class VoxoraUiTests(unittest.TestCase):
         self.assertIn("KALICI", info_no)
         self.assertEqual(btn_no, "Kalıcı Sil")
 
+    def _headless_window(self):
+        patches = (
+            patch.object(main_window, "load_settings", return_value={}),
+            patch.object(main_window, "load_history", return_value=[]),
+            patch.object(main_window, "save_settings"),
+            patch.object(main_window, "save_history"),
+            patch.object(main_window.audio_player, "stop"),
+            patch.object(MainWindow, "_init_engine_async", autospec=True),
+        )
+        for p in patches:
+            p.start()
+            self.addCleanup(p.stop)
+        return MainWindow()
+
+    def test_on_generate_guard_running_worker(self):
+        from types import SimpleNamespace
+
+        window = self._headless_window()
+        self.addCleanup(window.deleteLater)
+        window.engine = object()
+        window.text_edit.setPlainText("deneme metni")
+        window._synth_worker = SimpleNamespace(isRunning=lambda: True)
+        with patch.object(main_window.QMessageBox, "information") as info:
+            self.assertFalse(window.on_generate())
+            info.assert_called_once()
+        self.assertTrue(window._synth_worker.isRunning())
+
+    def test_on_compress_start_guard_running_worker(self):
+        from types import SimpleNamespace
+
+        window = self._headless_window()
+        self.addCleanup(window.deleteLater)
+        window._compress_worker = SimpleNamespace(isRunning=lambda: True)
+        with patch.object(main_window.QMessageBox, "information") as info:
+            window.on_compress_start()
+            info.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()

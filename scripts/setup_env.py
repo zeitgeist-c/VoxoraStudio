@@ -82,14 +82,13 @@ def torch_import_ok() -> bool:
 def check_perth_watermarker() -> bool:
     print("[BILGI] Perth watermarker kontrolu...")
     code = (
-        "import importlib; "
-        "try: "
-        "  import perth; "
-        "  w = perth.PerthImplicitWatermarker(); "
-        "  print('[OK] Perth watermarker:', type(w).__module__); "
-        "except Exception as e: "
-        "  print('[HATA] Perth watermarker:', e); "
-        "  raise SystemExit(1)"
+        "import perth\n"
+        "try:\n"
+        "    w = perth.PerthImplicitWatermarker()\n"
+        "    print('[OK] Perth watermarker:', type(w).__module__)\n"
+        "except Exception as e:\n"
+        "    print('[HATA] Perth watermarker:', e)\n"
+        "    raise SystemExit(1)\n"
     )
     result = subprocess.run([str(PYTHON), "-c", code], cwd=ROOT)
     if result.returncode == 0:
@@ -199,12 +198,12 @@ def install_project_requirements() -> None:
 def check_chatterbox_import() -> bool:
     print("[BILGI] Chatterbox import kontrolu...")
     code = (
-        "try: "
-        "  from chatterbox.mtl_tts import ChatterboxMultilingualTTS; "
-        "  print('[OK] Chatterbox import basarili'); "
-        "except Exception as e: "
-        "  print('[HATA] Chatterbox import:', e); "
-        "  raise SystemExit(1)"
+        "try:\n"
+        "    from chatterbox.mtl_tts import ChatterboxMultilingualTTS\n"
+        "    print('[OK] Chatterbox import basarili')\n"
+        "except Exception as e:\n"
+        "    print('[HATA] Chatterbox import:', e)\n"
+        "    raise SystemExit(1)\n"
     )
     result = subprocess.run([str(PYTHON), "-c", code], cwd=ROOT)
     return result.returncode == 0

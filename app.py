@@ -22,8 +22,14 @@ from logging_config import setup_logging
 log = logging.getLogger(__name__)
 
 
+def _log_uncaught(exc_type, exc_value, exc_tb):
+    """Yakalanmayan istisnayı loga yaz; --noconsole çalıştırmada da iz kalsın."""
+    log.critical("Yakalanmayan istisna", exc_info=(exc_type, exc_value, exc_tb))
+
+
 def main():
     setup_logging()
+    sys.excepthook = _log_uncaught
     if sys.platform == "win32":
         try:
             import ctypes

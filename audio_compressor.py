@@ -6,6 +6,7 @@ import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from shutil import which
 
 from file_utils import unique_path
 
@@ -32,19 +33,15 @@ class CompressionResult:
 
 
 def _bundled_ffmpeg() -> str | None:
-    import sys
-    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-        p = os.path.join(sys._MEIPASS, "bin", "ffmpeg.exe")
-        if os.path.exists(p):
-            return p
-    return None
+    from file_utils import bundled_bin
+
+    return bundled_bin("ffmpeg.exe")
 
 
 def _ffmpeg_path() -> str:
     bundled = _bundled_ffmpeg()
     if bundled:
         return bundled
-    from shutil import which
     path = which("ffmpeg")
     if path:
         return path
@@ -87,19 +84,33 @@ def compress_to_opus(
             error=f"Girdi dosyası bulunamadı: {input_path}",
         )
 
-    if output_path is None:
-        if output_dir:
-            target_dir = Path(output_dir)
-        else:
-            target_dir = input_path.parent
-        target_dir.mkdir(parents=True, exist_ok=True)
-        output_path = unique_path(target_dir, f"{input_path.stem}.opus")
+    try:
+        if output_path is None:
+            if output_dir:
+                target_dir = Path(output_dir)
+            else:
+                target_dir = input_path.parent
+            target_dir.mkdir(parents=True, exist_ok=True)
+            output_path = unique_path(target_dir, f"{input_path.stem}.opus")
 
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    if input_path.resolve() == output_path.resolve():
-        output_path = unique_path(output_path.parent, output_path.name)
-    original_size = input_path.stat().st_size
+        output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        if input_path.resolve() == output_path.resolve():
+            output_path = unique_path(output_path.parent, output_path.name)
+        original_size = input_path.stat().st_size
+    except Exception as e:
+        return CompressionResult(
+            ok=False,
+            input_path=input_path,
+            output_path=None,
+            original_size=0,
+            compressed_size=None,
+            ratio=None,
+            duration_seconds=None,
+            codec="libopus",
+            bitrate=bitrate,
+            error=str(e),
+        )
 
     ffmpeg = _ffmpeg_path()
     if not ffmpeg:

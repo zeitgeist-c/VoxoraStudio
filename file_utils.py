@@ -5,7 +5,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-__all__ = ["safe_filename_from_text", "unique_path", "safe_remove_to_trash", "trash_available"]
+__all__ = ["safe_filename_from_text", "unique_path", "safe_remove_to_trash", "trash_available", "bundled_bin"]
 
 _SAFE_RE = re.compile(r"[^\w\-.]+", re.UNICODE)
 
@@ -64,3 +64,14 @@ def safe_remove_to_trash(path: str) -> tuple[bool, str | None]:
             return False, str(e)
     except Exception as e:
         return False, str(e)
+
+
+def bundled_bin(name: str) -> str | None:
+    """Exe içine gömülü yardımcı program yolunu döndürür (frozen yoksa None)."""
+    import sys
+
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        p = os.path.join(sys._MEIPASS, "bin", name)
+        if os.path.exists(p):
+            return p
+    return None
