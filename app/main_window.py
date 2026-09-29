@@ -18,6 +18,7 @@ import logging
 import os
 import re
 import subprocess
+import unicodedata
 
 import numpy as np
 import soundfile as sf
@@ -1026,6 +1027,7 @@ class MainWindow(QMainWindow):
             workers = [self._loader, self._synth_worker, self._compress_worker]
             if not any(worker and worker.isRunning() for worker in workers):
                 self._close_finalized = True
+                self.close()
 
     def on_paste(self):
         text = QApplication.clipboard().text().strip()
@@ -1446,7 +1448,9 @@ class MainWindow(QMainWindow):
         self.text_edit.setPlainText(text)
         self.update_text_info()
         self.status_label.setText(f"Kuyruk işleniyor: {len(self._queue)} kaldı")
-        self.on_generate()  # Mevcut tek-üretim akışı
+        if not self.on_generate():  # Mevcut tek-üretim akışı; başlatılamazsa kilit açılır
+            self._queue_running = False
+            self.status_label.setText(f"Kuyruk durduruldu. {len(self._queue)} metin kaldı.")
 
     def _refresh_queue_list(self):
         if hasattr(self, "queue_list"):
@@ -1457,21 +1461,31 @@ class MainWindow(QMainWindow):
                     preview = preview[:57] + "..."
                 self.queue_list.addItem(f"{i}. {preview}")
 
+    @staticmethod
+    def _history_search_key(value: str) -> str:
+        """TR'ye duyarlı arama anahtarı: İ/ı katlanır, birleşik işaretler atılır."""
+        text = unicodedata.normalize("NFKD", (value or "").casefold())
+        return "".join(ch for ch in text if not unicodedata.combining(ch)).replace("ı", "i")
+
+    def _history_matches(self, item: dict, query_key: str) -> bool:
+        """Liste, seçim ve toplu silme aynı süzme kuralını kullanır."""
+        return (
+            query_key in self._history_search_key(item.get("name") or "")
+            or query_key in self._history_search_key(item.get("text") or "")
+        )
+
     def _refresh_history_list(self):
         if not hasattr(self, "history_list"):
             return
         self.history_list.clear()
-        q = self._history_query.strip().lower()
+        q = self._history_search_key(self._history_query.strip())
         for item in reversed(self.history[-100:]):
             name = item.get("name") or os.path.basename(item.get("path", "ses"))
             duration = item.get("duration", "?")
             file_path = item.get("path", "")
             exists = "" if os.path.exists(file_path) else " [dosya yok]"
-            if q:
-                name_lc = name.lower()
-                text_lc = (item.get("text") or "").lower()
-                if q not in name_lc and q not in text_lc:
-                    continue
+            if q and not self._history_matches(item, q):
+                continue
             extra = []
             if item.get("preset"):
                 extra.append(item["preset"])
@@ -1484,13 +1498,10 @@ class MainWindow(QMainWindow):
         row = self.history_list.currentRow()
         if row < 0:
             return None
-        q = self._history_query.strip().lower()
+        q = self._history_search_key(self._history_query.strip())
         items = list(reversed(self.history[-100:]))
         if q:
-            items = [
-                it for it in items
-                if q in ((it.get("name") or "").lower() + (it.get("text") or "").lower())
-            ]
+            items = [it for it in items if self._history_matches(it, q)]
         if row >= len(items):
             return None
         return items[row]
@@ -1499,7 +1510,7 @@ class MainWindow(QMainWindow):
         entry = {
             "path": file_path,
             "name": os.path.basename(file_path),
-            "text": text[:240],
+            "text": text,
             "duration": duration,
             "preset": self.preset_combo.currentText(),
             "language_id": self.language_combo.currentData(),
@@ -1668,7 +1679,11 @@ class MainWindow(QMainWindow):
         if not self.history:
             QMessageBox.information(self, "Geçmiş boş", "Silinecek geçmiş kaydı yok.")
             return
-        items = list(self.history)
+        q = self._history_search_key(self._history_query.strip())
+        items = [it for it in self.history if self._history_matches(it, q)] if q else list(self.history)
+        if not items:
+            QMessageBox.information(self, "Sonuç yok", "Filtreyle eşleşen geçmiş kaydı yok.")
+            return
         mode = self._ask_history_delete_mode(len(items))
         if not mode:
             return
@@ -1757,14 +1772,19 @@ class MainWindow(QMainWindow):
             self.engine_status_pill.setText("HAZIR")
             self.engine_status_pill.set_tone("success")
 
-    def on_generate(self):
+    def on_generate(self) -> bool:
         text = self.text_edit.toPlainText().strip()
         if not text:
             QMessageBox.warning(self, "Uyarı", "Metin boş.")
-            return
+            return False
         if not self.engine:
             QMessageBox.warning(self, "Uyarı", "Motor henüz hazır değil.")
-            return
+            return False
+        if self._synth_worker and self._synth_worker.isRunning():
+            QMessageBox.information(
+                self, "Üretim sürüyor", "Devam eden üretim bitmeden yeni üretim başlatılamaz."
+            )
+            return False
 
         # Referans ses örneği yoksa kullanıcıyı uyar.
         if not self.voice_prompt_path and not self._voice_warning_dismissed:
@@ -1784,9 +1804,9 @@ class MainWindow(QMainWindow):
             clicked = box.clickedButton()
             if clicked == btn_select:
                 self.on_select_voice()
-                return  # Bu üretim iptal; kullanıcı ses seçtiyse bir sonraki Üret'te devam eder
+                return False  # Bu üretim iptal; kullanıcı ses seçtiyse bir sonraki Üret'te devam eder
             if clicked == btn_cancel:
-                return
+                return False
             # "Yine de Üret" -> oturumda bir daha sorma
             self._voice_warning_dismissed = True
 
@@ -1796,7 +1816,7 @@ class MainWindow(QMainWindow):
         chunks = chunker.split_into_chunks(text)
         if not chunks:
             QMessageBox.warning(self, "Uyarı", "Metin boş.")
-            return
+            return False
 
         # Madde 3: Çok parçalı üretim uyarısı
         parts = len(chunks)
@@ -1807,7 +1827,7 @@ class MainWindow(QMainWindow):
                 f"{parts} parça üretilecek. Bu uzun sürer.\nDevam edilsin mi?",
             )
             if reply != QMessageBox.StandardButton.Yes:
-                return
+                return False
         elif parts > WARN_CHUNK_COUNT:
             QMessageBox.warning(
                 self,
@@ -1833,6 +1853,7 @@ class MainWindow(QMainWindow):
         self._synth_worker.failed.connect(self._on_synth_failed)
         self._synth_worker.finished.connect(self._on_background_worker_finished)
         self._synth_worker.start()
+        return True
 
     def on_cancel_synthesis(self):
         if not self._synth_worker or not self._synth_worker.isRunning():
@@ -1951,6 +1972,11 @@ class MainWindow(QMainWindow):
             self._synth_dialog.finish_error(msg)
         self._show_error("Sentez hatası", msg)
 
+        # Kuyruk: hata sonrası kilit açılır (kalan metinler korunur).
+        if self._queue_running:
+            self._queue_running = False
+            self.status_label.setText(f"Kuyruk durduruldu (hata). {len(self._queue)} metin kaldı.")
+
     def _auto_save_generated_wav(self, wav, sr, text: str) -> str:
         os.makedirs(self.output_dir, exist_ok=True)
         file_path = unique_path(self.output_dir, safe_filename_from_text(text, ".wav"))
@@ -2037,6 +2063,11 @@ class MainWindow(QMainWindow):
         self._save_current_settings()
 
     def on_compress_start(self):
+        if self._compress_worker and self._compress_worker.isRunning():
+            QMessageBox.information(
+                self, "Sıkıştırma sürüyor", "Devam eden sıkıştırma bitmeden yenisi başlatılamaz."
+            )
+            return
         if not self._compress_files:
             QMessageBox.information(self, "Liste boş", "Önce sıkıştırılacak dosyaları ekleyin.")
             return

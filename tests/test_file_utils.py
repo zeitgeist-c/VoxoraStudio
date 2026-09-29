@@ -7,7 +7,15 @@ import os
 import tempfile
 import unittest
 
-from file_utils import safe_filename_from_text, safe_remove_to_trash, trash_available, unique_path
+from file_utils import bundled_bin, safe_filename_from_text, safe_remove_to_trash, trash_available, unique_path
+
+
+class BundledBinTests(unittest.TestCase):
+    def test_not_frozen_returns_none(self):
+        import sys
+
+        self.assertFalse(getattr(sys, "frozen", False))
+        self.assertIsNone(bundled_bin("ffmpeg.exe"))
 
 
 class TrashAvailableTests(unittest.TestCase):

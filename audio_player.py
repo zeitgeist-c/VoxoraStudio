@@ -8,23 +8,15 @@ from __future__ import annotations
 
 import logging
 import os
-import sys
 
 import numpy as np
 import sounddevice as sd
 import soundfile as sf
 import torch
 
+from file_utils import bundled_bin as _bundled_bin
+
 log = logging.getLogger(__name__)
-
-
-def _bundled_bin(name: str) -> str | None:
-    """Exe içine gömülü ffmpeg/ffprobe yolunu döndürür."""
-    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-        p = os.path.join(sys._MEIPASS, "bin", name)
-        if os.path.exists(p):
-            return p
-    return None
 
 
 # ffmpeg yoksa pydub MP3 okuyamaz; lazy import + uyarı.

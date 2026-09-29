@@ -14,6 +14,7 @@ import logging
 import re
 import sys
 import time
+from pathlib import Path
 
 from PyQt6.QtCore import QThread, pyqtSignal
 
@@ -200,9 +201,25 @@ class CompressWorker(QThread):
             if self._cancel_requested:
                 self.cancelled.emit()
                 return
-            result = audio_compressor.compress_to_opus(
-                path, bitrate=self.bitrate, channels=self.channels, output_dir=self.output_dir
-            )
+            try:
+                result = audio_compressor.compress_to_opus(
+                    path, bitrate=self.bitrate, channels=self.channels, output_dir=self.output_dir
+                )
+            except Exception as exc:
+                # QThread.run'dan kaçan istisna süreci sessizce sonlandırır; burada durdurup raporla.
+                log.exception("Sıkıştırma sırasında beklenmeyen hata: %s", path)
+                result = audio_compressor.CompressionResult(
+                    ok=False,
+                    input_path=Path(path),
+                    output_path=None,
+                    original_size=0,
+                    compressed_size=None,
+                    ratio=None,
+                    duration_seconds=None,
+                    codec="libopus",
+                    bitrate=self.bitrate,
+                    error=str(exc),
+                )
             self.file_done.emit(result)
         if self._cancel_requested:
             self.cancelled.emit()

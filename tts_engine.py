@@ -94,6 +94,9 @@ class OnnxEngine:
     gerçek hibrit inference Plan 17 sonrasında tamamlanacak.
     """
 
+    # Plan 17 (hibrit sentez) tamamlanana dek dispatcher bu motoru seçmemeli.
+    SYNTHESIS_READY = False
+
     def __init__(self, model_dir: str | Path = "models", device: str = "dml"):
         self.device = device
         self._sample_rate = 24_000  # Tahmini; v0.1.1'de export sonrası sabitlenecek.
@@ -195,9 +198,12 @@ class TTSEngine:
             if "DmlExecutionProvider" in ort.get_available_providers():
                 self._status("DirectML provider mevcut, ONNX motoru deneniyor...")
                 onnx = OnnxEngine(device="dml")
-                if onnx.model_loaded:
+                if onnx.model_loaded and OnnxEngine.SYNTHESIS_READY:
                     return "dml", onnx
-                self._status("DirectML provider var ama ONNX model henüz yok. CPU moduna geçiliyor.")
+                if onnx.model_loaded:
+                    self._status("ONNX modeli mevcut ama hibrit sentez henüz hazır değil; CPU moduna geçiliyor.")
+                else:
+                    self._status("DirectML provider var ama ONNX model henüz yok. CPU moduna geçiliyor.")
         except Exception as e:
             self._status(f"DirectML kontrolü başarısız, CPU moduna geçiliyor: {e}")
             log.warning("DirectML kontrolü başarısız: %s", e)
