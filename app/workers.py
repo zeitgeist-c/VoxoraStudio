@@ -13,6 +13,7 @@ import contextlib
 import logging
 import re
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -21,7 +22,7 @@ from PyQt6.QtCore import QThread, pyqtSignal
 import audio_compressor
 from tts_engine import TTSEngine
 
-__all__ = ["TqdmProgressBridge", "SynthWorker", "EngineLoader", "CompressWorker"]
+__all__ = ["TqdmProgressBridge", "SynthWorker", "EngineLoader", "CompressWorker", "UpdateWorker"]
 
 log = logging.getLogger(__name__)
 
@@ -225,3 +226,70 @@ class CompressWorker(QThread):
             self.cancelled.emit()
             return
         self.all_finished.emit()
+
+
+class UpdateWorker(QThread):
+    """Güncelleme sunucusunu UI'ı bloklamadan sorgular ya da paketi kurar.
+
+    mode="check": sürümü sorar, `checked` yayınlar (None = zaten güncel).
+    mode="install": ZIP'i indirir, doğrular, kardeş klasöre açar, `installed`
+    yayınlar. İptal edilen/bozuk indirme asla hedef klasör oluşturmaz.
+    """
+
+    checked = pyqtSignal(object)        # UpdateInfo ya da None (zaten güncel)
+    failed = pyqtSignal(str)
+    progress = pyqtSignal(int, int)     # inen bayt, toplam bayt
+    installed = pyqtSignal(str, str)    # sürüm, yeni paket başlatıcı yolu
+
+    def __init__(self, current: str, mode: str = "check", info=None, parent=None):
+        super().__init__(parent)
+        self._current = current
+        self._mode = mode
+        self._info = info
+        self._cancel = threading.Event()
+
+    def request_cancel(self):
+        self._cancel.set()
+
+    def is_cancelled(self) -> bool:
+        return self._cancel.is_set()
+
+    def run(self):
+        from . import updater
+        if self._mode == "install":
+            self._install()
+            return
+        try:
+            info = updater.check_for_update(self._current)
+        except updater.UpdateError as exc:
+            self.failed.emit(str(exc))
+            return
+        self.checked.emit(info)
+
+    def _install(self):
+        info = self._info
+        try:
+            root = updater.package_root()
+            archive = root / updater.UPDATE_DIRNAME / info.asset_name
+            updater.download(info, archive, progress=self._progress,
+                             cancel=self._cancel)
+            launcher = updater.extract(archive, info.version, root,
+                                       settings_source=root,
+                                       state_source=updater.state_dir())
+            archive.unlink(missing_ok=True)
+        except updater.UpdateError as exc:
+            if self._cancel.is_set():
+                log.info("güncelleme indirmesi iptal edildi")
+                return
+            self.failed.emit(str(exc))
+            return
+        except Exception as exc:  # disk dolu, izin hatası: GUI'ye raporla
+            log.exception("Güncelleme kurulumu başarısız")
+            self.failed.emit(f"Güncelleme kurulamadı: {exc}")
+            return
+        self.installed.emit(info.version, str(launcher))
+
+    def _progress(self, done: int, total: int):
+        # MB başına tek yayın: GUI iş parçacığını gereksiz meşgul etme.
+        if done % (1024 * 1024) < 256 * 1024 or done == total:
+            self.progress.emit(done, total)
