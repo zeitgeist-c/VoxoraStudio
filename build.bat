@@ -79,11 +79,17 @@ if errorlevel 1 (
     exit /b 1
 )
 
+"%PYEXE%" scripts\make_update_package.py "dist\%PACKAGE_STEM%"
+if errorlevel 1 (
+    echo [HATA] Guncelleme ZIP paketi olusturulamadi.
+    exit /b 1
+)
+
 echo.
 echo [3/3] Build tamam.
 echo.
 echo ============================================================
-echo %PACKAGE_STEM%.exe ve %PACKAGE_STEM%.bat olusturuldu: dist\%PACKAGE_STEM%\
+echo %PACKAGE_STEM%.exe, %PACKAGE_STEM%.bat ve %PACKAGE_STEM%.zip olusturuldu: dist\%PACKAGE_STEM%\
 echo ============================================================
 echo.
 echo Calistirmak icin: dist\%PACKAGE_STEM%\%PACKAGE_STEM%.bat

@@ -27,7 +27,7 @@ Requirements: Python 3.11 + ffmpeg (for MP3).
 setup.bat          :: checks internet/hardware/ffmpeg, CUDA or CPU fallback
 install_check.bat  :: verify installation
 run.bat            :: start consoleless (debug: VOXORA_SHOW_CONSOLE=1)
-build.bat          :: package dist\VoxoraStudio-0.3.4\ (PyInstaller onedir)
+build.bat          :: package dist\VoxoraStudio-0.4.0\ (PyInstaller onedir)
 ```
 
 Tests: `smoke_test.py` (light/full), `python -m unittest discover -s tests -v`.

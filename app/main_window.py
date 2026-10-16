@@ -19,10 +19,11 @@ import os
 import re
 import subprocess
 import unicodedata
+from pathlib import Path
 
 import numpy as np
 import soundfile as sf
-from PyQt6.QtCore import QEasingCurve, QParallelAnimationGroup, QPropertyAnimation, QSize, QThread, Qt
+from PyQt6.QtCore import QEasingCurve, QParallelAnimationGroup, QPropertyAnimation, QSize, QThread, QTimer, Qt
 from PyQt6.QtGui import QColor, QFont, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QApplication,
@@ -62,7 +63,7 @@ from .constants import (
     PRESETS,
     WARN_CHUNK_COUNT,
 )
-from .branding import BRAND_PRIMARY, BRAND_SECONDARY, DISPLAY_NAME, TECHNICAL_TAGLINE
+from .branding import BRAND_PRIMARY, BRAND_SECONDARY, DISPLAY_NAME, TECHNICAL_TAGLINE, __version__
 from .dialogs import ModelLoadDialog, SynthesisDialog, VoiceGuideDialog
 from .icons import navigation_icon
 from .theme import (
@@ -72,7 +73,7 @@ from .theme import (
     theme_tokens,
 )
 from .widgets import ActionButton, PageHeader, SectionCard, StatusPill, WaveformView
-from .workers import CompressWorker, EngineLoader, SynthWorker
+from .workers import CompressWorker, EngineLoader, SynthWorker, UpdateWorker
 
 __all__ = ["MainWindow", "estimate_duration_range", "trim_leading_silence", "queue_split_lines", "apply_theme"]
 
@@ -218,6 +219,10 @@ class MainWindow(QMainWindow):
         self._settings_saved_on_close = False
         self._resolved_theme = "dark"
         self._page_transition = None
+        self._update_worker: UpdateWorker | None = None
+        self._update_manual = False
+        self._update_info = None
+        self._update_last_check = str(self.settings.get("update_last_check", "") or "")
 
         self._build_ui()
         self._load_saved_settings()
@@ -225,6 +230,11 @@ class MainWindow(QMainWindow):
         self.update_text_info()
         self.update_settings_summary()
         self._init_engine_async()
+        self._show_update_current()
+        self._update_timer = QTimer(self)
+        self._update_timer.setSingleShot(True)
+        self._update_timer.timeout.connect(self._update_startup_check)
+        self._update_timer.start(30_000)
         # İlk tema yükleme: ayar varsa uygula (comboBox sonradan setCurrentIndex tetikler)
         theme = self.settings.get("theme", "dark") if self.settings else "dark"
         self._resolved_theme = apply_theme(QApplication.instance(), theme)
@@ -647,6 +657,33 @@ class MainWindow(QMainWindow):
         system_layout.setColumnStretch(1, 1)
         system_card.content_layout.addWidget(system_panel)
         settings_layout.addWidget(system_card)
+
+        update_card = SectionCard("Güncelleme", "Yeni sürümleri denetleyin ve tek tıkla kurun.")
+        update_panel = QWidget()
+        update_layout = QGridLayout(update_panel)
+        update_layout.setContentsMargins(0, 0, 0, 0)
+        update_layout.setSpacing(8)
+        self.update_status_label = QLabel("")
+        self.update_status_label.setWordWrap(True)
+        self.btn_update_check = ActionButton("Güncellemeleri Denetle", variant="secondary", icon_name="refresh")
+        self.btn_update_install = ActionButton("İndir ve Kur", variant="primary", icon_name="download")
+        self.btn_update_cancel = ActionButton("Vazgeç", variant="ghost", icon_name="close")
+        self.btn_update_check.clicked.connect(self.on_update_check)
+        self.btn_update_install.clicked.connect(self.on_update_install)
+        self.btn_update_cancel.clicked.connect(self.on_update_cancel)
+        self.btn_update_install.setVisible(False)
+        self.btn_update_cancel.setVisible(False)
+        self.update_progress = QProgressBar()
+        self.update_progress.setRange(0, 100)
+        self.update_progress.setVisible(False)
+        update_layout.addWidget(self.update_status_label, 0, 0, 1, 3)
+        update_layout.addWidget(self.btn_update_check, 1, 0)
+        update_layout.addWidget(self.btn_update_install, 1, 1)
+        update_layout.addWidget(self.btn_update_cancel, 1, 2)
+        update_layout.addWidget(self.update_progress, 2, 0, 1, 3)
+        update_layout.setColumnStretch(0, 1)
+        update_card.content_layout.addWidget(update_panel)
+        settings_layout.addWidget(update_card)
         settings_layout.addStretch(1)
         return self._make_scroll_page(settings_tab)
 
@@ -986,6 +1023,11 @@ class MainWindow(QMainWindow):
             return
         workers = [self._loader, self._synth_worker, self._compress_worker]
         running = any(worker and worker.isRunning() for worker in workers)
+        if self._update_worker is not None and self._update_worker.isRunning() \
+                and not self._close_requested:
+            # İndirme/yazım ortada yarım kalmasın; kullanıcı kapatıyorsa vazgeç.
+            self._update_worker.request_cancel()
+            self._update_worker.wait(5000)
         if running and not self._close_requested:
             reply = QMessageBox.question(
                 self,
@@ -1165,6 +1207,7 @@ class MainWindow(QMainWindow):
             "output_dir": self.output_dir,
             "compress_output_dir": self.compress_output_dir if hasattr(self, "compress_output_dir") else None,
             "compress_bitrate": self.compress_bitrate_combo.currentData() if hasattr(self, "compress_bitrate_combo") else "48k",
+            "update_last_check": self._update_last_check,
         }
 
     def _current_synthesis_settings(self) -> dict:
@@ -1739,6 +1782,147 @@ class MainWindow(QMainWindow):
         self.update_settings_summary()
         self.update_text_info()
         self.status_label.setText("Tüm ayarlar varsayılana sıfırlandı.")
+
+    # ---- güncelleme -------------------------------------------------------
+
+    def _updates_possible(self) -> bool:
+        from . import updater
+        return updater.updates_possible()
+
+    def _update_startup_check(self):
+        # İlk sessiz denetim açılıştan 30 sn sonra; sonra günde bir kez,
+        # kaynak kopyada hiç.
+        if not self._updates_possible():
+            return
+        from . import updater
+        if not updater.last_check_is_old(self._update_last_check):
+            return
+        self._run_update_check(manual=False)
+
+    def on_update_check(self):
+        self._run_update_check(manual=True)
+
+    def _run_update_check(self, manual: bool):
+        from . import updater
+        if self._update_worker is not None and self._update_worker.isRunning():
+            return
+        if not self._updates_possible():
+            if manual:
+                self._show_update_error("Güncelleme yalnız paketlenmiş programda kullanılabilir.")
+            return
+        self._update_manual = manual
+        if manual:
+            self._show_update_checking()
+        self._update_worker = UpdateWorker(__version__)
+        self._update_worker.checked.connect(self._on_update_checked)
+        self._update_worker.failed.connect(self._on_update_failed)
+        self._update_worker.start()
+
+    def _on_update_checked(self, info):
+        from . import updater
+        self._update_last_check = updater.now_stamp()
+        self.settings["update_last_check"] = self._update_last_check
+        self._save_current_settings()
+        if info is None:
+            if self._update_manual:
+                self.update_status_label.setText(f"En güncel sürümdesiniz ({__version__}).")
+                self.btn_update_check.setEnabled(True)
+            return
+        self._update_info = info
+        size_mb = max(1, round(info.size / (1024 * 1024)))
+        self.update_status_label.setText(
+            f"Yeni sürüm {info.version} indirilmeye hazır ({size_mb} MB). "
+            "Kurulum mevcut klasöre dokunmaz; program yenisiyle yeniden başlar.")
+        self.status_label.setText(
+            f"Yeni sürüm {info.version} çıktı — Ayarlar ▸ Güncelleme")
+        self.btn_update_check.setVisible(False)
+        self.btn_update_install.setVisible(True)
+        self.btn_update_cancel.setVisible(True)
+        self.update_progress.setVisible(False)
+
+    def _on_update_failed(self, message: str):
+        if self._update_worker is not None and self._update_worker.is_cancelled():
+            return
+        self._show_update_error(message)
+
+    def _show_update_error(self, message: str):
+        self.update_status_label.setText(message)
+        self.btn_update_check.setVisible(True)
+        self.btn_update_check.setEnabled(True)
+        self.btn_update_install.setVisible(False)
+        self.btn_update_cancel.setVisible(False)
+        self.update_progress.setVisible(False)
+
+    def _show_update_checking(self):
+        self.update_status_label.setText("Denetleniyor…")
+        self.btn_update_check.setEnabled(False)
+
+    def _show_update_current(self):
+        """Boşta satır: kurulu sürüm ve son denetleme zamanı."""
+        from . import updater
+        if self._update_info is not None:
+            return  # ekranda zaten bir teklif var; gömmeyelim
+        if self._update_last_check and not updater.last_check_is_old(self._update_last_check):
+            when = self._update_last_check.replace("T", " ")
+            self.update_status_label.setText(
+                f"Güncel — sürüm {__version__}. Son denetim: {when}.")
+        else:
+            self.update_status_label.setText(f"Kurulu sürüm: {__version__}.")
+
+    def on_update_install(self):
+        if self._update_info is None or not self._updates_possible():
+            return
+        if self._update_worker is not None and self._update_worker.isRunning():
+            return
+        self._update_worker = UpdateWorker(__version__, mode="install",
+                                           info=self._update_info)
+        self._update_worker.progress.connect(self._on_update_progress)
+        self._update_worker.failed.connect(self._on_update_failed)
+        self._update_worker.installed.connect(self._on_update_installed)
+        self.update_status_label.setText("İndiriliyor…")
+        self.update_progress.setVisible(True)
+        self.update_progress.setRange(0, 0)
+        self.btn_update_cancel.setVisible(True)
+        self.btn_update_install.setEnabled(False)
+        self._update_worker.start()
+
+    def on_update_cancel(self):
+        if self._update_worker is not None and self._update_worker.isRunning():
+            self._update_worker.request_cancel()
+        self._show_update_current()
+        self.btn_update_install.setEnabled(True)
+
+    def _on_update_progress(self, done: int, total: int):
+        self.update_progress.setRange(0, 100)
+        if total:
+            self.update_progress.setValue(round(done * 100 / total))
+        self.update_status_label.setText(
+            f"Güncelleme indiriliyor… {round(done / 1048576)} / {round(total / 1048576)} MB "
+            "(sağlama doğrulandıktan sonra kurulur)")
+
+    def _on_update_installed(self, version: str, launcher: str):
+        self.update_progress.setVisible(False)
+        self.update_status_label.setText(
+            f"Sürüm {version} hazır. Program yeniden başlatılıyor…")
+        self.status_label.setText(f"Sürüm {version} kuruldu; yeniden başlatılıyor.")
+        self._restart_into_update(launcher)
+
+    def _restart_into_update(self, launcher: str):
+        """Swap betiğini kura ve kapanış akışını başlat (çalışan işler varsa sor)."""
+        if self._close_finalized:
+            return  # kapanış zaten kurala bağlandı; betik çalışıyor
+        from . import updater
+        updater.spawn_swap(os.getpid(), Path(launcher))
+        if self._update_worker is not None:
+            self._update_worker.wait(5000)
+        self._close_requested = True
+        self._queue_running = False
+        if self._synth_worker and self._synth_worker.isRunning():
+            self._synth_cancel_requested = True
+            self._synth_worker.request_cancel()
+        if self._compress_worker and self._compress_worker.isRunning():
+            self._compress_worker.request_cancel()
+        self.close()
 
     def _on_theme_changed(self, _index: int):
         theme = self.theme_combo.currentData() if hasattr(self, "theme_combo") else "dark"
