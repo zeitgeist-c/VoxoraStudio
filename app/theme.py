@@ -20,7 +20,7 @@ from .icons import (
 
 
 # Brand colors live with the visual system rather than being repeated in QSS.
-ACCENT = "#8B5CF6"
+ACCENT = "#8B7CF6"
 ACCENT_SECONDARY = "#22D3EE"
 
 _STRUCTURE_TOKENS: dict[str, dict[str, int]] = {
@@ -54,26 +54,26 @@ _STRUCTURE_TOKENS: dict[str, dict[str, int]] = {
 }
 
 _DARK_COLORS = {
-    "window": "#080A12",
-    "surface": "#0E1220",
-    "surface_alt": "#131929",
-    "surface_raised": "#192137",
-    "surface_hover": "#202A43",
-    "sidebar": "#090C17",
-    "sidebar_hover": "#151C30",
-    "sidebar_active": "#211B3A",
-    "border": "#252E46",
-    "border_strong": "#3C4968",
-    "divider": "#1C2437",
+    "window": "#0B0D16",
+    "surface": "#121628",
+    "surface_alt": "#0E1120",
+    "surface_raised": "#1B2138",
+    "surface_hover": "#222B47",
+    "sidebar": "#0B0D16",
+    "sidebar_hover": "#171C2E",
+    "sidebar_active": "#171435",
+    "border": "#232A44",
+    "border_strong": "#3A4266",
+    "divider": "#1D2233",
     "text": "#F7F8FC",
     "text_secondary": "#C0C7D8",
     "text_muted": "#8E99B0",
     "text_disabled": "#596276",
     "placeholder": "#68738A",
-    "accent": ACCENT,
+    "accent": "#8B7CF6",
     "accent_hover": "#9F86FA",
-    "accent_pressed": "#7149E6",
-    "accent_soft": "#2A204A",
+    "accent_pressed": "#6D5AE8",
+    "accent_soft": "#171435",
     "accent_border": "#6F56C9",
     "accent_text": "#FFFFFF",
     "secondary": ACCENT_SECONDARY,
@@ -390,6 +390,48 @@ def _stylesheet(theme: str) -> str:
         border-bottom: 3px solid {c['accent']};
     }}
     QPushButton[collapsed="true"] {{ padding: 0; }}
+
+    /* Üst sekmeler (topnav) */
+    QFrame#topNav {{ background: transparent; border: none; }}
+    QPushButton[topnav="true"] {{
+        background: transparent;
+        color: {c['text_muted']};
+        border: 1px solid transparent;
+        border-radius: {r['medium']}px;
+        padding: 7px {s['lg']}px;
+        font-weight: 650;
+    }}
+    QPushButton[topnav="true"]:hover {{
+        background: {c['sidebar_hover']};
+        color: {c['text']};
+    }}
+    QPushButton[topnav="true"]:checked {{
+        background: {c['sidebar_active']};
+        color: {c['text']};
+        border: 1px solid {c['accent_border']};
+        border-bottom: 2px solid {c['accent']};
+    }}
+
+    /* İkincil iç navigasyon (Araçlar / Ayarlar sol menüleri) */
+    QPushButton[subnav="true"] {{
+        background: transparent;
+        color: {c['text_muted']};
+        border: 1px solid transparent;
+        border-radius: {r['small']}px;
+        padding: 8px 10px;
+        text-align: left;
+        font-weight: 650;
+    }}
+    QPushButton[subnav="true"]:hover {{
+        background: {c['sidebar_hover']};
+        color: {c['text']};
+        border-color: {c['border']};
+    }}
+    QPushButton[subnav="true"]:checked {{
+        background: {c['accent_soft']};
+        color: {c['accent_hover']};
+        border-color: {c['accent_border']};
+    }}
 
     /* Typography and reusable surfaces */
     QLabel {{ background: transparent; color: {c['text']}; }}
