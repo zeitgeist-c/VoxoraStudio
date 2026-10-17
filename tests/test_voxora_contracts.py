@@ -23,9 +23,9 @@ class BrandingContractTests(unittest.TestCase):
             "Chatterbox Multilingual • Yerel üretim",
         )
         self.assertEqual(branding.LOG_FILENAME, "VoxoraStudio.log")
-        self.assertEqual(branding.__version__, "0.5.2")
-        self.assertEqual(branding.PACKAGE_STEM, "VoxoraStudio-0.5.2")
-        self.assertEqual(branding.EXECUTABLE_NAME, "VoxoraStudio-0.5.2.exe")
+        self.assertEqual(branding.__version__, "0.5.3")
+        self.assertEqual(branding.PACKAGE_STEM, "VoxoraStudio-0.5.3")
+        self.assertEqual(branding.EXECUTABLE_NAME, "VoxoraStudio-0.5.3.exe")
 
     def test_release_build_is_driven_by_authoritative_version(self):
         build_text = (REPO_ROOT / "build.bat").read_text(encoding="utf-8")
