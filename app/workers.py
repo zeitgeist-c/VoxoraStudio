@@ -22,6 +22,8 @@ from PyQt6.QtCore import QThread, pyqtSignal
 import audio_compressor
 from tts_engine import TTSEngine
 
+from . import updater
+
 __all__ = ["TqdmProgressBridge", "SynthWorker", "EngineLoader", "CompressWorker", "UpdateWorker"]
 
 log = logging.getLogger(__name__)
@@ -232,14 +234,18 @@ class UpdateWorker(QThread):
     """Güncelleme sunucusunu UI'ı bloklamadan sorgular ya da paketi kurar.
 
     mode="check": sürümü sorar, `checked` yayınlar (None = zaten güncel).
-    mode="install": ZIP'i indirir, doğrular, kardeş klasöre açar, `installed`
+    mode="install": ZIP'i indirir, doğrular, eski paketin YANINA (kardeş
+    klasör) açar, eski klasörler için temizlik fişi bırakır, `installed`
     yayınlar. İptal edilen/bozuk indirme asla hedef klasör oluşturmaz.
     """
 
     checked = pyqtSignal(object)        # UpdateInfo ya da None (zaten güncel)
     failed = pyqtSignal(str)
-    progress = pyqtSignal(int, int)     # inen bayt, toplam bayt
+    progress = pyqtSignal(int, int, float)  # inen bayt, toplam bayt, bayt/sn
+    phase = pyqtSignal(str)             # "verify" (özet doğrulama), "extract" (açma)
     installed = pyqtSignal(str, str)    # sürüm, yeni paket başlatıcı yolu
+
+    _PROGRESS_INTERVAL = 0.15           # GUI'ye saniyede ~6 güncelleme yeter
 
     def __init__(self, current: str, mode: str = "check", info=None, parent=None):
         super().__init__(parent)
@@ -247,6 +253,8 @@ class UpdateWorker(QThread):
         self._mode = mode
         self._info = info
         self._cancel = threading.Event()
+        self._meter = updater.RateMeter()
+        self._last_emit = 0.0
 
     def request_cancel(self):
         self._cancel.set()
@@ -255,7 +263,6 @@ class UpdateWorker(QThread):
         return self._cancel.is_set()
 
     def run(self):
-        from . import updater
         if self._mode == "install":
             self._install()
             return
@@ -269,14 +276,18 @@ class UpdateWorker(QThread):
     def _install(self):
         info = self._info
         try:
-            root = updater.package_root()
+            root = updater.package_root().resolve()
             archive = root / updater.UPDATE_DIRNAME / info.asset_name
             updater.download(info, archive, progress=self._progress,
-                             cancel=self._cancel)
-            launcher = updater.extract(archive, info.version, root,
+                             cancel=self._cancel, phase=self.phase.emit)
+            self.phase.emit("extract")
+            launcher = updater.extract(archive, info.version, root.parent,
                                        settings_source=root,
                                        state_source=updater.state_dir())
             archive.unlink(missing_ok=True)
+            new_root = Path(launcher).parent
+            targets = updater.stale_package_dirs(new_root.parent, info.version)
+            updater.write_cleanup_marker(new_root, targets)
         except updater.UpdateError as exc:
             if self._cancel.is_set():
                 log.info("güncelleme indirmesi iptal edildi")
@@ -290,6 +301,10 @@ class UpdateWorker(QThread):
         self.installed.emit(info.version, str(launcher))
 
     def _progress(self, done: int, total: int):
-        # MB başına tek yayın: GUI iş parçacığını gereksiz meşgul etme.
-        if done % (1024 * 1024) < 256 * 1024 or done == total:
-            self.progress.emit(done, total)
+        # Zaman tabanlı yayın: hız/kalan süre göstergesi canlı kalsın ama GUI
+        # iş parçacığı 256 KB'lık her parçada boğulmasın.
+        now = time.monotonic()
+        self._meter.add(done, now)
+        if done == total or now - self._last_emit >= self._PROGRESS_INTERVAL:
+            self._last_emit = now
+            self.progress.emit(done, total, self._meter.rate())

@@ -1,6 +1,13 @@
 Voxora Studio versiyon günlüğü
 =======================
 
+v0.5.3 (2026-10-17) — Güncelleme akışı düzeltmesi
+- "İndir ve Kur" canlıda hiç çalışmıyordu: kurulumda NameError (updater modülü worker'a bağlı değildi) düzeltildi.
+- Canlı indirme göstergesi: inen/toplam boyut, yüzde, hız (MB/s) ve kalan süre; doğrulama/açma aşamaları ayrı durum satırında.
+- Güncelleme sonrası eski sürüm temizliği: paket artık eskisinin YANINA açılır; yeni sürüm açılışta eski VoxoraStudio-X.Y.Z kardeş klasörlerini siler (kilit halinde sonraki açılışa devir).
+- NOT: 0.5.0–0.5.2 kurulumları bu kurulum hatasını taşıdığından 0.5.3'e geçiş bir kez elle ZIP kurulumu gerektirir; 0.5.3'ten sonrası otomatik güncellenir.
+- Test: 82 passed, 1 skipped.
+
 v0.5.2 (2026-10-17) — Sürüm kaydı tamamlama ve paket tazeleme
 - gitlog geri doldurma: v0.4.0, v0.5.0, v0.5.1 blokları eklendi (kayıtlar DURUM.md ile eşitlendi).
 - Kod değişikliği yok; sürüm 0.5.2'ye yükseltildi ve EXE/BAT/ZIP aynı kaynakla yeniden üretildi.
