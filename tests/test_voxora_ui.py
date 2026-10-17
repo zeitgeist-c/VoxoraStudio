@@ -144,7 +144,7 @@ class VoxoraUiTests(unittest.TestCase):
         expected_titles = (
             "Ses Üretim Stüdyosu",
             "Üretim Arşivi",
-            "Ses Sıkıştırma",
+            "Araçlar",
             "Stüdyo Ayarları",
         )
         with (
@@ -195,13 +195,30 @@ class VoxoraUiTests(unittest.TestCase):
             self.assertEqual(list_top_left.x(), button_top_left.x())
             self.assertLessEqual(list_bottom_left.y(), card.contentsRect().bottom())
 
-            self.assertFalse(window._sidebar_collapsed)
-            window._toggle_sidebar()
-            window._sidebar_animation.setCurrentTime(window._sidebar_animation.duration())
-            self.assertTrue(window._sidebar_collapsed)
-            self.assertTrue(all(button.text() == "" for button in window._nav_buttons))
-            self.assertEqual(window.sidebar.property("collapsed"), True)
-            self.assertEqual(window.sidebar.width(), window._sidebar_collapsed_width)
+            # Üst gezinme: etiketler ve seçim durumu.
+            window._switch_page(0, animate=False)
+            self.assertEqual(
+                [button.text() for button in window._nav_buttons],
+                ["Üretim", "Arşiv", "Araçlar", "Ayarlar"],
+            )
+            self.assertTrue(window._nav_buttons[0].isChecked())
+            self.assertFalse(any(button.isChecked() for button in window._nav_buttons[1:]))
+            # Araçlar sayfası: sol araç listesi + yığın geçişi.
+            window._switch_page(2, animate=False)
+            window._switch_tool(1)
+            self.assertEqual(window._tool_stack.currentIndex(), 1)
+            window._switch_tool(0)
+            self.assertEqual(window._tool_stack.currentIndex(), 0)
+            # Ayarlar sayfası: sol kategori menüsü + yığın geçişi.
+            window._switch_page(3, animate=False)
+            window._switch_settings_cat(3)
+            self.assertEqual(window._settings_stack.currentIndex(), 3)
+            window._switch_settings_cat(0)
+            self.assertEqual(window._settings_stack.currentIndex(), 0)
+            # Arşiv sayfası: liste + detay paneli mevcut.
+            window._switch_page(1, animate=False)
+            self.assertIsNotNone(window._history_detail_name)
+            window._on_history_selection_changed()  # boş seçim güvenli
 
             window.waveform_view.set_data([-1.0, -0.25, 0.5, 1.0])
             self.assertEqual(window.waveform_view.data(), (-1.0, -0.25, 0.5, 1.0))
