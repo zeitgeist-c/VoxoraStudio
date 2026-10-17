@@ -1,6 +1,24 @@
 Voxora Studio versiyon günlüğü
 =======================
 
+v0.5.2 (2026-10-17) — Sürüm kaydı tamamlama ve paket tazeleme
+- gitlog geri doldurma: v0.4.0, v0.5.0, v0.5.1 blokları eklendi (kayıtlar DURUM.md ile eşitlendi).
+- Kod değişikliği yok; sürüm 0.5.2'ye yükseltildi ve EXE/BAT/ZIP aynı kaynakla yeniden üretildi.
+- Test: 71 passed, 1 skipped + smoke light.
+
+v0.5.1 (2026-10-17) — pkg_resources/tqdm hata düzeltmesi
+- Paket EXE'de motor yüklenirken "'NoneType' object is not callable" hatası düzeltildi (chatterbox mtl_tts).
+- Kök neden: setuptools 81+ pkg_resources içermiyor; perth sessizce None watermarker bırakıyordu.
+- Çözüm: setuptools<81 pini + pakete pkg_resources gömme + konsolsuz modda tqdm çubuklarını kapatma.
+
+v0.5.0 (2026-10-17) — Arayüz yenileme
+- Üst sekme navigasyonu (Üretim/Arşiv/Araçlar/Ayarlar); sol kenar çubuğu kaldırıldı.
+- Üretim iki sütun; Arşiv liste+detay; Araçlar ve Ayarlar kategori düzenleri; violet koyu palet.
+
+v0.4.0 (2026-10-17) — Güncelleme sistemi
+- Public ayna repo üzerinden tokensiz güncelleme denetimi; SHA256 doğrulamalı ZIP indirme.
+- Kardeş klasöre kurulum + kullanıcı verisi göçü; build.bat gerçek ZIP üretir.
+
 v0.3.4 (2026-09-19) — Ölü kod temizliği ve belge uyumu
 - Ölü kod temizliği: kullanılmayan _force_stop_synthesis, audio_player.is_playing, T3_MODEL sabiti ve export_onnx torch importu kaldırıldı.
 - README ve README.tr: eski TXTOTTS uyumluluk değişkenleri notu geri eklendi; contract testi yeşile döndü.
