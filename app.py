@@ -10,6 +10,7 @@ Sınıflar `app/` paketine taşındı:
 from __future__ import annotations
 
 import logging
+import os
 import sys
 
 from PyQt6.QtWidgets import QApplication
@@ -30,6 +31,10 @@ def _log_uncaught(exc_type, exc_value, exc_tb):
 def main():
     setup_logging()
     sys.excepthook = _log_uncaught
+    # Konsolsuz (noconsole) pakette stdout tanımsızdır: tqdm/huggingface_hub progress
+    # yazımı OSError 22 ile motoru düşürür. İndirme çubuklarını baştan kapat.
+    os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
+    os.environ.setdefault("TQDM_DISABLE", "1")
     if sys.platform == "win32":
         try:
             import ctypes
