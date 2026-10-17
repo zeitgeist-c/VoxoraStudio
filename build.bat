@@ -56,6 +56,7 @@ echo.
     --hidden-import "pydub" ^
     --hidden-import "send2trash" ^
     --hidden-import "numpy" ^
+    --hidden-import "pkg_resources" ^
     --collect-all "perth" ^
     --exclude-module "matplotlib" ^
     --exclude-module "pandas" ^

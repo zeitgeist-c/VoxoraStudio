@@ -34,5 +34,10 @@ send2trash
 # Perth watermarker - Chatterbox Multilingual TTS watermark
 resemble-perth
 
+# pkg_resources - perth.perth_net bunu ister; setuptools>=81'de kaldırıldı.
+# 81+ kurulursa PerthImplicitWatermarker sessizce None olur ve motor 'NoneType' object
+# is not callable ile düşer. Gömülü pakette build.bat --hidden-import ile güvence altına alınır.
+setuptools<81
+
 # Paketleme - build.bat ile Windows onedir paketi
 PyInstaller
