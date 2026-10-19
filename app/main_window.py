@@ -53,7 +53,20 @@ import audio_player
 import audio_compressor
 from app_state import load_history, load_settings, save_history, save_settings
 import chunker
-from config import DEFAULT_ENGINE, DEFAULT_OUTPUT_DIR, ENGINE_EMA, VALID_ENGINES
+from config import (
+    DEFAULT_ENGINE,
+    DEFAULT_MP3_BITRATE,
+    DEFAULT_OPUS_BITRATE,
+    DEFAULT_OUTPUT_DIR,
+    DEFAULT_OUTPUT_FORMAT,
+    ENGINE_EMA,
+    OUTPUT_FORMAT_EXTENSIONS,
+    OUTPUT_FORMAT_MP3,
+    OUTPUT_FORMAT_OPUS,
+    OUTPUT_FORMAT_WAV,
+    VALID_ENGINES,
+    VALID_OUTPUT_FORMATS,
+)
 from file_utils import safe_filename_from_text, safe_remove_to_trash, trash_available, unique_path
 
 from .constants import (
@@ -61,8 +74,12 @@ from .constants import (
     ENGINE_OPTIONS,
     LANGUAGE_SAMPLES,
     LANGUAGES,
+    OUTPUT_FORMAT_HELP,
+    OUTPUT_FORMAT_OPTIONS,
     PRESETS,
     WARN_CHUNK_COUNT,
+    format_label,
+    quality_options_for,
 )
 from .branding import BRAND_PRIMARY, BRAND_SECONDARY, DISPLAY_NAME, TECHNICAL_TAGLINE, __version__
 from .dialogs import ModelLoadDialog, SynthesisDialog, VoiceGuideDialog
@@ -73,7 +90,7 @@ from .theme import (
     mark_muted,
     theme_tokens,
 )
-from .widgets import ActionButton, PageHeader, SectionCard, StatusPill, WaveformView
+from .widgets import ActionButton, FormatTile, PageHeader, SectionCard, StatusPill, WaveformView
 from .workers import CompressWorker, EngineLoader, SynthWorker, UpdateWorker
 
 __all__ = ["MainWindow", "estimate_duration_range", "trim_leading_silence", "queue_split_lines", "apply_theme"]
@@ -222,6 +239,13 @@ class MainWindow(QMainWindow):
         self.compress_output_dir: str | None = self.settings.get("compress_output_dir") or None
         self._close_requested = False
         self._close_finalized = False
+        # Çıktı biçimi/kalite (Ayarlar → Çıktı); _load_saved_settings günceller.
+        self._output_format = DEFAULT_OUTPUT_FORMAT
+        self._quality_by_format = {
+            OUTPUT_FORMAT_WAV: "",
+            OUTPUT_FORMAT_MP3: DEFAULT_MP3_BITRATE,
+            OUTPUT_FORMAT_OPUS: DEFAULT_OPUS_BITRATE,
+        }
         self._settings_saved_on_close = False
         self._resolved_theme = "dark"
         self._page_transition = None
@@ -604,7 +628,7 @@ class MainWindow(QMainWindow):
         output_col = QVBoxLayout(output_panel)
         output_col.setContentsMargins(0, 0, 0, 0)
         output_col.setSpacing(14)
-        output_card = SectionCard("Kayıt ve Kalite", "Otomatik çıktı klasörünü ve MP3 kalitesini belirleyin.")
+        output_card = SectionCard("Kayıt ve Kalite", "Otomatik çıktı klasörünü, çıktı biçimini ve kalitesini belirleyin.")
         output_panel_grid = QGridLayout()
         output_panel_grid.setContentsMargins(0, 0, 0, 0)
         output_panel_grid.setSpacing(8)
@@ -618,13 +642,34 @@ class MainWindow(QMainWindow):
         output_panel_grid.addWidget(self.btn_select_output_dir, 1, 0)
         output_panel_grid.addWidget(self.btn_open_output_dir, 1, 1)
         output_panel_grid.addWidget(self.btn_reset_output_dir, 1, 2)
-        self.mp3_bitrate_combo = QComboBox()
-        self.mp3_bitrate_combo.addItem("Konuşma (128 kbps)", "128k")
-        self.mp3_bitrate_combo.addItem("Podcast (192 kbps)", "192k")
-        self.mp3_bitrate_combo.addItem("Yüksek kalite (320 kbps)", "320k")
-        output_panel_grid.addWidget(QLabel("MP3 bitrate"), 2, 0)
-        output_panel_grid.addWidget(self.mp3_bitrate_combo, 2, 1, 1, 3)
-        self.mp3_bitrate_combo.currentIndexChanged.connect(self._save_current_settings)
+        self.format_tiles: dict[str, FormatTile] = {}
+        format_row = QHBoxLayout()
+        format_row.setContentsMargins(0, 0, 0, 0)
+        format_row.setSpacing(9)
+        for format_key, format_title, format_description in OUTPUT_FORMAT_OPTIONS:
+            tile = FormatTile(format_title, format_description)
+            tile.clicked.connect(lambda fmt=format_key: self._on_output_format_selected(fmt))
+            self.format_tiles[format_key] = tile
+            format_row.addWidget(tile)
+        self.quality_combo = QComboBox()
+        self.quality_combo.currentIndexChanged.connect(self._on_output_quality_changed)
+        format_help = QLabel(OUTPUT_FORMAT_HELP)
+        format_help.setWordWrap(True)
+        mark_muted(format_help)
+        format_box = QVBoxLayout()
+        format_box.setContentsMargins(0, 0, 0, 0)
+        format_box.setSpacing(7)
+        format_box.addLayout(format_row)
+        format_box.addWidget(self.quality_combo)
+        format_box.addWidget(format_help)
+        format_label_widget = QLabel("Çıktı biçimi")
+        format_label_widget.setAlignment(Qt.AlignmentFlag.AlignTop)
+        output_panel_grid.addWidget(format_label_widget, 2, 0)
+        output_panel_grid.addLayout(format_box, 2, 1, 1, 3)
+        self.output_format_note = QLabel("Her üretim seçilen biçimde çıktı klasörüne kaydedilir; eski kayıtlar değişmez.")
+        self.output_format_note.setWordWrap(True)
+        mark_muted(self.output_format_note)
+        output_panel_grid.addWidget(self.output_format_note, 3, 1, 1, 3)
         output_panel_grid.setColumnStretch(3, 1)
         output_card.content_layout.addLayout(output_panel_grid)
 
@@ -1332,10 +1377,15 @@ class MainWindow(QMainWindow):
         self.temperature_spin.setValue(float(settings.get("temperature", self.temperature_spin.value())))
         self.repetition_spin.setValue(float(settings.get("repetition_penalty", self.repetition_spin.value())))
         self.pause_spin.setValue(float(settings.get("pause_between_chunks", self.pause_spin.value())))
-        bitrate = settings.get("mp3_bitrate", "192k")
-        bitrate_index = self.mp3_bitrate_combo.findData(bitrate)
-        if bitrate_index >= 0:
-            self.mp3_bitrate_combo.setCurrentIndex(bitrate_index)
+        fmt = str(settings.get("output_format") or DEFAULT_OUTPUT_FORMAT)
+        self._output_format = fmt if fmt in VALID_OUTPUT_FORMATS else DEFAULT_OUTPUT_FORMAT
+        self._quality_by_format = {
+            OUTPUT_FORMAT_WAV: "",
+            OUTPUT_FORMAT_MP3: str(settings.get("mp3_bitrate") or DEFAULT_MP3_BITRATE),
+            OUTPUT_FORMAT_OPUS: str(settings.get("opus_bitrate") or DEFAULT_OPUS_BITRATE),
+        }
+        self._refresh_format_tiles()
+        self._refresh_quality_options()
         theme = settings.get("theme", "dark")
         theme_index = self.theme_combo.findData(theme)
         if theme_index >= 0:
@@ -1398,7 +1448,9 @@ class MainWindow(QMainWindow):
             "top_p": 1.0,
             "speed": self.speed_spin.value(),
             "pause_between_chunks": self.pause_spin.value(),
-            "mp3_bitrate": self.mp3_bitrate_combo.currentData() if hasattr(self, "mp3_bitrate_combo") else "192k",
+            "output_format": getattr(self, "_output_format", DEFAULT_OUTPUT_FORMAT),
+            "mp3_bitrate": (getattr(self, "_quality_by_format", None) or {}).get(OUTPUT_FORMAT_MP3, DEFAULT_MP3_BITRATE),
+            "opus_bitrate": (getattr(self, "_quality_by_format", None) or {}).get(OUTPUT_FORMAT_OPUS, DEFAULT_OPUS_BITRATE),
             "theme": self.theme_combo.currentData() if hasattr(self, "theme_combo") else "dark",
             "output_dir": self.output_dir,
             "compress_output_dir": self.compress_output_dir if hasattr(self, "compress_output_dir") else None,
@@ -1458,6 +1510,55 @@ class MainWindow(QMainWindow):
     def on_open_output_dir(self):
         os.makedirs(self.output_dir, exist_ok=True)
         self._open_folder(self.output_dir)
+
+    # --- Çıktı biçimi ve kalite (Ayarlar → Çıktı) -------------------------
+    def _refresh_format_tiles(self):
+        """Kutucukların seçim durumunu güncel biçime göre tazele."""
+        for key, tile in getattr(self, "format_tiles", {}).items():
+            tile.set_selected(key == self._output_format)
+
+    def _refresh_quality_options(self):
+        """Kalite listesini seçili biçime göre yeniden kur."""
+        combo = getattr(self, "quality_combo", None)
+        if combo is None:
+            return
+        options = quality_options_for(self._output_format)
+        values = {value for value, _label in options}
+        defaults = {
+            OUTPUT_FORMAT_MP3: DEFAULT_MP3_BITRATE,
+            OUTPUT_FORMAT_OPUS: DEFAULT_OPUS_BITRATE,
+        }
+        current = self._quality_by_format.get(self._output_format) or defaults.get(self._output_format, "")
+        if current not in values:
+            current = defaults.get(self._output_format, "")
+        if current not in values:
+            current = options[0][0]
+        combo.blockSignals(True)
+        combo.clear()
+        for value, label in options:
+            combo.addItem(label, value)
+        index = combo.findData(current)
+        combo.setCurrentIndex(index if index >= 0 else 0)
+        combo.setEnabled(self._output_format != OUTPUT_FORMAT_WAV)
+        combo.blockSignals(False)
+        self._quality_by_format[self._output_format] = combo.currentData() or ""
+
+    def _on_output_format_selected(self, fmt: str):
+        if fmt not in VALID_OUTPUT_FORMATS or fmt == self._output_format:
+            return
+        self._output_format = fmt
+        self._refresh_format_tiles()
+        self._refresh_quality_options()
+        self._save_current_settings()
+        detail = "kayıpsız" if fmt == OUTPUT_FORMAT_WAV else self.quality_combo.currentText()
+        self.status_label.setText(f"Çıktı biçimi: {format_label(fmt)} — {detail}")
+
+    def _on_output_quality_changed(self, _index: int):
+        combo = getattr(self, "quality_combo", None)
+        if combo is None:
+            return
+        self._quality_by_format[self._output_format] = combo.currentData() or ""
+        self._save_current_settings()
 
     def _make_output_path(self, extension: str) -> str:
         os.makedirs(self.output_dir, exist_ok=True)
@@ -1595,7 +1696,7 @@ class MainWindow(QMainWindow):
             self,
             "Ses örneği seç",
             "",
-            "Ses dosyası (*.wav *.mp3 *.flac *.ogg *.m4a);;Tüm dosyalar (*.*)",
+            "Ses dosyası (*.wav *.mp3 *.flac *.ogg *.opus *.m4a);;Tüm dosyalar (*.*)",
         )
         if not path:
             return
@@ -1789,7 +1890,9 @@ class MainWindow(QMainWindow):
             "repetition_penalty": self.repetition_spin.value(),
             "speed": self.speed_spin.value(),
             "pause_between_chunks": self.pause_spin.value(),
-            "mp3_bitrate": self.mp3_bitrate_combo.currentData() if hasattr(self, "mp3_bitrate_combo") else "192k",
+            "output_format": getattr(self, "_output_format", DEFAULT_OUTPUT_FORMAT),
+            "mp3_bitrate": (getattr(self, "_quality_by_format", None) or {}).get(OUTPUT_FORMAT_MP3, DEFAULT_MP3_BITRATE),
+            "opus_bitrate": (getattr(self, "_quality_by_format", None) or {}).get(OUTPUT_FORMAT_OPUS, DEFAULT_OPUS_BITRATE),
             "audio_prompt_path": self.voice_prompt_path,
         }
         self.history.append(entry)
@@ -1845,10 +1948,14 @@ class MainWindow(QMainWindow):
                     spin.setValue(float(item[key]))
                 except (TypeError, ValueError):
                     pass
-        if "mp3_bitrate" in item and hasattr(self, "mp3_bitrate_combo"):
-            index = self.mp3_bitrate_combo.findData(item["mp3_bitrate"])
-            if index >= 0:
-                self.mp3_bitrate_combo.setCurrentIndex(index)
+        if item.get("mp3_bitrate"):
+            self._quality_by_format[OUTPUT_FORMAT_MP3] = str(item["mp3_bitrate"])
+        if item.get("opus_bitrate"):
+            self._quality_by_format[OUTPUT_FORMAT_OPUS] = str(item["opus_bitrate"])
+        if item.get("output_format") in VALID_OUTPUT_FORMATS:
+            self._output_format = item["output_format"]
+        self._refresh_format_tiles()
+        self._refresh_quality_options()
         if "audio_prompt_path" in item and item["audio_prompt_path"]:
             path = item["audio_prompt_path"]
             if os.path.exists(path):
@@ -1988,10 +2095,15 @@ class MainWindow(QMainWindow):
         self.temperature_spin.setValue(0.30)
         self.repetition_spin.setValue(1.80)
         self.pause_spin.setValue(0.35)
-        # MP3 kalite
-        bitrate_idx = self.mp3_bitrate_combo.findData("192k")
-        if bitrate_idx >= 0:
-            self.mp3_bitrate_combo.setCurrentIndex(bitrate_idx)
+        # Çıktı biçimi ve kalite
+        self._output_format = DEFAULT_OUTPUT_FORMAT
+        self._quality_by_format = {
+            OUTPUT_FORMAT_WAV: "",
+            OUTPUT_FORMAT_MP3: DEFAULT_MP3_BITRATE,
+            OUTPUT_FORMAT_OPUS: DEFAULT_OPUS_BITRATE,
+        }
+        self._refresh_format_tiles()
+        self._refresh_quality_options()
         # Tema
         theme_idx = self.theme_combo.findData("dark")
         if theme_idx >= 0:
@@ -2419,11 +2531,11 @@ class MainWindow(QMainWindow):
         self.last_output_path = None
         save_error = None
         try:
-            self.last_output_path = self._auto_save_generated_wav(wav, sr, self.last_text or self.text_edit.toPlainText())
+            self.last_output_path = self._auto_save_generated_audio(wav, sr, self.last_text or self.text_edit.toPlainText())
             self._add_history_entry(self.last_output_path, self.last_text or self.text_edit.toPlainText(), duration_text)
         except Exception as exc:
             save_error = str(exc)
-            log.exception("Otomatik WAV kaydi basarisiz")
+            log.exception("Otomatik kayit basarisiz")
 
         message = f"Üretildi - {duration_text} @ {sr} Hz"
         self._reset_progress()
@@ -2478,11 +2590,42 @@ class MainWindow(QMainWindow):
             self._queue_running = False
             self.status_label.setText(f"Kuyruk durduruldu (hata). {len(self._queue)} metin kaldı.")
 
-    def _auto_save_generated_wav(self, wav, sr, text: str) -> str:
+    def _auto_save_generated_audio(self, wav, sr, text: str) -> str:
+        """Üretimi seçilen biçimde çıktı klasörüne yaz (Ayarlar → Çıktı).
+
+        WAV kayıpsız yazılır; MP3/OPUS pydub + ffmpeg ile üretilir. Dönüştürme
+        başarısız olursa (ffmpeg yok/hatalı) aynı adla WAV kaydedilir ve durum
+        çubuğuna not düşülür; üretim hiçbir durumda kaybolmaz.
+        """
+        fmt = self._output_format if self._output_format in VALID_OUTPUT_FORMATS else DEFAULT_OUTPUT_FORMAT
+        extension = OUTPUT_FORMAT_EXTENSIONS.get(fmt, ".wav")
         os.makedirs(self.output_dir, exist_ok=True)
-        file_path = unique_path(self.output_dir, safe_filename_from_text(text, ".wav"))
-        sf.write(file_path, wav.squeeze().cpu().numpy(), sr)
-        return str(file_path)
+        file_path = unique_path(self.output_dir, safe_filename_from_text(text, extension))
+        if fmt == OUTPUT_FORMAT_WAV:
+            sf.write(file_path, wav.squeeze().cpu().numpy(), sr)
+            return str(file_path)
+        default_bitrate = DEFAULT_MP3_BITRATE if fmt == OUTPUT_FORMAT_MP3 else DEFAULT_OPUS_BITRATE
+        bitrate = self._quality_by_format.get(fmt) or default_bitrate
+        try:
+            self._export_compressed(wav, sr, file_path, fmt, bitrate)
+            return str(file_path)
+        except Exception as exc:
+            log.warning("Sıkıştırılmış çıktı yazılamadı (%s): %s", fmt, exc)
+            fallback = file_path.with_suffix(".wav")
+            sf.write(fallback, wav.squeeze().cpu().numpy(), sr)
+            self.status_label.setText(
+                f"{format_label(fmt)} yazılamadı; WAV olarak kaydedildi: {fallback.name}")
+            return str(fallback)
+
+    def _export_compressed(self, wav, sr, file_path: Path, fmt: str, bitrate: str) -> None:
+        """pydub + ffmpeg ile mp3/opus yaz (otomatik ve elle kaydın ortak yolu)."""
+        from pydub import AudioSegment
+
+        data_np = np.clip(wav.squeeze().cpu().numpy(), -1.0, 1.0)
+        data = (data_np * 32767).astype(np.int16).tobytes()
+        segment = AudioSegment(data=data, sample_width=2, frame_rate=sr, channels=1)
+        segment.export(str(file_path), format="mp3" if fmt == OUTPUT_FORMAT_MP3 else "opus",
+                       bitrate=bitrate)
 
     def on_play(self):
         if self.last_wav is not None and self.last_sr is not None:
@@ -2508,13 +2651,8 @@ class MainWindow(QMainWindow):
         if not file_path:
             return
         try:
-            from pydub import AudioSegment
-
-            data_np = np.clip(self.last_wav.squeeze().cpu().numpy(), -1.0, 1.0)
-            data = (data_np * 32767).astype(np.int16).tobytes()
-            seg = AudioSegment(data=data, sample_width=2, frame_rate=self.last_sr, channels=1)
-            bitrate = self.mp3_bitrate_combo.currentData() if hasattr(self, "mp3_bitrate_combo") else "192k"
-            seg.export(file_path, format="mp3", bitrate=bitrate)
+            bitrate = self._quality_by_format.get(OUTPUT_FORMAT_MP3) or DEFAULT_MP3_BITRATE
+            self._export_compressed(self.last_wav, self.last_sr, Path(file_path), OUTPUT_FORMAT_MP3, bitrate)
             self._add_history_entry(file_path, self.last_text or self.text_edit.toPlainText(), f"{self.last_wav.shape[-1] / self.last_sr:.1f} sn")
             self.status_label.setText(f"Kaydedildi: {file_path}")
         except Exception as e:
@@ -2527,7 +2665,7 @@ class MainWindow(QMainWindow):
     def on_compress_add_files(self):
         paths, _ = QFileDialog.getOpenFileNames(
             self, "Sıkıştırılacak ses dosyalarını seç", "",
-            "Ses dosyası (*.wav *.mp3 *.flac *.ogg);;Tüm dosyalar (*.*)"
+            "Ses dosyası (*.wav *.mp3 *.flac *.ogg *.opus);;Tüm dosyalar (*.*)"
         )
         if not paths:
             return

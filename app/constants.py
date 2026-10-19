@@ -5,7 +5,13 @@ Dil listesi, referans ses örneği metni, üretim hazır ayarları ve motor seç
 """
 from __future__ import annotations
 
-from config import ENGINE_CHATTERBOX, ENGINE_EMA
+from config import (
+    ENGINE_CHATTERBOX,
+    ENGINE_EMA,
+    OUTPUT_FORMAT_MP3,
+    OUTPUT_FORMAT_OPUS,
+    OUTPUT_FORMAT_WAV,
+)
 
 __all__ = [
     "LANGUAGES",
@@ -17,9 +23,54 @@ __all__ = [
     "THEME_SYSTEM",
     "LANGUAGE_SAMPLES",
     "ENGINE_OPTIONS",
+    "OUTPUT_FORMAT_OPTIONS",
+    "OUTPUT_QUALITY_OPTIONS",
+    "OUTPUT_FORMAT_HELP",
+    "quality_options_for",
+    "format_label",
     "WARN_CHUNK_COUNT",
     "CONFIRM_CHUNK_COUNT",
 ]
+
+# Çıktı biçimi kutucukları (Ayarlar → Çıktı): (anahtar, ad, kısa açıklama)
+OUTPUT_FORMAT_OPTIONS = (
+    (OUTPUT_FORMAT_WAV, "WAV", "kayıpsız · arşiv"),
+    (OUTPUT_FORMAT_MP3, "MP3", "her yerde çalar"),
+    (OUTPUT_FORMAT_OPUS, "OPUS", "en küçük dosya"),
+)
+
+# Kalite seçenekleri biçime göre: (değer, etiket)
+OUTPUT_QUALITY_OPTIONS = {
+    OUTPUT_FORMAT_WAV: (("", "Kayıpsız — kalite seçimi yok"),),
+    OUTPUT_FORMAT_MP3: (
+        ("128k", "Konuşma (128 kbps)"),
+        ("192k", "Podcast (192 kbps)"),
+        ("320k", "Yüksek kalite (320 kbps)"),
+    ),
+    OUTPUT_FORMAT_OPUS: (
+        ("32k", "Konuşma (32 kbps)"),
+        ("64k", "Dengeli (64 kbps)"),
+        ("96k", "Yüksek kalite (96 kbps)"),
+    ),
+}
+
+OUTPUT_FORMAT_HELP = (
+    "Seçenekler biçime göre değişir — MP3: Konuşma 128 · Podcast 192 · Yüksek kalite 320 | "
+    "OPUS: Konuşma 32 · Dengeli 64 · Yüksek kalite 96 | WAV: kayıpsız (seçim yok)"
+)
+
+
+def quality_options_for(fmt: str):
+    """Biçime ait kalite seçenekleri; bilinmeyen biçimde WAV listesi döner."""
+    return OUTPUT_QUALITY_OPTIONS.get(fmt, OUTPUT_QUALITY_OPTIONS[OUTPUT_FORMAT_WAV])
+
+
+def format_label(fmt: str) -> str:
+    """Biçim anahtarının görünen adı (wav→WAV)."""
+    for key, name, _description in OUTPUT_FORMAT_OPTIONS:
+        if key == fmt:
+            return name
+    return (fmt or "").upper()
 
 # Ses motoru seçenekleri (Ayarlar → Ses). İlk öğe varsayılan motordur.
 ENGINE_OPTIONS = (

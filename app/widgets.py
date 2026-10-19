@@ -19,6 +19,7 @@ from PyQt6.QtCore import (
     QSize,
     Qt,
     pyqtProperty,
+    pyqtSignal,
 )
 from PyQt6.QtGui import QBrush, QColor, QFocusEvent, QIcon, QLinearGradient, QPainter, QPen
 from PyQt6.QtWidgets import (
@@ -40,7 +41,69 @@ __all__ = [
     "PageHeader",
     "StatusPill",
     "WaveformView",
+    "FormatTile",
 ]
+
+
+class FormatTile(QWidget):
+    """Seçilebilir biçim kutucuğu: işaret + ad + kısa açıklama.
+
+    Seçim durumu `selected` dinamik özelliğinde tutulur; görsel karar merkezi
+    stil sayfasında kalır (`QFrame#formatTile[selected="true"]`).
+    """
+
+    clicked = pyqtSignal()
+
+    def __init__(self, title: str, description: str = "", parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("formatTile")
+        self.setProperty("selected", False)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+        column = QVBoxLayout(self)
+        column.setContentsMargins(11, 9, 11, 9)
+        column.setSpacing(4)
+
+        head = QHBoxLayout()
+        head.setContentsMargins(0, 0, 0, 0)
+        head.setSpacing(7)
+        self._dot = QLabel()
+        self._dot.setObjectName("formatTileDot")
+        self._dot.setFixedSize(9, 9)
+        self._title = QLabel(title)
+        self._title.setObjectName("formatTileTitle")
+        head.addWidget(self._dot)
+        head.addWidget(self._title)
+        head.addStretch(1)
+
+        self._description = QLabel(description)
+        self._description.setObjectName("formatTileDesc")
+        self._description.setWordWrap(True)
+
+        column.addLayout(head)
+        column.addWidget(self._description)
+
+    def is_selected(self) -> bool:
+        return bool(self.property("selected"))
+
+    def set_selected(self, selected: bool) -> None:
+        changed = self.is_selected() != bool(selected)
+        self.setProperty("selected", bool(selected))
+        if changed:
+            _repolish(self)
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802 (Qt API)
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
+        super().mousePressEvent(event)
+
+    def keyPressEvent(self, event) -> None:  # noqa: N802 (Qt API)
+        if event.key() in (Qt.Key.Key_Space, Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            self.clicked.emit()
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
 
 def _repolish(widget: QWidget) -> None:
