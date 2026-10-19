@@ -27,7 +27,7 @@ Gereksinim: Python 3.11 + ffmpeg (MP3 için).
 setup.bat          :: internet/donanım/ffmpeg kontrolü, CUDA yoksa CPU
 install_check.bat  :: kurulum doğrulama
 run.bat            :: konsolsuz başlat (debug: VOXORA_SHOW_CONSOLE=1)
-build.bat          :: paketleme dist\VoxoraStudio-0.5.4\ (PyInstaller onedir)
+build.bat          :: paketleme dist\VoxoraStudio-0.5.5\ (PyInstaller onedir)
 ```
 
 Test: `smoke_test.py` (light/full), `python -m unittest discover -s tests -v`.

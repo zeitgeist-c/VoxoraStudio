@@ -1,6 +1,15 @@
 Voxora Studio versiyon günlüğü
 =======================
 
+v0.5.5 (2026-10-19) — Çıktı biçimi ve kalite seçimi (WAV / MP3 / OPUS)
+- Ayarlar ▸ Çıktı ▸ "Kayıt ve Kalite" kartına üç biçim kutucuğu geldi: WAV (kayıpsız · arşiv), MP3 (her yerde çalar), OPUS (en küçük dosya). Seçim tek tıkla değişir, dolu işaret seçili biçimi gösterir.
+- Kalite listesi seçilen biçime göre değişir: MP3 → Konuşma 128 / Podcast 192 / Yüksek kalite 320 kbps; OPUS → Konuşma 32 / Dengeli 64 / Yüksek kalite 96 kbps; WAV → kayıpsız (kalite kutusu pasif). Her biçim kendi kalitesini hatırlar.
+- Üretim artık seçilen biçimde çıktı klasörüne kaydedilir (öncesi her zaman WAV). Varsayılan: MP3 / Yüksek kalite 320 kbps.
+- Elle "MP3 olarak kaydet" düğmesi seçili MP3 kalitesini kullanır; referans ses ve sıkıştırma dosya seçicileri `.opus` kabul eder.
+- ffmpeg yoksa veya dönüştürme başarısız olursa üretim kaybolmaz: dosya aynı adla WAV yazılır ve durum çubuğuna not düşülür.
+- Arşiv kayıtları ve "geçmiş ayarlarını yükle" akışı biçim + kaliteyi taşır; eski kayıtlar ve eski ayar dosyaları etkilenmez.
+- Test: 118 passed, 1 skipped (+ smoke light). MP3/OPUS çıktısı gerçek ffmpeg ile sınandı (kodlayıcı adı + bitrate ölçümü).
+
 v0.5.4 (2026-10-19) — EMA Lightning ikinci ses motoru + arayüz oku düzeltmesi
 - İkinci ses motoru: EMA Lightning (Apache-2.0, ~34 MB, yalnız Türkçe, tek ses, 48 kHz). Ayarlar ▸ Ses ▸ "Ses motoru" ile seçilir; varsayılan Chatterbox olarak kaldı, çıkarılmadı.
 - EMA seçilince dil "tr"ye kilitlenir; hazır ayar / ifade / netlik / yaratıcılık / tekrar azaltma ve referans ses düğmeleri kapanır, hız + duraklama geçerli kalır. Motor değişiminde model arka planda yeniden yüklenir (üretim sürerken değişim engellenir); Chatterbox dil tercihi korunur.

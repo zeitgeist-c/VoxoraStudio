@@ -370,6 +370,40 @@ def _stylesheet(theme: str) -> str:
         border-radius: {r['small']}px;
         background: {c['surface_alt']};
     }}
+    #formatTile {{
+        background: {c['surface_alt']};
+        border: 1px solid {c['border']};
+        border-radius: {r['small']}px;
+    }}
+    #formatTile:hover {{
+        background: {c['surface_raised']};
+        border-color: {c['border_strong']};
+    }}
+    #formatTile[selected="true"] {{
+        background: {c['accent_soft']};
+        border-color: {c['accent_border']};
+    }}
+    #formatTile[selected="true"]:hover {{
+        border-color: {c['accent']};
+    }}
+    QLabel#formatTileDot {{
+        background: {c['surface']};
+        border: 1px solid {c['text_muted']};
+        border-radius: 4px;
+    }}
+    #formatTile[selected="true"] QLabel#formatTileDot {{
+        background: {c['accent']};
+        border-color: {c['accent']};
+    }}
+    QLabel#formatTileTitle {{
+        color: {c['text']};
+        font-size: 9.5pt;
+        font-weight: 650;
+    }}
+    QLabel#formatTileDesc {{
+        color: {c['text_muted']};
+        font-size: 8pt;
+    }}
     QLabel#brandSubtitle, QLabel#sidebarAttribution {{
         color: {c['text_muted']};
         font-size: 8pt;
