@@ -315,6 +315,18 @@ class SwapScriptTests(unittest.TestCase):
         self.assertIn(f'start "" "{launcher}"', text)
         self.assertIn('del "%~f0"', text)
 
+    def test_script_is_path_independent_and_bounded(self):
+        """Regresyon: `find` PATH'e göre MSYS'in Unix `find`'ine düşüp eşleşmiyor,
+        betik beklemeyi atlayıp yeni sürümü eski sürüm kapanmadan açıyordu."""
+        launcher = Path(r"C:\X\VoxoraStudio-0.6.0\VoxoraStudio-0.6.0.bat")
+        text = updater.swap_script_text(4242, launcher)
+        self.assertNotIn("| find ", text)
+        self.assertIn(r"%SystemRoot%\System32\tasklist.exe", text)
+        self.assertIn("/FO CSV", text)
+        self.assertIn('if "%%~A"=="4242" set "FOUND=1"', text)
+        self.assertIn("GEQ 600", text)          # sınırsız bekleme yok
+        self.assertNotIn("timeout /t", text)    # gizli konsolda beklemez
+
 
 class InstallWorkerTests(unittest.TestCase):
     """'İndir ve Kur' akışı: updater erişimi + kardeş klasör + temizlik fişi.

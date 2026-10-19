@@ -2213,7 +2213,22 @@ class MainWindow(QMainWindow):
         if self._close_finalized:
             return  # kapanış zaten kurala bağlandı; betik çalışıyor
         from . import updater
-        updater.spawn_swap(os.getpid(), Path(launcher))
+        try:
+            updater.spawn_swap(os.getpid(), Path(launcher))
+        except OSError as exc:
+            # Devir betiği kurulamazsa program kapanmamalı: kullanıcıya yeni
+            # sürümün yerini söyle, asılı kalmasın.
+            log.exception("Yeniden başlatma betiği kurulamadı")
+            self.status_label.setText("Güncelleme kuruldu; yeniden başlatma başarısız.")
+            QMessageBox.warning(
+                self,
+                "Güncelleme kuruldu",
+                "Yeni sürüm kuruldu ancak program kendini yeniden başlatamadı.\n\n"
+                f"Ayrıntı: {exc}\n\n"
+                "Programı kapatıp yeni sürümü şuradan açabilirsiniz:\n"
+                f"{launcher}",
+            )
+            return
         if self._update_worker is not None:
             self._update_worker.wait(5000)
         self._close_requested = True

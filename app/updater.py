@@ -512,12 +512,32 @@ def extract(archive: Path, version: str, into_parent: Path,
 
 
 def swap_script_text(old_pid: int, new_launcher: Path) -> str:
-    """Kapanış betiği: eski PID'i bekle, yeni paketi başlat, kendini sil."""
+    """Kapanış betiği: eski PID'i bekle, yeni paketi başlat, kendini sil.
+
+    PID kontrolü cmd yerleşikleriyle yapılır: `tasklist` her durumda 0 döndürür,
+    `find` ise PATH'e göre MSYS'in Unix `find`'iyle karışabilir (eşleşme olmaz,
+    betik beklemeyi atlar). Bu yüzden çıktı CSV olarak alınır, PID alanı
+    doğrudan karşılaştırılır.
+
+    Bekleme `ping` ile yapılır: `timeout` gerçek konsol/stdin ister; gizli
+    konsolda hata verip beklemesiz döngüye yol açar. Döngü ~10 dakikayla
+    sınırlıdır; eski süreç kapanmazsa yine de yeni sürüm başlatılır.
+    """
     return (
         "@echo off\r\n"
+        "setlocal\r\n"
+        "set /a TRIES=0\r\n"
         ":wait\r\n"
-        f'tasklist /FI "PID eq {old_pid}" 2>NUL | find " {old_pid} " >NUL\r\n'
-        "if not errorlevel 1 (timeout /t 1 /nobreak >NUL & goto wait)\r\n"
+        "set \"FOUND=\"\r\n"
+        f'for /f "tokens=2 delims=," %%A in (\'%SystemRoot%\\System32\\tasklist.exe '
+        f'/FI "PID eq {old_pid}" /NH /FO CSV 2^>NUL\') do '
+        f'if "%%~A"=="{old_pid}" set "FOUND=1"\r\n'
+        "if not defined FOUND goto launch\r\n"
+        "set /a TRIES+=1\r\n"
+        "if %TRIES% GEQ 600 goto launch\r\n"
+        "ping -n 2 127.0.0.1 >NUL\r\n"
+        "goto wait\r\n"
+        ":launch\r\n"
         f'start "" "{new_launcher}"\r\n'
         'del "%~f0"\r\n')
 
@@ -528,11 +548,15 @@ def spawn_swap(old_pid: int, new_launcher: Path) -> None:
     Windows çalışan EXE'yi silmez; betik bu işlemi bekler, yeni paketi BAT'ıyla
     başlatır, kendini siler. Eski klasörü SİLMEZ: temizlik, yeni sürüm fişi
     okuduğunda (`cleanup_after_update`) eski PID bittikten sonra yapılır.
+
+    Bayraklar: `DETACHED_PROCESS` ile `CREATE_NEW_CONSOLE` BİRLİKTE verilemez;
+    Windows CreateProcess'i `WinError 87 (Parametre hatalı)` ile reddeder ve
+    güncelleme "yeniden başlatılıyor" adımında asılı kalır. Gizli konsol için
+    tek başına `CREATE_NO_WINDOW` kullanılır.
     """
     script = new_launcher.with_name("voxora-swap.bat")
     script.write_text(swap_script_text(old_pid, new_launcher), encoding="ascii")
-    flags = getattr(subprocess, "DETACHED_PROCESS", 0) | \
-        getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     subprocess.Popen(["cmd", "/c", str(script)], creationflags=flags,
                      close_fds=True)
     log.info("swap hazır: pid=%s new=%s", old_pid, new_launcher)
