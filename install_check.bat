@@ -95,7 +95,7 @@ echo.
 echo [6/7] Kritik paketler...
 "%PYEXE%" -c "
 import sys
-packages = ['numpy', 'torch', 'torchaudio', 'PyQt6', 'sounddevice', 'soundfile', 'pydub', 'send2trash', 'PyInstaller']
+packages = ['numpy', 'torch', 'torchaudio', 'PyQt6', 'sounddevice', 'soundfile', 'pydub', 'send2trash', 'PyInstaller', 'ema_lightning', 'normalizer_tr']
 failed = []
 for name in packages:
     try:

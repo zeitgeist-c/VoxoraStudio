@@ -2,13 +2,13 @@
 
 > English: [README.md](./README.md)
 
-Chatterbox Multilingual V3 tabanlı, PyQt6 arayüzlü metinden sese üretim stüdyosu. Türkçe + çok dilli, referans örnekle ses klonlama, WAV/MP3 dışa aktarma — CPU/CUDA/DirectML ile tam yerel çalışır.
+Chatterbox Multilingual V3 ve EMA Lightning tabanlı, PyQt6 arayüzlü metinden sese üretim stüdyosu. Türkçe + çok dilli, referans örnekle ses klonlama; EMA ile hızlı tek sesli Türkçe üretim — CPU/CUDA/DirectML ile tam yerel çalışır.
 
 ![Üretim stüdyosu](./docs/screenshots/01-uretim.png)
 
 ## Özellikler
 
-- **Türkçe + çok dilli TTS** — Chatterbox V3 motoru.
+- **İki ses motoru** — Chatterbox V3 (çok dilli + klonlama) ve EMA Lightning (Türkçe, tek ses, ~34 MB, CPU'da bile çok hızlı).
 - **Ses klonlama** — referans örnek (5–20 sn öneri) + rehber düğmesi.
 - **İnce ayar** — dil, hız, ifade, netlik, yaratıcılık, tekrar azaltma + hazır presetler.
 - **Uzun metin parçalama** — parça işleme + süre tahmini, karakter/kelime/parça bilgisi.
@@ -27,7 +27,7 @@ Gereksinim: Python 3.11 + ffmpeg (MP3 için).
 setup.bat          :: internet/donanım/ffmpeg kontrolü, CUDA yoksa CPU
 install_check.bat  :: kurulum doğrulama
 run.bat            :: konsolsuz başlat (debug: VOXORA_SHOW_CONSOLE=1)
-build.bat          :: paketleme dist\VoxoraStudio-0.5.3\ (PyInstaller onedir)
+build.bat          :: paketleme dist\VoxoraStudio-0.5.4\ (PyInstaller onedir)
 ```
 
 Test: `smoke_test.py` (light/full), `python -m unittest discover -s tests -v`.

@@ -1,14 +1,21 @@
 """
-Voxora Studio - TTS motoru (üç katmanlı cihaz yönetimi).
+Voxora Studio - TTS motoru (motor seçimi + cihaz yönetimi).
 
-Sıralama:
-  1) PyTorch CUDA (NVIDIA) - en hızlı
-  2) ONNX Runtime DirectML (AMD/NVIDIA) - v0.1.1'de model yüklenir
-  3) PyTorch CPU - her durumda çalışır
+İki motor ailesi vardır:
 
-v0.1.0 davranışı:
-  - CUDA varsa CUDA, yoksa DirectML provider denenir (model yoksa CPU fallback),
-  - DirectML modeli yoksa sessizce CPU'ya düşer.
+  chatterbox (varsayılan) - Chatterbox Multilingual V3, 16 dil + ses klonlama:
+    1) PyTorch CUDA (NVIDIA) - en hızlı
+    2) ONNX Runtime DirectML (AMD/NVIDIA) - model varsa (Plan 17)
+    3) PyTorch CPU - her durumda çalışır
+
+  ema - EMA Lightning: yalnız Türkçe, tek ses, ~34 MB, CPU'da bile hızlı.
+    İlk kullanımda ağırlıklar Hugging Face'ten indirilir (~34 MB).
+
+Ortak yüzey: ``engine.synthesize(text, ...) -> torch.Tensor`` ve
+``engine.sample_rate``. Hız (speed):
+  - EMA hızı modelin kendi parametresiyle uygular (``accepts_speed``);
+    dispatcher ayrıca time-stretch yapmaz.
+  - Chatterbox çıktısı dispatcher'da ``_adjust_speed`` ile gerilir.
 """
 from __future__ import annotations
 
@@ -17,12 +24,16 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
 
+import numpy as np
 import torch
 
 from config import (
     DEFAULT_CFG_WEIGHT,
+    DEFAULT_ENGINE,
     DEFAULT_EXAGGERATION,
     DEFAULT_LANGUAGE_ID,
+    ENGINE_EMA,
+    VALID_ENGINES,
 )
 
 log = logging.getLogger(__name__)
@@ -81,6 +92,75 @@ class TorchEngine:
             min_p=min_p,
             top_p=top_p,
         )
+
+
+class EmaEngine:
+    """EMA Lightning - küçük, hızlı, Türkçe'ye özel motor (CPU/GPU otomatik).
+
+    Tek kadın sesi okur; referans ses ve örnekleme parametreleri kullanılmaz.
+    Hız, modelin kendi ``say(speed=...)`` parametresiyle uygulanır; bu yüzden
+    ``accepts_speed`` işaretlidir ve dispatcher time-stretch yapmaz.
+    """
+
+    accepts_speed = True
+
+    #: EMA çıktısı varsayılan olarak 48 kHz; ilk sentezde Speech değeriyle tazelenir.
+    DEFAULT_SAMPLE_RATE = 48_000
+
+    def __init__(
+        self,
+        device: str = "auto",
+        model=None,
+        status_callback: Callable[[str], None] | None = None,
+    ):
+        self._status_callback = status_callback
+        if model is None:
+            from ema_lightning import EMA
+
+            self._status(
+                "EMA Lightning ağırlıkları hazırlanıyor "
+                "(ilk çalıştırmada ~34 MB indirilebilir)..."
+            )
+            model = EMA(device=device)
+        self._model = model
+        self._sample_rate = self.DEFAULT_SAMPLE_RATE
+
+    def _status(self, message: str) -> None:
+        log.info(message)
+        if self._status_callback:
+            self._status_callback(message)
+
+    @property
+    def sample_rate(self) -> int:
+        return self._sample_rate
+
+    def synthesize(
+        self,
+        text,
+        language_id=None,
+        exaggeration=None,
+        cfg_weight=None,
+        audio_prompt_path=None,
+        temperature=None,
+        repetition_penalty=None,
+        min_p=None,
+        top_p=None,
+        speed: float = 1.0,
+    ):
+        """Metni seslendirir; (1, N) float32 tensörü döner.
+
+        Dil ve ifade parametreleri yok sayılır: EMA yalnız Türkçe ve tek
+        seslidir. Boş çıktı (seslendirilecek karakter yok) yerine kısa bir
+        sessizlik döner ki uzun üretimler ortada kesilmesin.
+        """
+        speech = self._model.say(text, speed=float(speed))
+        audio = np.asarray(speech.audio, dtype=np.float32).reshape(-1)
+        sample_rate = int(getattr(speech, "sample_rate", 0) or self._sample_rate)
+        self._sample_rate = sample_rate
+        if audio.size == 0:
+            log.warning("EMA boş ses üretti; 0.25 sn sessizlik kullanılıyor: %r", text[:60])
+            audio = np.zeros(max(1, int(sample_rate * 0.25)), dtype=np.float32)
+        return torch.from_numpy(audio).reshape(1, -1)
 
 
 class OnnxEngine:
@@ -155,7 +235,7 @@ class OnnxEngine:
 
 
 class TTSEngine:
-    """Üç katmanlı dispatcher. Açılışta en iyi motoru seçer."""
+    """Motor dispatcher'ı. Açılışta seçilen motorun en iyi cihazını seçer."""
 
     def __init__(
         self,
@@ -163,14 +243,26 @@ class TTSEngine:
         exaggeration: float = DEFAULT_EXAGGERATION,
         cfg_weight: float = DEFAULT_CFG_WEIGHT,
         status_callback: Callable[[str], None] | None = None,
+        engine_name: str | None = None,
     ):
         self.language_id = language_id
         self.exaggeration = exaggeration
         self.cfg_weight = cfg_weight
         self._status_callback = status_callback
+        self.engine_name = engine_name if engine_name in VALID_ENGINES else DEFAULT_ENGINE
         self.device_name, self.engine = self._select_engine()
         self._status(f"Aktif motor: {type(self.engine).__name__} ({self.device_name})")
-        log.info("Aktif motor: %s (cihaz=%s)", type(self.engine).__name__, self.device_name)
+        log.info(
+            "Aktif motor: %s / %s (cihaz=%s)",
+            self.display_name,
+            type(self.engine).__name__,
+            self.device_name,
+        )
+
+    @property
+    def display_name(self) -> str:
+        """Kullanıcıya gösterilecek motor adı."""
+        return "EMA Lightning" if self.engine_name == ENGINE_EMA else "Chatterbox Multilingual"
 
     def _status(self, message: str) -> None:
         log.info(message)
@@ -178,6 +270,18 @@ class TTSEngine:
             self._status_callback(message)
 
     def _select_engine(self) -> tuple[str, Engine]:
+        if self.engine_name == ENGINE_EMA:
+            return self._select_ema_engine()
+        return self._select_chatterbox_engine()
+
+    def _select_ema_engine(self) -> tuple[str, Engine]:
+        """EMA Lightning: cihaz otomatik (CUDA varsa CUDA, yoksa CPU)."""
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        self._status(f"EMA Lightning motoru hazırlanıyor (cihaz: {device})...")
+        engine = EmaEngine(device=device, status_callback=self._status)
+        return device, engine
+
+    def _select_chatterbox_engine(self) -> tuple[str, Engine]:
         self._status("CUDA kullanılabilirliği kontrol ediliyor...")
         if torch.cuda.is_available():
             try:
@@ -229,7 +333,7 @@ class TTSEngine:
         speed: float = 1.0,
     ) -> tuple["torch.Tensor", int]:
         """Tek çağrı: tensor + sample_rate döner."""
-        wav = self.engine.synthesize(
+        params = (
             text,
             language_id or self.language_id,
             self.exaggeration if exaggeration is None else exaggeration,
@@ -240,7 +344,12 @@ class TTSEngine:
             min_p,
             top_p,
         )
-        wav = self._adjust_speed(wav, speed)
+        if getattr(self.engine, "accepts_speed", False):
+            # EMA hızı kendi içinde uygular; dışarıdan time-stretch gerekmez.
+            wav = self.engine.synthesize(*params, speed=speed)
+        else:
+            wav = self.engine.synthesize(*params)
+            wav = self._adjust_speed(wav, speed)
         return wav, self.engine.sample_rate
 
     def _adjust_speed(self, wav: "torch.Tensor", speed: float) -> "torch.Tensor":

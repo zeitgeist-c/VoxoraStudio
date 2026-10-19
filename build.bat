@@ -27,7 +27,7 @@ echo ============================================================
 echo.
 
 echo [1/3] Gerekli import'lar dogrulaniyor...
-"%PYEXE%" -c "import torch, torchaudio, PyQt6, sounddevice, soundfile, pydub, send2trash, numpy, PyInstaller; print('[OK] Tum importlar basarili.')"
+"%PYEXE%" -c "import torch, torchaudio, PyQt6, sounddevice, soundfile, pydub, send2trash, numpy, PyInstaller, ema_lightning, normalizer_tr; print('[OK] Tum importlar basarili.')"
 if errorlevel 1 (
     echo [HATA] Import dogrulamasi basarisiz. Once setup.bat calistir.
     pause
@@ -58,6 +58,8 @@ echo.
     --hidden-import "numpy" ^
     --hidden-import "pkg_resources" ^
     --collect-all "perth" ^
+    --collect-all "ema_lightning" ^
+    --collect-all "normalizer_tr" ^
     --exclude-module "matplotlib" ^
     --exclude-module "pandas" ^
     --exclude-module "notebook" ^

@@ -321,6 +321,13 @@ def _stylesheet(theme: str) -> str:
     s = t["spacing"]
     h = t["control"]
 
+    # Açılır kutu ve sayı kutusu okları: QSS alt-kontrolleri biçimlendirildiğinde
+    # Qt kendi okunu çizmez; görsel verilmezse alanlar düz metin gibi görünür.
+    suffix = "" if t["name"] == "dark" else "-light"
+    combo_arrow = asset_path(f"spin-down{suffix}.svg").replace("\\", "/")
+    spin_up_arrow = asset_path(f"spin-up{suffix}.svg").replace("\\", "/")
+    spin_down_arrow = asset_path(f"spin-down{suffix}.svg").replace("\\", "/")
+
     return f"""
     * {{
         font-family: "Segoe UI Variable Text", "Segoe UI";
@@ -663,6 +670,7 @@ def _stylesheet(theme: str) -> str:
     }}
     QComboBox {{ padding-right: 30px; }}
     QComboBox::drop-down {{ border: none; width: 28px; }}
+    QComboBox::down-arrow {{ image: url("{combo_arrow}"); width: 10px; height: 7px; }}
     QComboBox QAbstractItemView {{
         color: {c['text']};
         background: {c['surface_raised']};
@@ -673,6 +681,16 @@ def _stylesheet(theme: str) -> str:
         selection-color: {c['selection_text']};
     }}
     QSpinBox, QDoubleSpinBox {{ padding-right: 29px; }}
+    QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {{
+        image: url("{spin_up_arrow}");
+        width: 10px;
+        height: 7px;
+    }}
+    QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {{
+        image: url("{spin_down_arrow}");
+        width: 10px;
+        height: 7px;
+    }}
     QSpinBox::up-button, QSpinBox::down-button,
     QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {{
         subcontrol-origin: border;

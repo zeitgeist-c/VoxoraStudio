@@ -22,7 +22,7 @@ from pathlib import Path
 # Kritik: yoksa smoke fail.
 CRITICAL_IMPORTS = (
     "numpy", "torch", "torchaudio", "PyQt6", "sounddevice", "soundfile",
-    "pydub", "send2trash", "PyInstaller",
+    "pydub", "send2trash", "PyInstaller", "ema_lightning", "normalizer_tr",
 )
 # Bilgilendirici: yoksa uyarı (kullanıcı isteğe bağlı).
 INFO_IMPORTS = ("onnxruntime",)
@@ -127,6 +127,12 @@ def check_environment() -> bool:
         print("  chatterbox import: OK")
     except Exception as e:
         print(f"  [BİLGİ] chatterbox import: {e}")
+
+    try:
+        import ema_lightning
+        print(f"  ema-lightning import: OK ({ema_lightning.__version__})")
+    except Exception as e:
+        print(f"  [BİLGİ] ema-lightning import: {e}")
 
     bundled_ffmpeg = Path(__file__).resolve().parent / "bin" / "ffmpeg.exe"
     ffmpeg = "Var" if shutil.which("ffmpeg") or bundled_ffmpeg.is_file() else "Yok"

@@ -35,6 +35,9 @@ def main():
     # yazımı OSError 22 ile motoru düşürür. İndirme çubuklarını baştan kapat.
     os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
     os.environ.setdefault("TQDM_DISABLE", "1")
+    # Kullanıcı klasöründe symlink desteklenmezse huggingface_hub uyarı basar;
+    # bu yalnız bilgilendirmedir, susturulur.
+    os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
     if sys.platform == "win32":
         try:
             import ctypes
