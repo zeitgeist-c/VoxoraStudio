@@ -268,8 +268,12 @@ class MainWindow(QMainWindow):
         self.brand_logo.setToolTip(DISPLAY_NAME)
         brand_text = QLabel(f"{BRAND_PRIMARY} <span style=\"color:{'#8B7CF6'}\">•</span> {BRAND_SECONDARY}")
         brand_text.setObjectName("brandTitle")
+        self.brand_version = QLabel(f"v{__version__}")
+        self.brand_version.setObjectName("brandVersion")
+        self.brand_version.setToolTip(f"{DISPLAY_NAME} sürümü: {__version__}")
         topbar_row.addWidget(self.brand_logo)
         topbar_row.addWidget(brand_text)
+        topbar_row.addWidget(self.brand_version)
         topbar_row.addSpacing(14)
 
         nav_items = [("Üretim", "generate", 0), ("Arşiv", "history", 1), ("Araçlar", "compress", 2), ("Ayarlar", "settings", 3)]
