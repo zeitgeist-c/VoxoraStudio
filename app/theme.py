@@ -361,6 +361,15 @@ def _stylesheet(theme: str) -> str:
         font-size: 11pt;
         font-weight: 750;
     }}
+    QLabel#brandVersion {{
+        color: {c['text_muted']};
+        font-size: 8pt;
+        font-weight: 600;
+        padding: 2px 7px;
+        border: 1px solid {c['border']};
+        border-radius: {r['small']}px;
+        background: {c['surface_alt']};
+    }}
     QLabel#brandSubtitle, QLabel#sidebarAttribution {{
         color: {c['text_muted']};
         font-size: 8pt;

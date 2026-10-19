@@ -7,7 +7,8 @@ v0.5.4 (2026-10-19) — EMA Lightning ikinci ses motoru + arayüz oku düzeltmes
 - Hız, EMA'da modelin kendi `speed` parametresiyle uygulanır (sonradan hızlandırma yapılmaz); EMA çıktısı 48 kHz.
 - Düzeltme: tema, açılır kutu ve sayı kutularının ok alt-kontrollerini biçimlendiriyor ama görsel vermiyordu; Qt hiçbir ok çizmediği için tüm listeler ve sayı alanları düz metin kutusu gibi görünüyordu. Koyu/açık tema için ok görselleri tanımlandı; "Ses motoru" kutusu form genişliğine indirildi.
 - İlk EMA kullanımında ~34 MB ağırlık bir kez indirilir; sonrası tamamen çevrimdışı.
-- Test: 100 passed, 1 skipped (+ smoke light).
+- Üst barda marka yanında sürüm rozeti gösteriliyor (vX.Y.Z) — koyu ve açık temada.
+- Test: 100 passed, 1 skipped (+ smoke light). Güncelleme kanalı gerçek asset ile denendi: indirme + SHA256 (GitHub digest) + ZIP bütünlüğü + güvenli çıkarma başarılı.
 
 v0.5.3 (2026-10-17) — Güncelleme akışı düzeltmesi
 - "İndir ve Kur" canlıda hiç çalışmıyordu: kurulumda NameError (updater modülü worker'a bağlı değildi) düzeltildi.
