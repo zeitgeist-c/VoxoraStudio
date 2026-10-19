@@ -1,9 +1,11 @@
 """
 Voxora Studio - uygulama sabitleri.
 
-Dil listesi, referans ses örneği metni ve üretim hazır ayarları.
+Dil listesi, referans ses örneği metni, üretim hazır ayarları ve motor seçenekleri.
 """
 from __future__ import annotations
+
+from config import ENGINE_CHATTERBOX, ENGINE_EMA
 
 __all__ = [
     "LANGUAGES",
@@ -14,9 +16,16 @@ __all__ = [
     "THEME_DARK",
     "THEME_SYSTEM",
     "LANGUAGE_SAMPLES",
+    "ENGINE_OPTIONS",
     "WARN_CHUNK_COUNT",
     "CONFIRM_CHUNK_COUNT",
 ]
+
+# Ses motoru seçenekleri (Ayarlar → Ses). İlk öğe varsayılan motordur.
+ENGINE_OPTIONS = (
+    ("Chatterbox — çok dilli • ses klonlama", ENGINE_CHATTERBOX),
+    ("EMA Lightning — Türkçe • hızlı", ENGINE_EMA),
+)
 
 LANGUAGES = {
     "tr": "Türkçe",

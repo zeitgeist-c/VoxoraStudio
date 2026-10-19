@@ -53,11 +53,12 @@ import audio_player
 import audio_compressor
 from app_state import load_history, load_settings, save_history, save_settings
 import chunker
-from config import DEFAULT_OUTPUT_DIR
+from config import DEFAULT_ENGINE, DEFAULT_OUTPUT_DIR, ENGINE_EMA, VALID_ENGINES
 from file_utils import safe_filename_from_text, safe_remove_to_trash, trash_available, unique_path
 
 from .constants import (
     CONFIRM_CHUNK_COUNT,
+    ENGINE_OPTIONS,
     LANGUAGE_SAMPLES,
     LANGUAGES,
     PRESETS,
@@ -202,6 +203,11 @@ class MainWindow(QMainWindow):
         self.output_dir = self._default_output_dir()
         self.settings = load_settings()
         self.history = load_history()
+        # Motor seçimi: "chatterbox" (varsayılan) veya "ema"
+        self._engine_name: str = DEFAULT_ENGINE
+        self._engine_loading: bool = False
+        # EMA aktifken seçili kalmayan Chatterbox dili burada saklanır.
+        self._chatterbox_language_id: str = "tr"
         self._loader: QThread | None = None
         self._synth_worker: SynthWorker | None = None
         self._synth_dialog: SynthesisDialog | None = None
@@ -413,6 +419,7 @@ class MainWindow(QMainWindow):
         right_col = QVBoxLayout()
         right_col.setSpacing(14)
         voice_card = SectionCard("Ses Profili", "Referans ses yoksa varsayılan ses kullanılır.")
+        self.voice_card = voice_card
         self.voice_label = QLabel("Ses örneği seçilmedi")
         self.voice_label.setWordWrap(True)
         mark_muted(self.voice_label)
@@ -497,12 +504,22 @@ class MainWindow(QMainWindow):
         voice_col = QVBoxLayout(voice_panel)
         voice_col.setContentsMargins(0, 0, 0, 0)
         voice_col.setSpacing(14)
-        settings_card = SectionCard("Ses Ayarları", "Hazır bir profil seçin veya üretim karakterini ayrıntılı biçimde ayarlayın.")
+        settings_card = SectionCard("Ses Ayarları", "Ses motorunu seçin; profil veya ayrıntılı ayarla üretim karakterini belirleyin.")
         settings_panel = QWidget()
         settings_grid = QGridLayout(settings_panel)
         settings_grid.setContentsMargins(0, 0, 0, 0)
         settings_grid.setHorizontalSpacing(14)
         settings_grid.setVerticalSpacing(12)
+
+        self.engine_combo = QComboBox()
+        for engine_label, engine_value in ENGINE_OPTIONS:
+            self.engine_combo.addItem(engine_label, engine_value)
+        self.engine_combo.setToolTip(
+            "Chatterbox: 16 dil ve referans sesle klonlama (ağır, yavaş).\n"
+            "EMA Lightning: yalnız Türkçe, tek ses, CPU'da bile çok hızlı.\n"
+            "Motor değişince model arka planda yeniden yüklenir."
+        )
+        self.engine_combo.currentIndexChanged.connect(self._on_engine_changed)
 
         self.preset_combo = QComboBox()
         for preset_name in PRESETS:
@@ -552,23 +569,25 @@ class MainWindow(QMainWindow):
         self.pause_spin.setValue(0.35)
         self.pause_spin.setSuffix(" sn")
 
-        settings_grid.addWidget(QLabel("Hazır ayar"), 0, 0)
-        settings_grid.addWidget(self.preset_combo, 0, 1)
-        settings_grid.addWidget(self.btn_apply_preset, 0, 2, 1, 2)
-        settings_grid.addWidget(QLabel("Dil"), 1, 0)
-        settings_grid.addWidget(self.language_combo, 1, 1)
-        settings_grid.addWidget(QLabel("Hız"), 1, 2)
-        settings_grid.addWidget(self.speed_spin, 1, 3)
-        settings_grid.addWidget(QLabel("İfade"), 2, 0)
-        settings_grid.addWidget(self.exaggeration_spin, 2, 1)
-        settings_grid.addWidget(QLabel("Netlik"), 2, 2)
-        settings_grid.addWidget(self.cfg_spin, 2, 3)
-        settings_grid.addWidget(QLabel("Yaratıcılık"), 3, 0)
-        settings_grid.addWidget(self.temperature_spin, 3, 1)
-        settings_grid.addWidget(QLabel("Tekrar azaltma"), 3, 2)
-        settings_grid.addWidget(self.repetition_spin, 3, 3)
-        settings_grid.addWidget(QLabel("Duraklama"), 4, 0)
-        settings_grid.addWidget(self.pause_spin, 4, 1)
+        settings_grid.addWidget(QLabel("Ses motoru"), 0, 0)
+        settings_grid.addWidget(self.engine_combo, 0, 1)
+        settings_grid.addWidget(QLabel("Hazır ayar"), 1, 0)
+        settings_grid.addWidget(self.preset_combo, 1, 1)
+        settings_grid.addWidget(self.btn_apply_preset, 1, 2, 1, 2)
+        settings_grid.addWidget(QLabel("Dil"), 2, 0)
+        settings_grid.addWidget(self.language_combo, 2, 1)
+        settings_grid.addWidget(QLabel("Hız"), 2, 2)
+        settings_grid.addWidget(self.speed_spin, 2, 3)
+        settings_grid.addWidget(QLabel("İfade"), 3, 0)
+        settings_grid.addWidget(self.exaggeration_spin, 3, 1)
+        settings_grid.addWidget(QLabel("Netlik"), 3, 2)
+        settings_grid.addWidget(self.cfg_spin, 3, 3)
+        settings_grid.addWidget(QLabel("Yaratıcılık"), 4, 0)
+        settings_grid.addWidget(self.temperature_spin, 4, 1)
+        settings_grid.addWidget(QLabel("Tekrar azaltma"), 4, 2)
+        settings_grid.addWidget(self.repetition_spin, 4, 3)
+        settings_grid.addWidget(QLabel("Duraklama"), 5, 0)
+        settings_grid.addWidget(self.pause_spin, 5, 1)
         settings_grid.setColumnStretch(1, 1)
         settings_grid.setColumnStretch(3, 1)
         settings_card.content_layout.addWidget(settings_panel)
@@ -867,6 +886,7 @@ class MainWindow(QMainWindow):
         self.btn_clean_text.clicked.connect(self.on_clean_text)
         self.text_edit.textChanged.connect(self.update_text_info)
         self.language_combo.currentIndexChanged.connect(self.update_settings_summary)
+        self.language_combo.currentIndexChanged.connect(self._on_language_changed)
         self.speed_spin.valueChanged.connect(self.update_settings_summary)
         self.speed_spin.valueChanged.connect(self.update_text_info)
         self.pause_spin.valueChanged.connect(self.update_settings_summary)
@@ -979,13 +999,128 @@ class MainWindow(QMainWindow):
         self.btn_save_mp3.setToolTip("Son üretimi MP3 olarak kaydet (Ctrl+Shift+S)")
         self.btn_select_voice.setToolTip("Referans ses örneği dosyası seç (Ctrl+Shift+V)")
 
+    # ---- motor seçimi -----------------------------------------------------
+
+    def _on_engine_changed(self, _index: int = 0):
+        """Ayarlar'daki motor değişti: arayüzü uygula ve motoru yeniden yükle."""
+        if not hasattr(self, "engine_combo"):
+            return
+        name = self.engine_combo.currentData()
+        if name not in VALID_ENGINES or name == self._engine_name:
+            return
+        if self._synth_worker and self._synth_worker.isRunning():
+            QMessageBox.information(
+                self,
+                "Üretim sürüyor",
+                "Motor değiştirmek için süren üretimin bitmesini bekleyin.",
+            )
+            self._revert_engine_combo()
+            return
+        if name == ENGINE_EMA:
+            # EMA yalnız Türkçe okur; dili EMA'dan çıkınca geri yüklemek için sakla.
+            self._chatterbox_language_id = self.language_combo.currentData() or "tr"
+        self._engine_name = name
+        self._apply_engine_ui_state(name)
+        self._save_current_settings()
+        self.status_label.setText("Ses motoru değiştiriliyor...")
+        self._init_engine_async()
+
+    def _revert_engine_combo(self):
+        """Seçiciyi geçerli motora geri al (sinyal tetiklemeden)."""
+        index = self.engine_combo.findData(self._engine_name)
+        if index >= 0:
+            self.engine_combo.blockSignals(True)
+            self.engine_combo.setCurrentIndex(index)
+            self.engine_combo.blockSignals(False)
+
+    def _on_language_changed(self, _index: int = 0):
+        """Chatterbox dil tercihini izle (EMA aktifken dil kilitlidir)."""
+        if self._engine_name != ENGINE_EMA:
+            self._chatterbox_language_id = self.language_combo.currentData() or "tr"
+
+    def _chatterbox_only_widgets(self) -> tuple:
+        """Yalnız Chatterbox'ta anlamlı olan ayar widget'ları."""
+        return (
+            self.preset_combo,
+            self.btn_apply_preset,
+            self.exaggeration_spin,
+            self.cfg_spin,
+            self.temperature_spin,
+            self.repetition_spin,
+        )
+
+    def _apply_engine_ui_state(self, engine_name: str):
+        """Seçili motora göre arayüzü ayarla.
+
+        EMA yalnız Türkçe ve tek seslidir: dil "tr"ye kilitlenir, referans ses
+        düğmeleri ve Chatterbox'a özel parametreler kapanır; hız ve duraklama
+        geçerli kalır.
+        """
+        self._engine_name = engine_name
+        ema = engine_name == ENGINE_EMA
+
+        index = self.language_combo.findData("tr" if ema else self._chatterbox_language_id)
+        if index >= 0 and self.language_combo.currentIndex() != index:
+            self.language_combo.blockSignals(True)
+            self.language_combo.setCurrentIndex(index)
+            self.language_combo.blockSignals(False)
+        self._update_language_tooltip()
+        self.language_combo.setEnabled(not ema)
+
+        for widget in self._chatterbox_only_widgets():
+            widget.setEnabled(not ema)
+
+        if hasattr(self, "voice_card"):
+            if ema:
+                self.voice_card.set_text(
+                    "Ses Profili",
+                    "EMA Lightning tek kadın sesiyle okur; referans ses kullanılmaz.",
+                )
+                self.voice_label.setText("EMA Lightning — sabit ses (referans gerekmez)")
+            else:
+                self.voice_card.set_text("Ses Profili", "Referans ses yoksa varsayılan ses kullanılır.")
+                if self.voice_prompt_path:
+                    self._set_voice_prompt(self.voice_prompt_path, save=False)
+                else:
+                    self.voice_label.setText("Ses örneği seçilmedi")
+
+        has_voice = bool(self.voice_prompt_path)
+        self.btn_select_voice.setEnabled(not ema)
+        self.btn_sample_voice_text.setEnabled(not ema)
+        self.btn_play_voice.setEnabled((not ema) and has_voice)
+        self.btn_clear_voice.setEnabled((not ema) and has_voice)
+        self.update_settings_summary()
+
+    def _needs_voice_warning(self) -> bool:
+        """Referans ses uyarısı yalnız Chatterbox'ta ve ses örneği yokken sorulur."""
+        return (
+            self._engine_name != ENGINE_EMA
+            and not self.voice_prompt_path
+            and not self._voice_warning_dismissed
+        )
+
+    def _refresh_engine_combo_enabled(self, busy: bool | None = None):
+        """Motor seçici yalnız boştayken ve yükleme bitince kullanılabilir."""
+        if not hasattr(self, "engine_combo"):
+            return
+        if busy is None:
+            busy = bool(self._synth_worker and self._synth_worker.isRunning())
+        self.engine_combo.setEnabled(not busy and not self._engine_loading)
+
+    # ---- motor yaşam döngüsü ---------------------------------------------
+
     def _init_engine_async(self):
         """Model yükleme uzun sürebilir; ayrı thread."""
+        self._engine_loading = True
+        self._refresh_engine_combo_enabled(busy=False)
         self._model_dialog = ModelLoadDialog(self)
-        self._model_dialog.add_status("Uygulama açıldı. Ses motoru hazırlanıyor.")
+        if self._engine_name == ENGINE_EMA:
+            self._model_dialog.add_status("EMA Lightning motoru hazırlanıyor.")
+        else:
+            self._model_dialog.add_status("Uygulama açıldı. Ses motoru hazırlanıyor.")
         self._model_dialog.show()
 
-        self._loader = EngineLoader()
+        self._loader = EngineLoader(engine_name=self._engine_name)
         self._loader.status.connect(self._on_engine_status)
         self._loader.ok.connect(self._on_engine_ready)
         self._loader.fail.connect(self._on_engine_failed)
@@ -1001,7 +1136,12 @@ class MainWindow(QMainWindow):
 
     def _on_engine_ready(self, engine):
         self.engine = engine
-        message = f"Hazır - {type(engine.engine).__name__} ({engine.device_name})"
+        self._engine_loading = False
+        self._engine_name = getattr(engine, "engine_name", self._engine_name)
+        self._apply_engine_ui_state(self._engine_name)
+        self._refresh_engine_combo_enabled(busy=False)
+        display = getattr(engine, "display_name", type(engine.engine).__name__)
+        message = f"Hazır - {display} ({engine.device_name})"
         self.status_label.setText(message)
         self.engine_status_pill.setText("HAZIR")
         self.engine_status_pill.set_tone("success")
@@ -1013,6 +1153,8 @@ class MainWindow(QMainWindow):
 
     def _on_engine_failed(self, msg: str):
         message = f"Motor yüklenemedi:\n{msg}"
+        self._engine_loading = False
+        self._refresh_engine_combo_enabled(busy=False)
         self.status_label.setText("Motor yüklenemedi.")
         self.engine_status_pill.setText("HATA")
         self.engine_status_pill.set_tone("danger")
@@ -1033,6 +1175,8 @@ class MainWindow(QMainWindow):
             return "Bellek yetersiz kaldı. Metni kısaltmayı veya daha az parçayla denemeyi deneyebilirsin."
         if "unsupported language" in lower:
             return "Seçilen dil model tarafından desteklenmedi. Ayarlar sekmesinden başka bir dil seç."
+        if "connection" in lower or "max retries" in lower or "timed out" in lower or "offline" in lower:
+            return "İnternet bağlantısı kurulamadı. Model ilk kez indirilecekse bağlantı gerekir; sonraki çalıştırmalar çevrimdışı olabilir."
         if "model" in lower or "pretrained" in lower or "snapshot" in lower:
             return "Model yüklenemedi. İnternet bağlantısı, kurulum veya model dosyaları kontrol edilmeli."
         return "İşlem tamamlanamadı. Ayrıntı aşağıda."
@@ -1155,10 +1299,17 @@ class MainWindow(QMainWindow):
         if not hasattr(self, "settings_summary_label"):
             return
         language = self.language_combo.currentText().split(" (")[0]
+        speed = self.speed_spin.value()
+        pause = self.pause_spin.value()
+        if self._engine_name == ENGINE_EMA:
+            self.settings_summary_label.setText(
+                f"EMA Lightning • {language} • {speed:.2f}x • Duraklama {pause:.2f} sn • Tek ses"
+            )
+            return
         preset = self.preset_combo.currentText()
         voice = "Ses örneği var" if self.voice_prompt_path else "Varsayılan ses"
         self.settings_summary_label.setText(
-            f"{language} • {preset} • {self.speed_spin.value():.2f}x • Duraklama {self.pause_spin.value():.2f} sn • {voice}"
+            f"Chatterbox • {language} • {preset} • {speed:.2f}x • Duraklama {pause:.2f} sn • {voice}"
         )
 
     def _load_saved_settings(self):
@@ -1206,6 +1357,21 @@ class MainWindow(QMainWindow):
             if idx >= 0:
                 self.compress_bitrate_combo.setCurrentIndex(idx)
 
+        # Ses motoru (chatterbox | ema) ve Chatterbox dil tercihi
+        engine = str(settings.get("engine", DEFAULT_ENGINE))
+        if engine not in VALID_ENGINES:
+            engine = DEFAULT_ENGINE
+        self._chatterbox_language_id = str(
+            settings.get("chatterbox_language_id") or settings.get("language_id", "tr")
+        )
+        if hasattr(self, "engine_combo"):
+            engine_index = self.engine_combo.findData(engine)
+            if engine_index >= 0:
+                self.engine_combo.blockSignals(True)
+                self.engine_combo.setCurrentIndex(engine_index)
+                self.engine_combo.blockSignals(False)
+        self._apply_engine_ui_state(engine)
+
         self.update_settings_summary()
 
     def _save_current_settings(self):
@@ -1215,6 +1381,8 @@ class MainWindow(QMainWindow):
 
     def _current_ui_settings(self) -> dict:
         return {
+            "engine": self.engine_combo.currentData() if hasattr(self, "engine_combo") else DEFAULT_ENGINE,
+            "chatterbox_language_id": self._chatterbox_language_id,
             "preset": self.preset_combo.currentText(),
             "language_id": self.language_combo.currentData(),
             "exaggeration": self.exaggeration_spin.value(),
@@ -1323,7 +1491,12 @@ class MainWindow(QMainWindow):
     def _refresh_system_labels(self):
         if not hasattr(self, "device_label"):
             return
-        self.device_label.setText(f"Cihaz: {self.engine.device_name}" if self.engine else "Cihaz: hazırlanıyor")
+        if self.engine:
+            self.device_label.setText(
+                f"Cihaz: {self.engine.device_name} • Motor: {self.engine.display_name}"
+            )
+        else:
+            self.device_label.setText("Cihaz: hazırlanıyor")
         gpu_name = "Yok / CPU"
         try:
             import torch
@@ -1349,7 +1522,11 @@ class MainWindow(QMainWindow):
             gpu_name = "?"
 
         ffmpeg = "Var" if self._has_ffmpeg() else "Yok"
-        engine = f"{type(self.engine.engine).__name__} ({self.engine.device_name})" if self.engine else "Hazırlanıyor"
+        engine = (
+            f"{self.engine.display_name} • {type(self.engine.engine).__name__} ({self.engine.device_name})"
+            if self.engine
+            else "Hazırlanıyor"
+        )
         QMessageBox.information(
             self,
             "Sistem Bilgisi",
@@ -1820,12 +1997,23 @@ class MainWindow(QMainWindow):
         self.voice_label.setText("Ses örneği seçilmedi; varsayılan ses kullanılacak.")
         self.btn_play_voice.setEnabled(False)
         self.btn_clear_voice.setEnabled(False)
+        # Ses motoru (önizleme; gerçek yükleme en sonda)
+        engine_index = self.engine_combo.findData(DEFAULT_ENGINE)
+        engine_changed = bool(engine_index >= 0 and self.engine_combo.currentData() != DEFAULT_ENGINE)
+        if engine_index >= 0:
+            self.engine_combo.blockSignals(True)
+            self.engine_combo.setCurrentIndex(engine_index)
+            self.engine_combo.blockSignals(False)
+        self._chatterbox_language_id = "tr"
+        self._apply_engine_ui_state(DEFAULT_ENGINE)
         # Output dir
         self._set_output_dir(self._default_output_dir(), save=True)
 
         self.update_settings_summary()
         self.update_text_info()
         self.status_label.setText("Tüm ayarlar varsayılana sıfırlandı.")
+        if engine_changed:
+            self._init_engine_async()
 
     # ---- güncelleme -------------------------------------------------------
 
@@ -2064,6 +2252,7 @@ class MainWindow(QMainWindow):
         elif self.engine is not None:
             self.engine_status_pill.setText("HAZIR")
             self.engine_status_pill.set_tone("success")
+        self._refresh_engine_combo_enabled(busy=busy)
 
     def on_generate(self) -> bool:
         text = self.text_edit.toPlainText().strip()
@@ -2079,8 +2268,8 @@ class MainWindow(QMainWindow):
             )
             return False
 
-        # Referans ses örneği yoksa kullanıcıyı uyar.
-        if not self.voice_prompt_path and not self._voice_warning_dismissed:
+        # Referans ses örneği yoksa kullanıcıyı uyar (EMA tek sesle okur; gerekmez).
+        if self._needs_voice_warning():
             box = QMessageBox(self)
             box.setIcon(QMessageBox.Icon.Warning)
             box.setWindowTitle("Referans ses örneği yok")

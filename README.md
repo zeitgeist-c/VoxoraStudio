@@ -2,13 +2,13 @@
 
 > Türkçe için: [README.tr.md](./README.tr.md)
 
-Chatterbox Multilingual V3 based, PyQt6 text-to-speech production studio. Turkish + multilingual, voice cloning from a reference sample, WAV/MP3 export — runs fully local with CPU/CUDA/DirectML support.
+Chatterbox Multilingual V3 and EMA Lightning based, PyQt6 text-to-speech production studio. Turkish + multilingual, voice cloning from a reference sample; fast single-voice Turkish output with EMA — runs fully local with CPU/CUDA/DirectML support.
 
 ![Üretim stüdyosu](./docs/screenshots/01-uretim.png)
 
 ## Features
 
-- **Turkish + multilingual TTS** — Chatterbox V3 engine.
+- **Two engines** — Chatterbox V3 (multilingual + cloning) and EMA Lightning (Turkish, single voice, ~34 MB, very fast even on CPU).
 - **Voice cloning** — reference sample (5–20 s recommended) with guide button.
 - **Fine control** — language, speed, expression, clarity, creativity, repetition reduction + ready presets.
 - **Long-text chunking** — chunk processing with time estimate, char/word/chunk stats.
@@ -27,7 +27,7 @@ Requirements: Python 3.11 + ffmpeg (for MP3).
 setup.bat          :: checks internet/hardware/ffmpeg, CUDA or CPU fallback
 install_check.bat  :: verify installation
 run.bat            :: start consoleless (debug: VOXORA_SHOW_CONSOLE=1)
-build.bat          :: package dist\VoxoraStudio-0.5.3\ (PyInstaller onedir)
+build.bat          :: package dist\VoxoraStudio-0.5.4\ (PyInstaller onedir)
 ```
 
 Tests: `smoke_test.py` (light/full), `python -m unittest discover -s tests -v`.

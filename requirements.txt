@@ -5,6 +5,10 @@ chatterbox-tts
 torch==2.6.0
 torchaudio==2.6.0
 
+# Core - TTS motoru (EMA Lightning: yalnız Türkçe, tek ses, ~34 MB, hızlı)
+# PyTorch >=2.1 ve Python >=3.11 ister; ağırlıklar ilk kullanımda HF'ten iner.
+ema-lightning>=1.1.2
+
 # GPU - AMD/NVIDIA hızlandırma (DirectML)
 # v0.1.0: provider kontrolü aktif, model yok (CPU'ya düşer)
 # v0.1.1: scripts/export_onnx.py ile model doldurulur

@@ -209,6 +209,20 @@ def check_chatterbox_import() -> bool:
     return result.returncode == 0
 
 
+def check_ema_import() -> bool:
+    print("[BILGI] EMA Lightning import kontrolu...")
+    code = (
+        "try:\n"
+        "    import ema_lightning\n"
+        "    print('[OK] EMA Lightning import basarili', ema_lightning.__version__)\n"
+        "except Exception as e:\n"
+        "    print('[HATA] EMA Lightning import:', e)\n"
+        "    raise SystemExit(1)\n"
+    )
+    result = subprocess.run([str(PYTHON), "-c", code], cwd=ROOT)
+    return result.returncode == 0
+
+
 def verify_imports() -> None:
     print("[BILGI] Import testi...")
     code = (
@@ -244,6 +258,9 @@ def main() -> int:
 
     # 6) Chatterbox import dogrulama
     check_chatterbox_import()
+
+    # 6b) EMA Lightning import dogrulama (yalniz Turce motor)
+    check_ema_import()
 
     # 7) Son dogrulama
     verify_imports()

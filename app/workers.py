@@ -161,14 +161,15 @@ class EngineLoader(QThread):
     fail = pyqtSignal(str)
     status = pyqtSignal(str)
 
-    def __init__(self, status_callback=None, parent=None):
+    def __init__(self, engine_name: str | None = None, status_callback=None, parent=None):
         super().__init__(parent)
         self._status_callback = status_callback
+        self._engine_name = engine_name
 
     def run(self):
         try:
             self._emit("Kurulu donanım ve hızlandırma seçenekleri kontrol ediliyor...")
-            engine = TTSEngine(status_callback=self._emit)
+            engine = TTSEngine(engine_name=self._engine_name, status_callback=self._emit)
             self.ok.emit(engine)
         except Exception as e:
             log.exception("Motor yüklenemedi")

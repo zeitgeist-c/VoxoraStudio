@@ -1,6 +1,14 @@
 Voxora Studio versiyon günlüğü
 =======================
 
+v0.5.4 (2026-10-19) — EMA Lightning ikinci ses motoru + arayüz oku düzeltmesi
+- İkinci ses motoru: EMA Lightning (Apache-2.0, ~34 MB, yalnız Türkçe, tek ses, 48 kHz). Ayarlar ▸ Ses ▸ "Ses motoru" ile seçilir; varsayılan Chatterbox olarak kaldı, çıkarılmadı.
+- EMA seçilince dil "tr"ye kilitlenir; hazır ayar / ifade / netlik / yaratıcılık / tekrar azaltma ve referans ses düğmeleri kapanır, hız + duraklama geçerli kalır. Motor değişiminde model arka planda yeniden yüklenir (üretim sürerken değişim engellenir); Chatterbox dil tercihi korunur.
+- Hız, EMA'da modelin kendi `speed` parametresiyle uygulanır (sonradan hızlandırma yapılmaz); EMA çıktısı 48 kHz.
+- Düzeltme: tema, açılır kutu ve sayı kutularının ok alt-kontrollerini biçimlendiriyor ama görsel vermiyordu; Qt hiçbir ok çizmediği için tüm listeler ve sayı alanları düz metin kutusu gibi görünüyordu. Koyu/açık tema için ok görselleri tanımlandı; "Ses motoru" kutusu form genişliğine indirildi.
+- İlk EMA kullanımında ~34 MB ağırlık bir kez indirilir; sonrası tamamen çevrimdışı.
+- Test: 100 passed, 1 skipped (+ smoke light).
+
 v0.5.3 (2026-10-17) — Güncelleme akışı düzeltmesi
 - "İndir ve Kur" canlıda hiç çalışmıyordu: kurulumda NameError (updater modülü worker'a bağlı değildi) düzeltildi.
 - Canlı indirme göstergesi: inen/toplam boyut, yüzde, hız (MB/s) ve kalan süre; doğrulama/açma aşamaları ayrı durum satırında.
