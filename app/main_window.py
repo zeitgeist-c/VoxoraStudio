@@ -2249,11 +2249,11 @@ class MainWindow(QMainWindow):
         return updater.updates_possible()
 
     def _run_update_cleanup(self):
-        """Güncelleme sonrası fiş varsa eski sürüm klasörlerini arka planda sil."""
+        """Güncelleme sonrası indirme kalıntılarını arka planda sil."""
         from . import updater
         try:
-            if updater.cleanup_after_update(on_done=self._notify_cleanup_done):
-                log.info("Güncelleme sonrası eski sürüm temizliği başlatıldı")
+            if updater.run_cleanup_async(on_done=self._notify_cleanup_done):
+                log.info("Güncelleme sonrası indirme kalıntısı temizliği başlatıldı")
         except Exception:
             log.exception("Güncelleme temizliği başlatılamadı")
 
@@ -2318,7 +2318,7 @@ class MainWindow(QMainWindow):
             return
         self.update_status_label.setText(
             f"Yeni sürüm {info.version} hazır ({updater.format_bytes(info.size)}). "
-            "Kurulum yan klasöre yapılır; yeniden başlatmada eski sürüm silinir.")
+            "Program kapanıp yerinde güncellenecek; ayarlar ve çıktılar korunur.")
         self.update_stats_label.setText("")
         self.update_progress.setVisible(False)
         self.btn_update_check.setVisible(False)

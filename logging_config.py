@@ -4,20 +4,22 @@ import os
 import sys
 
 from app.branding import LOG_FILENAME
+from app.paths import logs_dir
 from config import DEFAULT_LOG_DIR
 
 _FMT = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 
 
 def _log_dir() -> str:
-    """Log dizini: mutlak yol verilmişse o, değilse uygulamanın bulunduğu klasörün yanı."""
+    """Log dizini.
+
+    Mutlak yol verilmişse o kullanılır. Aksi hâlde kullanıcı veri klasörü:
+    donmuş pakette ``%LOCALAPPDATA%\\VoxoraStudio\\logs`` (Program Files'a
+    yazma izni yok), kaynak kopyada depo kökündeki ``logs/``.
+    """
     if os.path.isabs(DEFAULT_LOG_DIR):
         return DEFAULT_LOG_DIR
-    if getattr(sys, "frozen", False):
-        base = os.path.dirname(sys.executable)
-    else:
-        base = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(base, DEFAULT_LOG_DIR)
+    return str(logs_dir())
 
 
 LOG_FILE = os.path.join(_log_dir(), LOG_FILENAME)

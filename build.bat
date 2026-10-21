@@ -1,7 +1,11 @@
 @echo off
-REM Voxora Studio PyInstaller build - .exe uretimi
-REM Hizli acilan tasinabilir klasor + es adli EXE/BAT uretir.
-REM Cikti: dist\VoxoraStudio-X.Y.Z\VoxoraStudio-X.Y.Z.exe + .bat
+REM Voxora Studio build - .exe + kurulum dosyasi uretimi
+REM Cikti: dist\VoxoraStudio-X.Y.Z\VoxoraStudio.exe  (sabit EXE adi)
+REM        dist\installer\VoxoraStudio-X.Y.Z-Setup.exe
+REM
+REM EXE adi neden surumsuz: kurulum sabit klasore ({autopf}\VoxoraStudio) yazar,
+REM kisayollar VoxoraStudio.exe'yi gosterir. Surumlu EXE adi her surumde
+REM kisayollari ve guncelleme yolunu kirardi.
 
 cd /d "%~dp0"
 set "PROJECT_ROOT=%CD%"
@@ -14,6 +18,10 @@ if defined VOXORA_BUILD_PYTHON (
 )
 for /f "tokens=2 delims== " %%V in ('findstr /b "__version__" app\version.py') do set "APP_VERSION=%%~V"
 set "PACKAGE_STEM=VoxoraStudio-%APP_VERSION%"
+set "APP_EXE=VoxoraStudio.exe"
+set "ISCC=%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe"
+if not exist "%ISCC%" set "ISCC=%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
+if not exist "%ISCC%" set "ISCC=%ProgramFiles%\Inno Setup 6\ISCC.exe"
 
 if not exist "%PYEXE%" (
     echo [HATA] Sanal ortam bulunamadi. Once setup.bat calistir.
@@ -22,11 +30,11 @@ if not exist "%PYEXE%" (
 )
 
 echo ============================================================
-echo Voxora Studio .exe build
+echo Voxora Studio .exe + kurulum build  (v%APP_VERSION%)
 echo ============================================================
 echo.
 
-echo [1/3] Gerekli import'lar dogrulaniyor...
+echo [1/5] Gerekli import'lar dogrulaniyor...
 "%PYEXE%" -c "import torch, torchaudio, PyQt6, sounddevice, soundfile, pydub, send2trash, numpy, PyInstaller, ema_lightning, normalizer_tr; print('[OK] Tum importlar basarili.')"
 if errorlevel 1 (
     echo [HATA] Import dogrulamasi basarisiz. Once setup.bat calistir.
@@ -35,7 +43,7 @@ if errorlevel 1 (
 )
 
 echo.
-echo [2/3] PyInstaller ile build baslatiliyor...
+echo [2/5] PyInstaller ile build baslatiliyor...
 echo NOT: Bu islem ~10-20 dakika surebilir.
 echo.
 
@@ -44,7 +52,7 @@ echo.
     --clean ^
     --onedir ^
     --noconsole ^
-    --name "%PACKAGE_STEM%" ^
+    --name "VoxoraStudio" ^
     --icon "app\assets\voxora.ico" ^
     --distpath "dist" ^
     --workpath "build_temp" ^
@@ -76,33 +84,59 @@ if errorlevel 1 (
     exit /b 1
 )
 
-"%PYEXE%" scripts\make_versioned_launcher.py "dist\%PACKAGE_STEM%\%PACKAGE_STEM%.exe" --force
-if errorlevel 1 (
-    echo [HATA] Surumlu BAT baslaticisi olusturulamadi.
-    exit /b 1
-)
-
-"%PYEXE%" scripts\make_update_package.py "dist\%PACKAGE_STEM%"
-if errorlevel 1 (
-    echo [HATA] Guncelleme ZIP paketi olusturulamadi.
+if not exist "dist\VoxoraStudio\%APP_EXE%" (
+    echo [HATA] Beklenen EXE yok: dist\VoxoraStudio\%APP_EXE%
+    pause
     exit /b 1
 )
 
 echo.
-echo [3/3] Build tamam.
+echo [3/5] Paket klasoru surumleniyor...
+REM `move /y` klasor hedefte "Erisim engellendi" verebiliyor (Defender taramasi);
+REM Python shutil.move ayni isi guvenilir yapar.
+"%PYEXE%" -c "import shutil;from pathlib import Path;src=Path(r'dist\VoxoraStudio');dst=Path(r'dist\%PACKAGE_STEM%');shutil.rmtree(dst, ignore_errors=True);shutil.move(str(src), str(dst));print('paket:', dst)" 
+if errorlevel 1 (
+    echo [HATA] dist\VoxoraStudio -^> dist\%PACKAGE_STEM% tasinamadi.
+    pause
+    exit /b 1
+)
+
+REM Kullanici verisi pakete sizmaz (state/logs/outputs artik program klasorunde degil).
+if exist "dist\%PACKAGE_STEM%\_internal\state" rmdir /s /q "dist\%PACKAGE_STEM%\_internal\state"
+if exist "dist\%PACKAGE_STEM%\_internal\logs" rmdir /s /q "dist\%PACKAGE_STEM%\_internal\logs"
+if exist "dist\%PACKAGE_STEM%\_internal\outputs" rmdir /s /q "dist\%PACKAGE_STEM%\_internal\outputs"
+
+echo.
+echo [4/5] Kurulum dosyasi derleniyor (Inno Setup)...
+if not exist "%ISCC%" (
+    echo [HATA] Inno Setup bulunamadi. Kur: winget install JRSoftware.InnoSetup
+    pause
+    exit /b 1
+)
+if not exist "dist\installer" mkdir "dist\installer"
+"%ISCC%" /Qp "installer\VoxoraStudio.iss" /DAppVersion=%APP_VERSION% /DSourceDir="%CD%\dist\%PACKAGE_STEM%"
+if errorlevel 1 (
+    echo [HATA] Kurulum dosyasi derlenemedi.
+    pause
+    exit /b 1
+)
+
+echo.
+echo [5/6] Saglama toplami ve boyut...
+"%PYEXE%" -c "import hashlib,pathlib; p=pathlib.Path(r'dist\installer\VoxoraStudio-%APP_VERSION%-Setup.exe'); h=hashlib.sha256(p.read_bytes()).hexdigest(); print(f'{p}  {p.stat().st_size/1048576:.1f} MB'); print('SHA256', h)"
+
+echo.
+echo [6/6] Delta guncelleme paketi (varsa onceki surumle fark)...
+"%PYEXE%" scripts\make_delta_candidates.py "%APP_VERSION%"
+
 echo.
 echo ============================================================
-echo %PACKAGE_STEM%.exe, %PACKAGE_STEM%.bat ve %PACKAGE_STEM%.zip olusturuldu: dist\%PACKAGE_STEM%\
+echo Build tamam.
+echo   Paket klasoru : dist\%PACKAGE_STEM%\%APP_EXE%
+echo   Kurulum dosyasi: dist\installer\VoxoraStudio-%APP_VERSION%-Setup.exe
 echo ============================================================
 echo.
-echo Calistirmak icin: dist\%PACKAGE_STEM%\%PACKAGE_STEM%.bat
-echo.
-echo Baska PC'ye tasimak icin:
-echo   1. dist\%PACKAGE_STEM%\ klasorunu USB/diske kopyala
-echo   2. Hedef PC'de klasorun icindeki %PACKAGE_STEM%.bat dosyasini calistir
-echo   3. NVIDIA GPU icin CUDA surucusu yuklu olmali
-echo      (https://www.nvidia.com/Download/index.aspx)
-echo   4. ffmpeg yoksa MP3 kayit calismaz
-echo      winget install Gyan.FFmpeg --accept-package-agreements --accept-source-agreements
+echo Kurulum: kurulum dosyasini cift tiklayin. Program Files'a kurulur,
+echo ayarlar ve ciktilar %%LOCALAPPDATA%%\VoxoraStudio altinda tutulur.
 echo.
 pause
