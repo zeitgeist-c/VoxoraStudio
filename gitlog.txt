@@ -1,6 +1,19 @@
 Voxora Studio versiyon günlüğü
 =======================
 
+v0.6.0 (2026-10-22) — Kurulum dosyası, yerinde güncelleme ve delta
+- Windows kurulum dosyası geldi: dist\installer\VoxoraStudio-X.Y.Z-Setup.exe (Inno Setup 6, Türkçe arayüz, 382 MB). Kullanıcı tek dosya çalıştırır; masaüstü ve Başlat Menüsü kısayolları kurulumda seçilir.
+- Delta (hızlı) güncelleme: 0.5.5 → 0.6.0 için yalnız 2 dosya değiştiği ölçüldü; 89,3 MB'lık .vxd paketi tam 382 MB setup yerine iner. Delta uygulama KAPANIRKEN çalışır (çalışan Python süreci _internal\base_library.zip'i kilitler, kendi kütüphanesini değiştiremez); kapanışta Python çalıştırmayan PowerShell işçisi dosyaları yükseltilmiş olarak kopyalar, her dosyayı SHA-256 ile doğrular ve programı normal kullanıcı olarak geri açar. Tek UAC onayı.
+- Delta yalnız taban sürümü tam eşleşen kurulumlarda kullanılır; eşleşme yoksa tam setup iner.
+- Yerleşim ayrıldı: program C:\Program Files\VoxoraStudio (yalnız kod), kullanıcı verisi %LOCALAPPDATA%\VoxoraStudio (state, logs, outputs, updates). Güncelleme program klasörünü silip yeniden yazar; ayarlar, geçmiş ve çıktılar korunur.
+- EXE adı sürüm taşımıyor (VoxoraStudio.exe). Sürümlü ad her güncellemede kısayolları ve güncelleme yolunu kırıyordu; kurulum sabit klasöre yazdığı için kısayollar artık kalıcı.
+- Güncelleme akışı yenilendi: ZIP indirip kardeş klasöre açma + eski klasör silme + swap betiği kaldırıldı. Uygulama artık yalnız Setup.exe indirir, boyut + SHA-256 doğrular, Inno Setup'ı sessiz kipte çalıştırır (/VERYSILENT /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS). Kurulum çalışan uygulamayı Restart Manager ile kapatıp programı geri açar.
+- Güncelleme paketi 540 MB ZIP yerine 382 MB setup; program klasörü tek kopya (eskiden 1.3 GB + 1.3 GB iki kopya). Sürüm farkı ölçümü: 0.5.4 → 0.5.5 arasında 7164 dosyanın yalnız 3'ü değişmişti.
+- Modeller paket dışında ve güncellemeden etkilenmiyor: Chatterbox ~3.2 GB + EMA ~34 MB, %USERPROFILE%\.cache\huggingface altında. Güncellemede yeniden indirilmez.
+- Eski taşınabilir kurulumdan (Downloads\Programs\VoxoraStudio-X.Y.Z) ayar ve geçmiş ilk açılışta devralınır; paket içi _internal\outputs yolu kullanıcı veri köküne çevrilir, dosyalar kopyalanır. Eski klasör silinmez.
+- Kaldırma ayarları, çıktıları ve modelleri korur; kullanıcıya yerlerini söyler.
+- Test: 127 passed, 1 skipped + smoke light. Kurulum, sessiz güncelleme, kaldırma ve kurulu EXE ile gerçek MP3 üretimi (3.6 sn, 320 kbps) sınandı; program klasörüne kullanıcı verisi sızmadığı doğrulandı.
+
 v0.5.5 (2026-10-19) — Çıktı biçimi ve kalite seçimi (WAV / MP3 / OPUS)
 - Ayarlar ▸ Çıktı ▸ "Kayıt ve Kalite" kartına üç biçim kutucuğu geldi: WAV (kayıpsız · arşiv), MP3 (her yerde çalar), OPUS (en küçük dosya). Seçim tek tıkla değişir, dolu işaret seçili biçimi gösterir.
 - Kalite listesi seçilen biçime göre değişir: MP3 → Konuşma 128 / Podcast 192 / Yüksek kalite 320 kbps; OPUS → Konuşma 32 / Dengeli 64 / Yüksek kalite 96 kbps; WAV → kayıpsız (kalite kutusu pasif). Her biçim kendi kalitesini hatırlar.

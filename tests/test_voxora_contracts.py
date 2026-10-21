@@ -11,6 +11,14 @@ from app import branding
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
+def _iss_section(text: str, name: str) -> str:
+    """Bir .iss bölümünün yalnız yönerge satırları (yorumlar ve boşlar atılır)."""
+    body = text.split(f"[{name}]", 1)[1].split("[", 1)[0]
+    return "\n".join(
+        line for line in body.splitlines()
+        if line.strip() and not line.lstrip().startswith(";"))
+
+
 class BrandingContractTests(unittest.TestCase):
     def test_canonical_product_identity(self):
         self.assertEqual(branding.DISPLAY_NAME, "Voxora Studio")
@@ -23,26 +31,61 @@ class BrandingContractTests(unittest.TestCase):
             "Chatterbox Multilingual • Yerel üretim",
         )
         self.assertEqual(branding.LOG_FILENAME, "VoxoraStudio.log")
-        self.assertEqual(branding.__version__, "0.5.5")
-        self.assertEqual(branding.PACKAGE_STEM, "VoxoraStudio-0.5.5")
-        self.assertEqual(branding.EXECUTABLE_NAME, "VoxoraStudio-0.5.5.exe")
+        self.assertEqual(branding.__version__, "0.6.0")
+        self.assertEqual(branding.PACKAGE_STEM, "VoxoraStudio-0.6.0")
+        # Kurulum sabit klasore yazar; EXE adı sürüm taşımaz ki kısayollar kırılmasın.
+        self.assertEqual(branding.EXECUTABLE_NAME, "VoxoraStudio.exe")
 
     def test_release_build_is_driven_by_authoritative_version(self):
         build_text = (REPO_ROOT / "build.bat").read_text(encoding="utf-8")
         self.assertIn('findstr /b "__version__" app\\version.py', build_text)
         self.assertIn('set "PACKAGE_STEM=VoxoraStudio-%APP_VERSION%"', build_text)
-        self.assertIn("scripts\\make_versioned_launcher.py", build_text)
         self.assertIn("--onedir", build_text)
         self.assertIn("--noconsole", build_text)
         self.assertNotIn('--collect-all "torch"', build_text)
         self.assertNotIn('--exclude-module "setuptools"', build_text)
 
-    def test_versioned_launcher_targets_exact_matching_exe(self):
-        from scripts.make_versioned_launcher import launcher_text
+    def test_build_produces_installer(self):
+        """Build, sürüm taşıyan bir kurulum dosyası üretmeli."""
+        build_text = (REPO_ROOT / "build.bat").read_text(encoding="utf-8")
+        self.assertIn("installer\\VoxoraStudio.iss", build_text)
+        self.assertIn("/DAppVersion=%APP_VERSION%", build_text)
+        installer = (REPO_ROOT / "installer" / "VoxoraStudio.iss").read_text(encoding="utf-8")
+        # Sabit hedef klasör + sürümsüz EXE: kısayollar her sürümde aynı yeri gösterir.
+        self.assertIn("DefaultDirName={autopf}\\VoxoraStudio", installer)
+        self.assertIn("CloseApplications=yes", installer)
+        self.assertIn("RestartApplications=yes", installer)
+        # Kullanıcı verisi program klasörüne yazılmaz.
+        self.assertNotIn("{app}\\state", installer)
 
-        launcher = launcher_text(branding.EXECUTABLE_NAME)
-        self.assertIn(f'"%~dp0{branding.EXECUTABLE_NAME}" %*', launcher)
-        self.assertTrue(launcher.endswith("exit /b 0\r\n"))
+    def test_silent_update_relaunches_app(self):
+        """Sessiz (uygulama içi) güncellemeden sonra program geri açılmalı.
+
+        Regresyon: `[Run]` satırında `skipifsilent` varken sessiz kurulum
+        programı başlatmıyor, güncelleme sonrası uygulama kapalı kalıyordu.
+        """
+        installer = (REPO_ROOT / "installer" / "VoxoraStudio.iss").read_text(encoding="utf-8")
+        run_section = _iss_section(installer, "Run")
+        self.assertIn("Filename: \"{app}\\{#AppExe}\"", run_section)
+        self.assertNotIn("skipifsilent", run_section)
+        self.assertIn("runasoriginaluser", run_section)
+
+    def test_install_delete_keeps_uninstaller(self):
+        """Temiz kurulum davranışı kaldırma kaydını bozmamalı."""
+        installer = (REPO_ROOT / "installer" / "VoxoraStudio.iss").read_text(encoding="utf-8")
+        delete_section = _iss_section(installer, "InstallDelete")
+        self.assertIn('"{app}\\_internal"', delete_section)
+        self.assertIn('"{app}\\VoxoraStudio.exe"', delete_section)
+        self.assertNotIn("unins", delete_section.lower())
+
+    def test_installer_targets_version_independent_exe(self):
+        """Kurulumun gösterdiği EXE adı sürüm taşımaz; kısayol da onu gösterir."""
+        from app.branding import EXECUTABLE_NAME
+
+        self.assertEqual(EXECUTABLE_NAME, "VoxoraStudio.exe")
+        installer = (REPO_ROOT / "installer" / "VoxoraStudio.iss").read_text(encoding="utf-8")
+        self.assertIn('Source: "{#SourceDir}\\VoxoraStudio.exe"', installer)
+        self.assertIn("Filename: \"{app}\\{#AppExe}\"", installer)
 
 
 class LegacyBrandGuardTests(unittest.TestCase):

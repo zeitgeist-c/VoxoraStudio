@@ -1,34 +1,37 @@
-"""GitHub public ayna reposu (VoxoraStudio-Releases) üzerinden kendi kendini güncelleme.
+"""Kurulum paketi (setup.exe) üzerinden kendini güncelleme.
 
-Kaynak repo özel kalır; sürüm paketleri (yalnız ZIP) public ayna repoya yüklenir,
-böylece portable paket token gömmeden "en yeni sürüm ne?" diye sorabilir. GitHub
-API public depolarda kimlik sormaz; IP başına hız sınırı günde bir istek için önemsiz.
+Akış:
+  1. ``check_for_update`` → GitHub'daki en yeni sürümü ve ``VoxoraStudio-X.Y.Z-Setup.exe``
+     asset'ini bulur (public ayna repo ``VoxoraStudio-Releases``).
+  2. ``download`` → kurulumu ``%LOCALAPPDATA%\\VoxoraStudio\\updates``e indirir,
+     boyut + SHA-256 doğrular. Doğrulanmamış dosya asla çalıştırılmaz.
+  3. ``spawn_installer`` → Inno Setup'ı sessiz kipte çalıştırır. Kurulum,
+     çalışan uygulamayı Restart Manager ile düzgünce kapatır, program
+     klasöründeki eski dosyaları silip yenilerini yazar, kısayolları yeniler.
+  4. Kurulum ``/RESTARTAPPLICATIONS`` ile programı yeniden başlatır.
 
-Bir sürüm kendinden eski her sürümü kapsar: 0.3.4 kurulu makine doğrudan
-``releases/latest``e bakar, ara basamakları indirmez.
+Neden setup: eski akış ZIP'i kardeş klasöre açıp eski klasörü siliyordu; bu
+her sürümde 1.3 GB'lık ikinci bir kopya ve 540 MB indirme demekti. Setup
+yerinde günceller: 0.5.4 → 0.5.5 arasında yalnız 3 dosya değişmişti.
 
-WordArc'ın update.py kalıbı; fark: tek EXE yerine onedir klasörün ZIP'i iner,
-YENİ klasör eskisinin YANINA (kardeş olarak) açılır, çalışan klasöre hiç
-dokunulmaz (yarım indirme uygulamayı asla bozamaz). Program yenisiyle
-başladıktan sonra eski sürüm klasörleri temizlenir: eski paket, yenisi
-açılırken state'e "temizlik fişi" bırakır; yeni sürüm açılışta fişi okuyup
-eski `VoxoraStudio-X.Y.Z` klasörlerini siler (kilitliyse sonraki açılışta
-yeniden dener).
+Kullanıcı verisi (``%LOCALAPPDATA%\\VoxoraStudio``) ve Hugging Face model
+önbelleği (``%USERPROFILE%\\.cache\\huggingface``) program klasörünün dışında
+olduğu için güncelleme onlara dokunmaz; modeller yeniden indirilmez.
 """
 from __future__ import annotations
 
+import ctypes
 import hashlib
 import json
 import logging
+import os
 import re
-import shutil
 import subprocess
 import sys
+import tempfile
 import threading
-import time
 import urllib.error
 import urllib.request
-import zipfile
 from collections import deque
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -38,9 +41,28 @@ from .branding import TECHNICAL_NAME, __version__
 RELEASE_REPO = "zeitgeist-c/VoxoraStudio-Releases"
 API_LATEST = f"https://api.github.com/repos/{RELEASE_REPO}/releases/latest"
 USER_AGENT = f"{TECHNICAL_NAME}/{__version__}"
-UPDATE_DIRNAME = ".update"
-CLEANUP_MARKER = "update_cleanup.json"
-VERSION_DIR_RE = re.compile(rf"^{re.escape(TECHNICAL_NAME)}-(\d+)\.(\d+)\.(\d+)$")
+UPDATES_DIRNAME = "updates"
+INSTALLER_SUFFIX = "-Setup.exe"
+DELTA_SUFFIX = "-delta.vxd"
+#: Delta asset adı: ``VoxoraStudio-<hedef>-delta-<taban>.vxd``
+DELTA_RE = re.compile(
+    rf"^{re.escape(TECHNICAL_NAME)}-(?P<target>\d+\.\d+\.\d+)-delta-"
+    rf"(?P<base>\d+\.\d+\.\d+)\.vxd$")
+
+#: Kurulum dosyası adı: ``VoxoraStudio-0.6.0-Setup.exe``
+INSTALLER_RE = re.compile(
+    rf"^{re.escape(TECHNICAL_NAME)}-(\d+\.\d+\.\d+){re.escape(INSTALLER_SUFFIX)}$")
+
+#: Sessiz kurulum bayrakları. ``/RESTARTAPPLICATIONS`` uygulamayı geri açar;
+#: ``/NORESTART`` Windows'u yeniden başlatma teklifini engeller.
+SILENT_FLAGS = (
+    "/VERYSILENT",
+    "/SUPPRESSMSGBOXES",
+    "/NORESTART",
+    "/RESTARTAPPLICATIONS",
+    "/CLOSEAPPLICATIONS",
+)
+
 log = logging.getLogger(__name__)
 
 #: Açılış temizliğinin sonucu (varsa): durum satırında kullanıcıya gösterilir.
@@ -56,21 +78,49 @@ class UpdateInfo:
     version: str
     asset_name: str
     download_url: str
-    sha256: str          # beklenen özet; sürüm yayınlamada yoksa ""
+    sha256: str          # beklenen özet; yayında yoksa ""
     size: int
     page_url: str
+    #: Aynı sürüm için delta paketi (varsa ve bu kuruluma uyuyorsa).
+    delta_name: str = ""
+    delta_url: str = ""
+    delta_sha256: str = ""
+    delta_size: int = 0
+    #: Yayında bu kurulumun sürümünü taban alan delta var mı?
+    delta_base: str = ""
 
 
 def updates_possible() -> bool:
-    """Güncelleme akışı kaynak kopyada değil, paketlenmiş EXE'de anlamlı."""
+    """Güncelleme akışı kaynak kopyada değil, kurulu (donmuş) uygulamada anlamlı."""
     return bool(getattr(sys, "frozen", False))
 
 
 def package_root() -> Path:
-    """Çalışan paketin kökü: frozen'da EXE'nin klasörü, kaynakta depo kökü."""
-    if getattr(sys, "frozen", False):
-        return Path(sys.executable).resolve().parent
-    return Path(__file__).resolve().parent.parent
+    """Çalışan paketin kökü (kuruluysa Program Files altındaki klasör)."""
+    from .paths import package_root as _root
+
+    return _root()
+
+
+def install_root() -> Path:
+    """Kurulumun yazdığı program klasörü."""
+    from .paths import package_root as _root
+
+    return _root()
+
+
+def state_dir() -> Path:
+    """Uygulamanın güncel state klasörü (kullanıcı veri kökü altında)."""
+    from .paths import state_dir as _state
+
+    return _state()
+
+
+def updates_dir() -> Path:
+    """İndirilen kurulum dosyalarının geçici yeri."""
+    from .paths import updates_dir as _updates
+
+    return _updates()
 
 
 def parse_version(text: str) -> tuple:
@@ -136,40 +186,98 @@ def format_eta(seconds: float) -> str:
     return f"{hours} sa {minutes:02d} dk"
 
 
-def parse_release(payload: dict, version_prefix: str = "v") -> UpdateInfo:
-    """/releases/latest yanıtından ZIP asset'ini seç."""
+def parse_release(payload: dict, version_prefix: str = "v",
+                  current_version: str = "") -> UpdateInfo:
+    """/releases/latest yanıtından Setup ve (varsa) delta asset'ini seç.
+
+    Bu sürümden itibaren güncelleme ya kurulum dosyasıyla ya da delta ile
+    yapılır; ZIP asset'i bilinçli olarak yok sayılır.
+
+    Delta, dosya adından taban sürümü okunarak eşleştirilir:
+    ``VoxoraStudio-<hedef>-delta-<taban>.vxd``. Yayın notlarında taban
+    belirtilmediyse ``delta_base`` boş kalır ve delta kullanılmaz (tam setup).
+    """
     tag = str(payload.get("tag_name") or "")
     version = tag[len(version_prefix):] if tag.startswith(version_prefix) else tag
     parse_version(version)  # karşılaştıramayacağımız etiketi baştan reddet
-    asset_name = f"{TECHNICAL_NAME}-{version}.zip"
+    wanted = f"{TECHNICAL_NAME}-{version}{INSTALLER_SUFFIX}"
+    info: UpdateInfo | None = None
     for asset in payload.get("assets") or []:
-        if asset.get("name") != asset_name:
+        if asset.get("name") != wanted:
             continue
         digest = str(asset.get("digest") or "")
-        return UpdateInfo(
+        info = UpdateInfo(
             version=version,
-            asset_name=asset_name,
+            asset_name=wanted,
             download_url=str(asset.get("browser_download_url") or ""),
             sha256=digest.split(":", 1)[1] if ":" in digest else digest,
             size=int(asset.get("size") or 0),
             page_url=str(payload.get("html_url") or ""),
         )
-    raise UpdateError(f"Yayınlanan en yeni sürümde {asset_name} paketi yok.")
+        break
+    if info is None:
+        raise UpdateError(f"Yayınlanan en yeni sürümde {wanted} kurulum dosyası yok.")
+    _attach_delta(info, payload, version, current_version)
+    return info
 
 
-def fetch_latest() -> UpdateInfo:
+def _attach_delta(info: UpdateInfo, payload: dict, version: str,
+                  current_version: str) -> None:
+    """Sürümün delta asset'i bu kuruluma uyuyorsa bilgileri ekle.
+
+    Dosya adı kalıbı: ``VoxoraStudio-<hedef>-delta-<taban>.vxd``. Delta yalnız
+    taban sürümü tam olarak eşleşen kurulumlarda kullanılır; aksi hâlde tam
+    setup iner (yanlış taban = bozuk kurulum riski).
+    """
+    if not current_version:
+        return
+    for asset in payload.get("assets") or []:
+        match = DELTA_RE.match(str(asset.get("name") or ""))
+        if not match:
+            continue
+        if match.group("target") != str(version):
+            continue
+        if match.group("base") != str(current_version):
+            continue
+        digest = str(asset.get("digest") or "")
+        info.delta_name = str(asset.get("name"))
+        info.delta_url = str(asset.get("browser_download_url") or "")
+        info.delta_sha256 = digest.split(":", 1)[1] if ":" in digest else digest
+        info.delta_size = int(asset.get("size") or 0)
+        info.delta_base = match.group("base")
+        return
+
+
+def fetch_latest(current_version: str = "") -> UpdateInfo:
     request = urllib.request.Request(API_LATEST, headers={"User-Agent": USER_AGENT})
     try:
         with urllib.request.urlopen(request, timeout=20) as response:
             payload = json.loads(response.read().decode("utf-8"))
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
         raise UpdateError("Güncelleme sunucusuna ulaşılamadı.") from exc
-    return parse_release(payload)
+    return parse_release(payload, current_version=current_version)
 
 
 def check_for_update(current: str) -> UpdateInfo | None:
-    info = fetch_latest()
+    info = fetch_latest(current_version=current)
     return info if is_newer(info.version, current) else None
+
+
+def download_delta(info: UpdateInfo, dest: Path, progress=None, cancel=None,
+                   phase=None) -> Path:
+    """Delta paketini indir ve doğrula (``download``in delta karşılığı)."""
+    if not info.delta_url:
+        raise UpdateError("Bu sürüm için delta paketi yok.")
+    delta_info = UpdateInfo(
+        version=info.version,
+        asset_name=info.delta_name,
+        download_url=info.delta_url,
+        sha256=info.delta_sha256,
+        size=info.delta_size,
+        page_url=info.page_url,
+    )
+    return download(delta_info, dest, progress=progress, cancel=cancel,
+                    phase=phase)
 
 
 def _sha256_of(path: Path) -> str:
@@ -182,12 +290,11 @@ def _sha256_of(path: Path) -> str:
 
 def download(info: UpdateInfo, dest: Path, progress=None, cancel=None,
              phase=None) -> Path:
-    """Asset'i dest'e akıt; boyut ve SHA256 doğrulanmadan dosya asla kalmaz.
+    """Kurulum dosyasını dest'e akıt; boyut ve SHA-256 doğrulanmadan dosya kalmaz.
 
-    Yarım ya da oynanmış dosya program olamaz; doğrulama hatası ya da iptal
+    Yarım ya da oynanmış dosya çalıştırılamaz; doğrulama hatası ya da iptal
     dosyayı siler. `cancel`, ilerleme geri çağrısının yokladığı threading.Event.
-    `phase` verilirse "verify" ile özet doğrulamasının başladığını duyurur
-    (çok GB'lık pakette hâlâ çalışıyor izlenimi vermemek için).
+    `phase` verilirse "verify" ile özet doğrulamasının başladığını duyurur.
     """
     class Cancelled(Exception):
         pass
@@ -229,10 +336,13 @@ def download(info: UpdateInfo, dest: Path, progress=None, cancel=None,
         if actual.lower() != info.sha256.lower():
             dest.unlink(missing_ok=True)
             raise UpdateError("İndirilen dosyanın sağlama toplamı uyuşmuyor.")
+    else:
+        log.warning("Kurulum dosyası için SHA-256 yayınlanmamış: %s", info.asset_name)
     return dest
 
 
 def _member_is_safe(name: str) -> bool:
+    """ZIP girdisi güvenli mi (eski ZIP akışından kalan genel yardımcı)."""
     parts = PurePosixPath(str(name).replace("\\", "/")).parts
     if not parts:
         return False
@@ -243,146 +353,207 @@ def _member_is_safe(name: str) -> bool:
     return True
 
 
-def state_dir() -> Path:
-    """Uygulamanın güncel state klasörü (frozen onedir'da _internal/state)."""
-    from app_state import STATE_DIR
-    return Path(STATE_DIR)
+def _relaunch_script_text(setup_pid: int, exe: Path) -> str:
+    """Kurulum bitince programı yeniden açan bağımsız bekçi betiği.
 
+    Neden ayrı bekçi: Inno'nun ``[Run]`` girdisi yükseltilmiş kurulumun çocuğu
+    olarak başlar ve kurulum süreci kapanınca Windows onu da götürebilir
+    (gözlenen davranış: pencere birkaç saniye açılıp kapanıyor). Bekçi ayrı bir
+    süreçtir, kurulumun job object'ine bağlı değildir; kurulum PID'i bitene
+    kadar bekler, sonra EXE'yi normal kullanıcı olarak başlatır ve kendini siler.
 
-def _relocate(value, old_root: Path, new_root: Path) -> tuple[str, tuple[Path, Path] | None]:
-    """Eski paketin altındaki yolu yeni pakete çevir; (yeni_değer, (kaynak,hedef))."""
-    path = Path(str(value or ""))
-    if not str(value or ""):
-        return "", None
-    try:
-        rel = path.resolve().relative_to(old_root.resolve())
-    except ValueError:
-        return str(path), None
-    return str(new_root / rel), (path, new_root / rel)
-
-
-def migrate_user_data(old_root: Path, new_root: Path, old_state: Path) -> None:
-    """Kullanıcı verisini eski paketten yeni pakete taşı.
-
-    state/*.json yeni pakette yoksa kopyalanır (varsa bozulmaz); ayarlarda eski
-    paket klasörüne işaret eden yollar yenilerine çevrilir ve işaret ettikleri
-    klasör/dosya kopyalanır; models/ taşınır (aynı diskte anlıktır, indirmeyi
-    yeniden gerektirmez). Eski klasör burada silinmez; yeni sürüm açıldığında
-    `cleanup_after_update` tarafından temizlenir.
+    Bekleme `tasklist` + `ping` ile yapılır: `timeout` gerçek konsol ister,
+    `find` PATH'e göre MSYS'in Unix `find`'ine düşebilir.
     """
-    rel_state = old_state.resolve().relative_to(old_root.resolve())
-    new_state = new_root / rel_state
-    new_state.mkdir(parents=True, exist_ok=True)
-    for name in ("settings.json", "history.json"):
-        src, dst = old_state / name, new_state / name
-        if not dst.exists() and src.exists():
-            shutil.copy2(src, dst)
+    return (
+        "@echo off\r\n"
+        "setlocal\r\n"
+        "set /a TRIES=0\r\n"
+        ":wait\r\n"
+        "set \"FOUND=\"\r\n"
+        f'for /f "tokens=2 delims=," %%A in (\'%SystemRoot%\\System32\\tasklist.exe '
+        f'/FI "PID eq {setup_pid}" /NH /FO CSV 2^>NUL\') do '
+        f'if "%%~A"=="{setup_pid}" set "FOUND=1"\r\n'
+        "if not defined FOUND goto launch\r\n"
+        "set /a TRIES+=1\r\n"
+        "if %TRIES% GEQ 1800 goto launch\r\n"
+        "ping -n 2 127.0.0.1 >NUL\r\n"
+        "goto wait\r\n"
+        ":launch\r\n"
+        f'start "" "{exe}"\r\n'
+        'del "%~f0"\r\n')
 
-    settings_file = new_state / "settings.json"
-    if settings_file.exists():
-        try:
-            settings = json.loads(settings_file.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            settings = None
-        if isinstance(settings, dict):
-            changed = False
-            for key in ("output_dir", "compress_output_dir",
-                        "audio_prompt_path", "voice_prompt_path"):
-                old_value = settings.get(key)
-                new_value, pair = _relocate(old_value, old_root, new_root)
-                if pair is None or new_value == old_value:
-                    continue
-                src, dst = pair
-                try:
-                    if src.is_dir():
-                        shutil.copytree(src, dst, dirs_exist_ok=True)
-                    elif src.is_file():
-                        dst.parent.mkdir(parents=True, exist_ok=True)
-                        shutil.copy2(src, dst)
-                except OSError:
-                    log.exception("Güncelleme göçü atlandı: %s -> %s", src, dst)
-                    continue
-                settings[key] = new_value
-                changed = True
-            if changed:
-                settings_file.write_text(
-                    json.dumps(settings, ensure_ascii=False, indent=2),
-                    encoding="utf-8")
 
-    for name in ("models", "outputs"):
-        src, dst = old_root / name, new_root / name
-        if not src.is_dir() or not any(src.iterdir()):
+class _SHELLEXECUTEINFOW(ctypes.Structure):
+    _fields_ = [
+        ("cbSize", ctypes.c_ulong),
+        ("fMask", ctypes.c_ulong),
+        ("hwnd", ctypes.c_void_p),
+        ("lpVerb", ctypes.c_wchar_p),
+        ("lpFile", ctypes.c_wchar_p),
+        ("lpParameters", ctypes.c_wchar_p),
+        ("lpDirectory", ctypes.c_wchar_p),
+        ("nShow", ctypes.c_int),
+        ("hInstApp", ctypes.c_void_p),
+        ("lpIDList", ctypes.c_void_p),
+        ("lpClass", ctypes.c_wchar_p),
+        ("hkeyClass", ctypes.c_void_p),
+        ("dwHotKey", ctypes.c_ulong),
+        ("hIconOrMonitor", ctypes.c_void_p),
+        ("hProcess", ctypes.c_void_p),
+    ]
+
+
+#: ShellExecuteEx hata kodları (kullanıcıya anlaşılır metin için).
+_ERROR_CANCELLED = 1223
+
+
+def _shell_execute_runas(exe: Path, parameters: str) -> int:
+    """Yükseltilmiş kurulumu UAC onayıyla başlat; süreç PID'ini döndür.
+
+    ``subprocess.Popen`` yükseltme isteyen EXE'de ``WinError 740`` verir:
+    CreateProcess UAC istemez, ShellExecute ister. Bu yüzden ShellExecuteExW
+    ``runas`` fiiliyle çağrılır ve ``SEE_MASK_NOCLOSEPROCESS`` ile süreç
+    tanıtıcısı alınıp PID'e çevrilir (bekçi bu PID'i bekler).
+
+    Kullanıcı UAC'yi reddederse ``UpdateError`` yükseltilir; kurulum hiç
+    başlamamıştır, uygulama açık kalır.
+    """
+    import ctypes
+    from ctypes import wintypes
+
+    SEE_MASK_NOCLOSEPROCESS = 0x00000040
+    SW_SHOWNORMAL = 1
+    info = _SHELLEXECUTEINFOW()
+    info.cbSize = ctypes.sizeof(info)
+    info.fMask = SEE_MASK_NOCLOSEPROCESS
+    info.lpVerb = "runas"
+    info.lpFile = str(exe)
+    info.lpParameters = parameters
+    info.nShow = SW_SHOWNORMAL
+
+    shell32 = ctypes.WinDLL("shell32", use_last_error=True)
+    shell32.ShellExecuteExW.argtypes = [ctypes.POINTER(_SHELLEXECUTEINFOW)]
+    shell32.ShellExecuteExW.restype = wintypes.BOOL
+    if not shell32.ShellExecuteExW(ctypes.byref(info)):
+        code = ctypes.get_last_error()
+        if code == _ERROR_CANCELLED:
+            raise UpdateError(
+                "Kurulum için yönetici izni verilmedi. Güncelleme kurulmadı; "
+                "dilediğinizde tekrar deneyebilirsiniz.")
+        raise UpdateError(f"Kurulum başlatılamadı (ShellExecute hata {code}).")
+    if not info.hProcess:
+        raise UpdateError("Kurulum başlatıldı ancak süreç tanıtıcısı alınamadı.")
+    try:
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.GetProcessId.argtypes = [ctypes.c_void_p]
+        kernel32.GetProcessId.restype = wintypes.DWORD
+        kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+        pid = int(kernel32.GetProcessId(info.hProcess))
+        kernel32.CloseHandle(info.hProcess)
+    except OSError:
+        pid = 0
+    return pid
+
+
+def spawn_installer(installer: Path, restart: bool = True) -> int:
+    """Kurulumu sessiz kipte başlat; kurulum PID'ini döndür.
+
+    Kurulum Restart Manager ile çalışan uygulamayı kapatır (CloseApplications),
+    dosyaları yerinde günceller, kısayolları yeniler. ``restart`` verilirse
+    ayrıca bağımsız bir bekçi kurulur: kurulum bitince programı yeniden açar
+    (bkz. `_relaunch_script_text`). Bu işlev döndükten sonra uygulama
+    kapanmaya hazır olmalıdır; kurulum onu bekler.
+
+    Program Files'a yazan kurulum yükseltme ister; bu yüzden ShellExecute
+    ``runas`` kullanılır ve her güncellemede Windows bir kez onay sorar.
+    """
+    if not installer.is_file():
+        raise UpdateError(f"Kurulum dosyası bulunamadı: {installer}")
+    flags = list(SILENT_FLAGS)
+    if not restart:
+        flags = [flag for flag in flags if flag != "/RESTARTAPPLICATIONS"]
+    if sys.platform != "win32":  # pragma: no cover - Windows dışı yalnız test
+        creation = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+        process = subprocess.Popen([str(installer), *flags],
+                                   creationflags=creation, close_fds=True)
+        return process.pid
+    pid = _shell_execute_runas(installer, " ".join(flags))
+    log.info("Kurulum başlatıldı: pid=%s %s %s", pid, installer, " ".join(flags))
+    if restart:
+        spawn_relaunch_watchdog(pid)
+    return pid
+
+
+def spawn_relaunch_watchdog(setup_pid: int) -> Path | None:
+    """Kurulum bitince programı açan bekçi betiğini kur (ayrı süreç).
+
+    Betik geçici klasöre yazılır (Program Files'a yazma izni gerekmez) ve
+    kendini siler. ``DETACHED_PROCESS`` ile kurulumun job object'inden ayrılır;
+    ``CREATE_NO_WINDOW`` ile birlikte verilemez (WinError 87).
+    """
+    from .paths import package_root
+
+    exe = package_root() / "VoxoraStudio.exe"
+    if not exe.is_file():
+        log.warning("Bekçi kurulamadı: EXE yok (%s)", exe)
+        return None
+    try:
+        folder = Path(tempfile.gettempdir())
+        script = folder / f"voxora-relaunch-{setup_pid}.bat"
+        script.write_text(_relaunch_script_text(setup_pid, exe), encoding="ascii")
+        detached = getattr(subprocess, "DETACHED_PROCESS", 0)
+        subprocess.Popen(["cmd", "/c", str(script)], creationflags=detached,
+                         close_fds=True, cwd=str(folder))
+    except OSError:
+        log.exception("Yeniden başlatma bekçisi kurulamadı")
+        return None
+    log.info("Yeniden başlatma bekçisi hazır: %s (kurulum pid=%s)", script, setup_pid)
+    return script
+
+
+def cleanup_updates_dir() -> str:
+    """İndirilen kurulum kalıntılarını sil; kısa sonuç metni döndür.
+
+    Kurulum başladıktan sonra kendi dosyasını silemeyebilir; uygulama bir
+    sonraki açılışta bu klasörü temizler. Yalnız bu programın ürettiği
+    ``-Setup.exe`` kalıbındaki dosyalar silinir.
+    """
+    global last_cleanup_result
+    folder = updates_dir()
+    if not folder.is_dir():
+        return ""
+    removed: list[str] = []
+    for entry in folder.iterdir():
+        if not entry.is_file() or not INSTALLER_RE.match(entry.name):
             continue
         try:
-            if name == "models" and not dst.exists():
-                shutil.move(str(src), str(dst))
-            else:
-                shutil.copytree(src, dst, dirs_exist_ok=True)
+            entry.unlink()
+            removed.append(entry.name)
         except OSError:
-            log.exception("Güncelleme göçü atlandı: %s", src)
+            log.warning("İndirme kalıntısı silinemedi: %s", entry)
+    if removed:
+        last_cleanup_result = "İndirme kalıntısı silindi."
+        log.info("Güncelleme kalıntıları silindi: %s", ", ".join(removed))
+        return last_cleanup_result
+    return ""
 
 
-def stale_package_dirs(parent: Path, keep_version: str) -> list[Path]:
-    """`parent` altında bu programın, `keep_version`dan eski sürüm klasörleri.
-
-    Yalnız `VoxoraStudio-X.Y.Z` kalıbına uyan klasörler seçilir; keep sürümü ve
-    daha yenileri, kalıba uymayan adlar asla listeye girmez.
-    """
-    keep = parse_version(keep_version)
-    stale: list[Path] = []
+def run_cleanup_async(on_done=None) -> bool:
+    """Kalıntı temizliğini arka planda yap; iş varsa True döndür."""
+    folder = updates_dir()
     try:
-        entries = sorted(parent.iterdir())
+        if not folder.is_dir():
+            return False
+        pending = [p for p in folder.iterdir()
+                   if p.is_file() and INSTALLER_RE.match(p.name)]
     except OSError:
-        return stale
-    for entry in entries:
-        if not entry.is_dir() or not VERSION_DIR_RE.match(entry.name):
-            continue
-        try:
-            if parse_version(entry.name) < keep:
-                stale.append(entry)
-        except UpdateError:
-            continue
-    return stale
-
-
-def write_cleanup_marker(new_root: Path, targets) -> Path | None:
-    """Yeni paketin state'ine "kurulunca şu eski klasörleri sil" fişi bırak.
-
-    Fişi yeni sürümün kendisi açılışta okur (`cleanup_after_update`); çalışan
-    klasöre bu işlem sırasında hiç dokunulmaz. Klasör listesi boşsa fiş yazılmaz.
-    """
-    target_list = [str(Path(t)) for t in targets]
-    if not target_list:
-        return None
-    try:
-        rel_state = state_dir().resolve().relative_to(package_root().resolve())
-    except (ValueError, OSError):
-        return None
-    marker = new_root / rel_state / CLEANUP_MARKER
-    try:
-        marker.parent.mkdir(parents=True, exist_ok=True)
-        marker.write_text(
-            json.dumps({"targets": target_list}, ensure_ascii=False, indent=2),
-            encoding="utf-8")
-    except OSError:
-        log.exception("Güncelleme temizlik fişi yazılamadı: %s", marker)
-        return None
-    return marker
-
-
-def cleanup_after_update(on_done=None) -> bool:
-    """Bekleyen temizlik fişini arka planda uygula; iş varsa True döndür.
-
-    Yeni sürüm açılışında çağrılır. `on_done`, iş bitince başka bir iş
-    parçacığında çalışır (GUI tarafı kuyruklu çağrıyla ana iş parçacığına
-    taşımalıdır).
-    """
-    marker = state_dir() / CLEANUP_MARKER
-    if not marker.is_file():
+        return False
+    if not pending:
         return False
 
     def _job():
-        cleanup_pending(marker)
+        cleanup_updates_dir()
         if on_done is not None:
             try:
                 on_done()
@@ -392,174 +563,6 @@ def cleanup_after_update(on_done=None) -> bool:
     threading.Thread(target=_job, name="voxora-update-cleanup",
                      daemon=True).start()
     return True
-
-
-def cleanup_pending(marker: Path) -> tuple[list[str], list[str]]:
-    """Fişteki eski paket klasörlerini sil; silinemeyenleri fişte bırak.
-
-    Dönen değer: (silinen_adlar, kalan_yollar). Kalan varsa fiş daraltılıp
-    korunur, böylece sonraki açılışta yeniden denenir.
-    """
-    global last_cleanup_result
-    try:
-        payload = json.loads(marker.read_text(encoding="utf-8"))
-        targets = [Path(str(t)) for t in (payload.get("targets") or [])
-                   if str(t or "").strip()]
-    except (OSError, json.JSONDecodeError, AttributeError):
-        log.warning("Temizlik fişi okunamadı; kaldırıldı: %s", marker)
-        marker.unlink(missing_ok=True)
-        return [], []
-    root = package_root().resolve()
-    keep = parse_version(__version__)
-    removed: list[str] = []
-    remaining: list[str] = []
-    for target in targets:
-        if not _cleanable_package_dir(target, root, keep):
-            continue
-        if _remove_tree(target):
-            removed.append(target.name)
-            log.info("Eski sürüm klasörü silindi: %s", target)
-        else:
-            remaining.append(str(target))
-            log.warning("Eski sürüm klasörü silinemedi (kilit?): %s", target)
-    if remaining:
-        try:
-            marker.write_text(
-                json.dumps({"targets": remaining}, ensure_ascii=False, indent=2),
-                encoding="utf-8")
-        except OSError:
-            log.exception("Kalan temizlik fişi yazılamadı: %s", marker)
-    else:
-        marker.unlink(missing_ok=True)
-    if removed:
-        last_cleanup_result = "Eski sürüm silindi: " + ", ".join(removed)
-    return removed, remaining
-
-
-def _cleanable_package_dir(target: Path, root: Path, keep: tuple) -> bool:
-    """Silme güvenlik kapısı: kardeş, sürümlü ve yenisi GÜNCELDEN küçük olmalı."""
-    try:
-        target = target.resolve()
-    except OSError:
-        return False
-    if not target.is_dir() or target == root:
-        return False
-    try:
-        if target.parent != root.parent:
-            return False
-    except OSError:
-        return False
-    if not VERSION_DIR_RE.match(target.name):
-        return False
-    try:
-        if parse_version(target.name) >= keep:
-            return False
-    except UpdateError:
-        return False
-    try:  # iç içe yerleşim artığıysa şu anki paketi yutan klasörü silme
-        root.relative_to(target)
-        return False
-    except ValueError:
-        return True
-
-
-def _remove_tree(target: Path, attempts: int = 3, delay: float = 1.5) -> bool:
-    """Klasörü sil; dosya kilidi yüzünden başarısız olursa birkaç kez dene."""
-    for attempt in range(attempts):
-        try:
-            shutil.rmtree(target)
-            return True
-        except OSError:
-            if attempt == attempts - 1:
-                return not target.exists()
-            time.sleep(delay)
-    return False
-
-
-def extract(archive: Path, version: str, into_parent: Path,
-            settings_source: Path | None = None,
-            state_source: Path | None = None) -> Path:
-    """ZIP'i kardeş klasöre aç; başlatıcı yolunu döndür.
-
-    Çalışan klasöre dokunulmaz; hedef klasör zaten varsa (yarım deneme)
-    silinip yeniden açılır — asla çalışan bir klasör olamaz, çünkü adı
-    sürüm taşır ve şu anki sürüm kendi adını taşıyan klasörden çalışır.
-    """
-    stem = f"{TECHNICAL_NAME}-{version}"
-    target = into_parent / stem
-    try:
-        zf = zipfile.ZipFile(archive)
-    except zipfile.BadZipFile as exc:
-        raise UpdateError("İndirilen paket bozuk: ZIP açılamadı.") from exc
-    with zf:
-        for name in zf.namelist():
-            if not _member_is_safe(name):
-                raise UpdateError(f"Paket içinde güvensiz yol: {name!r}")
-        names = [n.replace("\\", "/") for n in zf.namelist()]
-        if not any(n.startswith(f"{stem}/") for n in names):
-            raise UpdateError(f"Paket beklenen {stem}/ klasörüyle başlamıyor.")
-        if target.exists():
-            shutil.rmtree(target)
-        zf.extractall(into_parent)
-
-    exe = target / f"{stem}.exe"
-    if not exe.is_file():
-        raise UpdateError(f"Paket içinde {stem}.exe bulunamadı.")
-    if settings_source is not None and state_source is not None:
-        migrate_user_data(Path(settings_source), target, Path(state_source))
-    launcher = target / f"{stem}.bat"
-    return launcher if launcher.is_file() else exe
-
-
-def swap_script_text(old_pid: int, new_launcher: Path) -> str:
-    """Kapanış betiği: eski PID'i bekle, yeni paketi başlat, kendini sil.
-
-    PID kontrolü cmd yerleşikleriyle yapılır: `tasklist` her durumda 0 döndürür,
-    `find` ise PATH'e göre MSYS'in Unix `find`'iyle karışabilir (eşleşme olmaz,
-    betik beklemeyi atlar). Bu yüzden çıktı CSV olarak alınır, PID alanı
-    doğrudan karşılaştırılır.
-
-    Bekleme `ping` ile yapılır: `timeout` gerçek konsol/stdin ister; gizli
-    konsolda hata verip beklemesiz döngüye yol açar. Döngü ~10 dakikayla
-    sınırlıdır; eski süreç kapanmazsa yine de yeni sürüm başlatılır.
-    """
-    return (
-        "@echo off\r\n"
-        "setlocal\r\n"
-        "set /a TRIES=0\r\n"
-        ":wait\r\n"
-        "set \"FOUND=\"\r\n"
-        f'for /f "tokens=2 delims=," %%A in (\'%SystemRoot%\\System32\\tasklist.exe '
-        f'/FI "PID eq {old_pid}" /NH /FO CSV 2^>NUL\') do '
-        f'if "%%~A"=="{old_pid}" set "FOUND=1"\r\n'
-        "if not defined FOUND goto launch\r\n"
-        "set /a TRIES+=1\r\n"
-        "if %TRIES% GEQ 600 goto launch\r\n"
-        "ping -n 2 127.0.0.1 >NUL\r\n"
-        "goto wait\r\n"
-        ":launch\r\n"
-        f'start "" "{new_launcher}"\r\n'
-        'del "%~f0"\r\n')
-
-
-def spawn_swap(old_pid: int, new_launcher: Path) -> None:
-    """Çalışan paketi taze kopyaya devret.
-
-    Windows çalışan EXE'yi silmez; betik bu işlemi bekler, yeni paketi BAT'ıyla
-    başlatır, kendini siler. Eski klasörü SİLMEZ: temizlik, yeni sürüm fişi
-    okuduğunda (`cleanup_after_update`) eski PID bittikten sonra yapılır.
-
-    Bayraklar: `DETACHED_PROCESS` ile `CREATE_NEW_CONSOLE` BİRLİKTE verilemez;
-    Windows CreateProcess'i `WinError 87 (Parametre hatalı)` ile reddeder ve
-    güncelleme "yeniden başlatılıyor" adımında asılı kalır. Gizli konsol için
-    tek başına `CREATE_NO_WINDOW` kullanılır.
-    """
-    script = new_launcher.with_name("voxora-swap.bat")
-    script.write_text(swap_script_text(old_pid, new_launcher), encoding="ascii")
-    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-    subprocess.Popen(["cmd", "/c", str(script)], creationflags=flags,
-                     close_fds=True)
-    log.info("swap hazır: pid=%s new=%s", old_pid, new_launcher)
 
 
 def last_check_is_old(stamp: str, max_age_seconds: float = 24 * 3600) -> bool:
@@ -578,3 +581,369 @@ def last_check_is_old(stamp: str, max_age_seconds: float = 24 * 3600) -> bool:
 def now_stamp() -> str:
     import datetime
     return datetime.datetime.now().isoformat(timespec="seconds")
+
+
+def apply_delta(archive: Path, current_version: str,
+                wait_seconds: float = 600.0) -> list[str]:
+    """Delta paketini doğrula, hazırla ve **kapanışta** uygulanacak şekilde bırak.
+
+    Neden uygulama sırasında değil: Program Files'taki dosyalar (özellikle
+    çalışan ``VoxoraStudio.exe`` ve yüklü DLL'ler) uygulama açıkken kilitlidir;
+    Windows bunları ne silmeye ne yeniden adlandırmaya izin verir (WinError 5/32).
+    Bu yüzden delta:
+
+      1. Burada doğrulanır ve geçici klasöre çıkarılır (hiçbir şey kilitli değil).
+      2. Bir *devir fişi* yazılır: hangi staged klasör, hangi hedef, hangi dosyalar.
+      3. Uygulama kapanır; `run_pending_delta` ayrı bir süreçte fişi okur,
+         yükseltilmiş yardımcıyla dosyaları yerine yazar ve programı yeniden açar.
+
+    ``apply_delta`` yalnız hazırlık yapar ve fiş yolunu döndürür; yazma işi
+    kapanıştadır. Geriye dönük uyum için dönen değer liste değil ``Path``tir —
+    çağıran taraf fişi `run_pending_delta` ile tüketir.
+    """
+    from . import delta as delta_mod
+
+    manifest = delta_mod.read_manifest(archive)
+    if not delta_mod.can_apply(manifest, current_version):
+        raise UpdateError(
+            f"Delta paketi sürüm {manifest.base_version} için hazırlanmış; "
+            f"kurulu sürüm {current_version}. Tam kurulum gerekiyor.")
+    staged = delta_mod.stage(archive, manifest)
+    marker = write_delta_marker(staged, manifest, package_root())
+    if marker is None:
+        import shutil as _shutil
+
+        _shutil.rmtree(staged, ignore_errors=True)
+        raise UpdateError("Delta güncelleme fişi yazılamadı.")
+    log.info("Delta hazır; kapanışta uygulanacak: %s", marker)
+    return [str(marker)]
+
+
+def write_delta_marker(staged: Path, manifest, root: Path) -> Path | None:
+    """Kapanışta okunacak delta fişini yaz (``state/pending_delta.json``)."""
+    marker = state_dir() / "pending_delta.json"
+    try:
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.write_text(json.dumps({
+            "staged": str(staged),
+            "target": str(root),
+            "version": manifest.version,
+            "base_version": manifest.base_version,
+            "files": manifest.files,
+            "removed": manifest.removed,
+        }, ensure_ascii=False, indent=2), encoding="utf-8")
+    except OSError:
+        log.exception("Delta fişi yazılamadı: %s", marker)
+        return None
+    return marker
+
+
+def run_pending_delta() -> Path | None:
+    """Kapanışta delta fişini tüketen bağımsız işçiyi başlat.
+
+    Uygulama kapanmadan önce çağrılır: işçi bu PID'in bitmesini bekler, dosyaları
+    yükseltilmiş olarak kopyalar, SHA-256 ile doğrular ve programı yeniden açar.
+
+    **Neden PowerShell, neden EXE değil:** `_internal\base_library.zip` çalışan
+    her Python süreci tarafından kilitlenir. Delta bu dosyayı da güncellediği
+    için kopyalamayı uygulamanın kendi EXE'siyle yapmak imkânsızdır (bootstrap
+    sorunu): süreç kendi kütüphanesini değiştiremez. Bu yüzden kopyalama,
+    Python çalıştırmayan bir PowerShell işçisine devredilir.
+
+    Fiş yoksa hiçbir şey yapmaz (None döner).
+    """
+    import os
+
+    marker = state_dir() / "pending_delta.json"
+    if not marker.is_file():
+        return None
+    exe = package_root() / "VoxoraStudio.exe"
+    if not exe.is_file():
+        log.warning("Delta işçisi kurulamadı: EXE yok (%s)", exe)
+        return None
+    try:
+        payload = json.loads(marker.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        log.exception("Delta fişi okunamadı: %s", marker)
+        return None
+    result_file = marker.with_name("pending_delta_result.json")
+    script = write_delta_worker(payload, marker, result_file, exe, os.getpid())
+    if script is None:
+        return None
+    try:
+        detached = getattr(subprocess, "DETACHED_PROCESS", 0)
+        subprocess.Popen(["cmd", "/c", str(script)], creationflags=detached,
+                         close_fds=True, cwd=str(script.parent))
+    except OSError:
+        log.exception("Delta işçisi başlatılamadı")
+        return None
+    log.info("Delta işçisi hazır: %s", script)
+    return script
+
+
+def write_delta_worker(payload: dict, marker: Path, result_file: Path,
+                       exe: Path, app_pid: int) -> Path | None:
+    """Kapanış işçisini yaz: ``.ps1`` (kopyalar) + ``.bat`` (yükseltir).
+
+    ``.bat`` işçiyi yönetici olarak başlatır (tek UAC), ``.ps1`` uygulamanın
+    kapanmasını bekler, dosyaları kopyalar, hash doğrular, sonucu yazar, fişi
+    ve geçici klasörü siler, programı normal kullanıcı olarak açar.
+    """
+    root = Path(tempfile.gettempdir())
+    ps1 = root / f"voxora-delta-{app_pid}.ps1"
+    bat = root / f"voxora-delta-{app_pid}.bat"
+    try:
+        ps1.write_text(delta_worker_ps1(payload, marker, result_file, exe,
+                                        app_pid), encoding="utf-8")
+        bat.write_text(delta_worker_bat(ps1), encoding="ascii")
+    except OSError:
+        log.exception("Delta işçi betikleri yazılamadı")
+        return None
+    return bat
+
+
+def delta_worker_bat(ps1: Path) -> str:
+    """İşçiyi yönetici olarak başlatan küçük betik (tek UAC onayı)."""
+    return (
+        "@echo off\r\n"
+        "powershell -NoProfile -WindowStyle Hidden -Command "
+        "\"Start-Process -FilePath 'powershell' -ArgumentList '-NoProfile',"
+        f"'-ExecutionPolicy','Bypass','-WindowStyle','Hidden','-File','{ps1}' "
+        "-Verb RunAs -Wait\"\r\n"
+        'del "%~f0"\r\n')
+
+
+def delta_worker_ps1(payload: dict, marker: Path, result_file: Path,
+                     exe: Path, app_pid: int | None) -> str:
+    """Kapanış işçisinin PowerShell gövdesi.
+
+    Kopyalama Python çalıştırmaz, bu yüzden ``_internal\base_library.zip``
+    kilitli değildir. Her dosya kopyalandıktan sonra SHA-256 ile doğrulanır;
+    doğrulama tutmazsa sonuç ``ok:false`` olur.
+
+    ``app_pid`` None ise bekleme döngüsü yazılmaz (uygulama zaten kapalı).
+    """
+    file_lines = []
+    for entry in payload.get("files") or []:
+        path = str(entry["path"]).replace("/", "\\")
+        digest = str(entry.get("sha256") or "")
+        file_lines.append(
+            f"  @{{ path = '{_ps_escape(path)}'; "
+            f"sha256 = '{_ps_escape(digest)}' }}")
+    file_block = ",\n".join(file_lines)
+    removed = ", ".join(f"'{_ps_escape(str(name).replace('/', chr(92)))}'"
+                        for name in (payload.get("removed") or []))
+    wait_block = ""
+    if app_pid is not None:
+        wait_block = (
+            "$deadline = (Get-Date).AddMinutes(10)\n"
+            "while ((Get-Date) -lt $deadline) {\n"
+            f"  if (-not (Get-Process -Id {app_pid} -ErrorAction SilentlyContinue)) "
+            "{ break }\n"
+            "  Start-Sleep -Milliseconds 500\n"
+            "}\n"
+            "Start-Sleep -Seconds 1\n")
+    return (
+        "$ErrorActionPreference = 'Stop'\n"
+        f"$staged = '{_ps_escape(str(payload.get('staged') or ''))}'\n"
+        f"$target = '{_ps_escape(str(payload.get('target') or ''))}'\n"
+        f"$marker = '{_ps_escape(str(marker))}'\n"
+        f"$resultFile = '{_ps_escape(str(result_file))}'\n"
+        f"$exe = '{_ps_escape(str(exe))}'\n"
+        + wait_block +
+        "$files = @(\n" + file_block + "\n)\n"
+        f"$removed = @({removed})\n"
+        "$written = @()\n"
+        "$ok = $true\n"
+        "$err = ''\n"
+        "try {\n"
+        "  foreach ($f in $files) {\n"
+        "    $src = Join-Path $staged $f.path\n"
+        "    $dst = Join-Path $target $f.path\n"
+        "    $dir = Split-Path -Parent $dst\n"
+        "    if (-not (Test-Path -LiteralPath $dir)) {\n"
+        "      New-Item -ItemType Directory -Path $dir -Force | Out-Null }\n"
+        "    if (-not (Test-Path -LiteralPath $src)) {\n"
+        "      throw \"kaynak eksik: $($f.path)\" }\n"
+        "    # Var olan dosya Once silinir: Copy-Item -Force calisan/kilitli\n"
+        "    # hedefe yazamaz, ama silinmis hedefe yeni dosya kopyalanabilir.\n"
+        "    if (Test-Path -LiteralPath $dst) {\n"
+        "      Remove-Item -LiteralPath $dst -Force\n"
+        "    }\n"
+        "    Copy-Item -LiteralPath $src -Destination $dst -Force\n"
+        "    $hash = (Get-FileHash -LiteralPath $dst -Algorithm SHA256).Hash.ToLower()\n"
+        "    if ($f.sha256 -and $hash -ne $f.sha256.ToLower()) {\n"
+        "      throw \"dogrulama tutmadi: $($f.path)\" }\n"
+        "    $written += $f.path\n"
+        "  }\n"
+        "  foreach ($r in $removed) {\n"
+        "    $p = Join-Path $target $r\n"
+        "    if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p -Force }\n"
+        "  }\n"
+        "} catch {\n"
+        "  $ok = $false\n"
+        "  $err = \"$($_.Exception.Message)\"\n"
+        "}\n"
+        "@{ ok = $ok; written = $written; error = $err } |\n"
+        "  ConvertTo-Json -Depth 4 | Out-String | ForEach-Object {\n"
+        "    # BOM'suz UTF-8 yaz: Python json.loads BOM ile patlar.\n"
+        "    [System.IO.File]::WriteAllText($resultFile, $_, "
+        "(New-Object System.Text.UTF8Encoding $false))\n"
+        "  }\n"
+        "if ($ok) {\n"
+        "  Remove-Item -LiteralPath $marker -Force -ErrorAction SilentlyContinue\n"
+        "  # Sonuc dosyasi staged icindeyse silme: cagiran okuyacak.\n"
+        "  $inside = $resultFile.StartsWith($staged, "
+        "[StringComparison]::OrdinalIgnoreCase)\n"
+        "  if (-not $inside) {\n"
+        "    Remove-Item -LiteralPath $staged -Recurse -Force "
+        "-ErrorAction SilentlyContinue\n"
+        "  }\n"
+        "}\n"
+        "if ($exe -and (Test-Path -LiteralPath $exe)) {\n"
+        "  # Programi normal kullanici olarak ac (explorer yukseltilmis kabuktan acar).\n"
+        "  Start-Process -FilePath 'explorer.exe' -ArgumentList \"`\"$exe`\"\"\n"
+        "}\n"
+        "Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue\n")
+
+
+def _already_elevated() -> bool:
+    """Süreç yönetici olarak mı çalışıyor? (UAC'yi tekrar tetiklememek için.)"""
+    if sys.platform != "win32":
+        return False
+    try:
+        import ctypes
+
+        return bool(ctypes.windll.shell32.IsUserAnAdmin())
+    except OSError:
+        return False
+
+
+def apply_pending_payload(staged: Path, target: Path, files: list,
+                          result_file: Path, wait_pid: int | None = None,
+                          exe: Path | None = None) -> bool:
+    """İşçiyi yükseltilmiş olarak çalıştır ve sonucu bekle (test/elle onarım).
+
+    Üretimde ``run_pending_delta`` bunu kullanmaz (orada bekçi ayrı süreçtir);
+    burada işçi senkron çalıştırılır ki çağıran sonucu hemen görebilsin.
+    """
+    payload = {"staged": str(staged), "target": str(target),
+               "files": files, "removed": []}
+    temp = Path(tempfile.gettempdir())
+    ps1 = temp / f"voxora-apply-{os.getpid()}.ps1"
+    ps1.write_text(delta_worker_ps1(payload, Path(str(result_file) + ".marker"),
+                                    result_file, exe or Path(""), wait_pid),
+                   encoding="utf-8")
+    try:
+        if _already_elevated():
+            # Çağıran zaten yönetici: UAC tetiklemeden doğrudan çalıştır.
+            subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy",
+                            "Bypass", "-WindowStyle", "Hidden", "-File",
+                            str(ps1)], check=False)
+        else:
+            _runas(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
+                    "-WindowStyle", "Hidden", "-File", str(ps1)], wait=True)
+    finally:
+        ps1.unlink(missing_ok=True)
+    for _ in range(300):
+        if result_file.is_file():
+            break
+        import time as _time
+
+        _time.sleep(1)
+    if not result_file.is_file():
+        return False
+    try:
+        return bool(json.loads(result_file.read_text(encoding="utf-8-sig")).get("ok"))
+    except (OSError, json.JSONDecodeError):
+        return False
+
+
+def _ps_escape(value: str) -> str:
+    """PowerShell tek tırnaklı dizesi için kaçış ('' = tek tırnak)."""
+    return value.replace("'", "''")
+
+
+def apply_delta_marker(marker: Path, result_file: Path) -> int:
+    """``--apply-delta-marker`` kipi: fişteki deltayı uygula, sonucu yaz.
+
+    Normal akışta kullanılmaz (işçi PowerShell'dir); kaynak kopyada ve testlerde
+    kapanış mantığını yalıtmak için elde tutulur.
+    """
+    import shutil as _shutil
+
+    try:
+        payload = json.loads(marker.read_text(encoding="utf-8"))
+        staged = Path(payload["staged"])
+        target = Path(payload["target"])
+        result = _apply_marker_payload(staged, target,
+                                       payload.get("files") or [],
+                                       payload.get("removed") or [])
+        result_file.write_text(json.dumps({"ok": True, "written": result},
+                                          ensure_ascii=False), encoding="utf-8")
+        marker.unlink(missing_ok=True)
+        _shutil.rmtree(staged, ignore_errors=True)
+        return 0
+    except Exception as exc:  # noqa: BLE001 - sonuç dosyasına yazılır
+        try:
+            result_file.write_text(json.dumps({"ok": False, "error": f"{exc}"},
+                                              ensure_ascii=False), encoding="utf-8")
+        except OSError:
+            pass
+        log.exception("Delta fişi uygulanamadı")
+        return 1
+
+
+def _apply_marker_payload(staged: Path, target: Path, files: list,
+                          removed: list) -> list[str]:
+    """Fişteki dosya listesini yerine yaz."""
+    from .delta import DeltaManifest, apply_staged
+
+    manifest = DeltaManifest(
+        version="", base_version="",
+        files=[dict(item) for item in files],
+        removed=[str(name) for name in removed],
+        total_bytes=0)
+    return apply_staged(staged, manifest, target)
+def _runas(argv: list[str], wait: bool = True) -> int:
+    """Yardımcıyı UAC onayıyla başlat; süreç PID'ini döndür."""
+    import ctypes
+    from ctypes import wintypes
+
+    SEE_MASK_NOCLOSEPROCESS = 0x00000040
+    if sys.platform != "win32":  # pragma: no cover
+        process = subprocess.Popen(argv)
+        if wait:
+            process.wait()
+        return process.pid
+    parameters = " ".join(f'"{part}"' for part in argv[1:])
+    info = _SHELLEXECUTEINFOW()
+    info.cbSize = ctypes.sizeof(info)
+    info.fMask = SEE_MASK_NOCLOSEPROCESS
+    info.lpVerb = "runas"
+    info.lpFile = argv[0]
+    info.lpParameters = parameters
+    info.nShow = 1
+    shell32 = ctypes.WinDLL("shell32", use_last_error=True)
+    shell32.ShellExecuteExW.argtypes = [ctypes.POINTER(_SHELLEXECUTEINFOW)]
+    shell32.ShellExecuteExW.restype = wintypes.BOOL
+    if not shell32.ShellExecuteExW(ctypes.byref(info)):
+        code = ctypes.get_last_error()
+        if code == _ERROR_CANCELLED:
+            raise UpdateError(
+                "Delta güncelleme için yönetici izni verilmedi. Güncelleme "
+                "kurulmadı; dilediğinizde tekrar deneyebilirsiniz.")
+        raise UpdateError(f"Delta yardımcısı başlatılamadı (hata {code}).")
+    if not info.hProcess:
+        return 0
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.GetProcessId.argtypes = [ctypes.c_void_p]
+    kernel32.GetProcessId.restype = wintypes.DWORD
+    kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+    pid = int(kernel32.GetProcessId(info.hProcess))
+    if wait:
+        kernel32.WaitForSingleObject.argtypes = [ctypes.c_void_p, wintypes.DWORD]
+        kernel32.WaitForSingleObject.restype = wintypes.DWORD
+        kernel32.WaitForSingleObject(info.hProcess, 0xFFFFFFFF)  # INFINITE
+    kernel32.CloseHandle(info.hProcess)
+    return pid

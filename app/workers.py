@@ -232,30 +232,37 @@ class CompressWorker(QThread):
 
 
 class UpdateWorker(QThread):
-    """Güncelleme sunucusunu UI'ı bloklamadan sorgular ya da paketi kurar.
+    """Güncelleme sunucusunu UI'ı bloklamadan sorgular ya da kurulumu indirir.
 
     mode="check": sürümü sorar, `checked` yayınlar (None = zaten güncel).
-    mode="install": ZIP'i indirir, doğrular, eski paketin YANINA (kardeş
-    klasör) açar, eski klasörler için temizlik fişi bırakır, `installed`
-    yayınlar. İptal edilen/bozuk indirme asla hedef klasör oluşturmaz.
+    mode="install": kurulum dosyasını indirir, boyut + SHA-256 doğrular,
+    `installed` yayınlar. Kurulumu çalıştırmak GUI tarafının işidir: önce
+    programın kendi kapanış akışı tamamlanmalı, sonra kurulum devreye girer.
+    İptal edilen/bozuk indirme hiçbir zaman çalıştırılabilir dosya bırakmaz.
     """
 
     checked = pyqtSignal(object)        # UpdateInfo ya da None (zaten güncel)
     failed = pyqtSignal(str)
     progress = pyqtSignal(int, int, float)  # inen bayt, toplam bayt, bayt/sn
-    phase = pyqtSignal(str)             # "verify" (özet doğrulama), "extract" (açma)
-    installed = pyqtSignal(str, str)    # sürüm, yeni paket başlatıcı yolu
+    phase = pyqtSignal(str)             # "verify" (özet doğrulama)
+    installed = pyqtSignal(str, str)    # sürüm, indirilen dosya yolu
 
     _PROGRESS_INTERVAL = 0.15           # GUI'ye saniyede ~6 güncelleme yeter
 
-    def __init__(self, current: str, mode: str = "check", info=None, parent=None):
+    def __init__(self, current: str, mode: str = "check", info=None,
+                 use_delta: bool = False, parent=None):
         super().__init__(parent)
         self._current = current
         self._mode = mode
         self._info = info
+        self._use_delta = use_delta
         self._cancel = threading.Event()
         self._meter = updater.RateMeter()
         self._last_emit = 0.0
+
+    def is_delta(self) -> bool:
+        """Bu worker delta paketi mi indiriyor?"""
+        return bool(self._use_delta)
 
     def request_cancel(self):
         self._cancel.set()
@@ -276,19 +283,15 @@ class UpdateWorker(QThread):
 
     def _install(self):
         info = self._info
+        asset = info.delta_name if self._use_delta else info.asset_name
         try:
-            root = updater.package_root().resolve()
-            archive = root / updater.UPDATE_DIRNAME / info.asset_name
-            updater.download(info, archive, progress=self._progress,
-                             cancel=self._cancel, phase=self.phase.emit)
-            self.phase.emit("extract")
-            launcher = updater.extract(archive, info.version, root.parent,
-                                       settings_source=root,
-                                       state_source=updater.state_dir())
-            archive.unlink(missing_ok=True)
-            new_root = Path(launcher).parent
-            targets = updater.stale_package_dirs(new_root.parent, info.version)
-            updater.write_cleanup_marker(new_root, targets)
+            target = updater.updates_dir() / asset
+            if self._use_delta:
+                updater.download_delta(info, target, progress=self._progress,
+                                       cancel=self._cancel, phase=self.phase.emit)
+            else:
+                updater.download(info, target, progress=self._progress,
+                                 cancel=self._cancel, phase=self.phase.emit)
         except updater.UpdateError as exc:
             if self._cancel.is_set():
                 log.info("güncelleme indirmesi iptal edildi")
@@ -296,10 +299,10 @@ class UpdateWorker(QThread):
             self.failed.emit(str(exc))
             return
         except Exception as exc:  # disk dolu, izin hatası: GUI'ye raporla
-            log.exception("Güncelleme kurulumu başarısız")
-            self.failed.emit(f"Güncelleme kurulamadı: {exc}")
+            log.exception("Güncelleme indirmesi başarısız")
+            self.failed.emit(f"Güncelleme indirilemedi: {exc}")
             return
-        self.installed.emit(info.version, str(launcher))
+        self.installed.emit(info.version, str(target))
 
     def _progress(self, done: int, total: int):
         # Zaman tabanlı yayın: hız/kalan süre göstergesi canlı kalsın ama GUI

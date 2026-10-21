@@ -8,8 +8,12 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from app.paths import state_dir
+
 APP_DIR = Path(__file__).resolve().parent
-STATE_DIR = APP_DIR / "state"
+#: Ayar ve geçmiş dosyalarının yeri. Donmuş pakette %LOCALAPPDATA%\VoxoraStudio\state;
+#: kaynak kopyada depo kökündeki state/. Kurulum bu klasöre dokunmaz.
+STATE_DIR = state_dir()
 SETTINGS_FILE = STATE_DIR / "settings.json"
 HISTORY_FILE = STATE_DIR / "history.json"
 log = logging.getLogger(__name__)
