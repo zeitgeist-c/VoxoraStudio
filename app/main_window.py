@@ -44,6 +44,7 @@ from PyQt6.QtWidgets import (
     QScrollArea,
     QSizePolicy,
     QStackedWidget,
+    QSystemTrayIcon,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -256,6 +257,9 @@ class MainWindow(QMainWindow):
 
         self._build_ui()
         self._load_saved_settings()
+        # Sistem tepsisi simgesi: "Kapatılınca tepsiye küçült" tercihi buna
+        # bağlıdır. Her zaman oluşturulur; tercih kapalıysa kullanılmaz.
+        self._build_tray()
         self._refresh_history_list()
         self.update_text_info()
         self.update_settings_summary()
@@ -708,6 +712,26 @@ class MainWindow(QMainWindow):
         look_grid.addWidget(QLabel("Tema"), 0, 0)
         look_grid.addWidget(self.theme_combo, 0, 1, 1, 2)
         look_grid.setColumnStretch(1, 1)
+
+        # Ortak masaüstü seçenekleri: otomatik başlat + tepsiye küçült.
+        from app_options import (AutostartController, TrayOption,
+                                  build_settings_widgets)
+
+        self._autostart_controller = AutostartController(
+            app_name="VoxoraStudio",
+            get_setting=lambda k, d=None: self.settings.get(k, d),
+            set_setting=self._set_option,
+            entry_point=str(Path(__file__).resolve().parent.parent / "app.py"))
+        self._tray_option = TrayOption(
+            get_setting=lambda k, d=None: self.settings.get(k, d),
+            set_setting=self._set_option)
+        self._autostart_cb, self._tray_cb = build_settings_widgets(
+            self._autostart_controller, self._tray_option)
+        look_grid.addWidget(QLabel("Windows başlangıcı"), 1, 0)
+        look_grid.addWidget(self._autostart_cb, 1, 1, 1, 2)
+        look_grid.addWidget(QLabel("Kapatma davranışı"), 2, 0)
+        look_grid.addWidget(self._tray_cb, 2, 1, 1, 2)
+
         look_card.content_layout.addLayout(look_grid)
         look_col.addWidget(look_card)
         look_col.addStretch(1)
@@ -1235,6 +1259,13 @@ class MainWindow(QMainWindow):
         QMessageBox.critical(self, title, f"{friendly}\n\nAyrıntı:\n{msg}")
 
     def closeEvent(self, event):
+        # Ortak tercih: "Kapatılınca tepsiye küçült". Tepsi simgesi yoksa
+        # küçültme uygulanamaz (kullanıcı uygulamayı kaybeder) → kapanır.
+        if not self._close_finalized and self._should_minimize_to_tray():
+            self._save_before_close()
+            event.ignore()
+            self.hide()
+            return
         if self._close_finalized:
             self._save_before_close()
             audio_player.stop()
@@ -1363,6 +1394,13 @@ class MainWindow(QMainWindow):
 
     def _load_saved_settings(self):
         settings = self.settings or {}
+        # Ortak masaüstü seçenekleri: kutular kayıtlı durumu gösterir.
+        controller = getattr(self, "_autostart_controller", None)
+        if controller is not None:
+            self._autostart_cb.setChecked(controller.is_enabled())
+        tray_option = getattr(self, "_tray_option", None)
+        if tray_option is not None:
+            self._tray_cb.setChecked(tray_option.is_enabled())
         preset = settings.get("preset", "Anlatıcı")
         preset_index = self.preset_combo.findText(preset)
         if preset_index >= 0:
@@ -1432,6 +1470,79 @@ class MainWindow(QMainWindow):
         if not hasattr(self, "language_combo"):
             return
         save_settings(self._current_ui_settings())
+
+    def _set_option(self, key: str, value) -> None:
+        """Tek bir ayarı kaydet (ortak masaüstü seçenekleri için)."""
+        settings = dict(self.settings)
+        settings[key] = value
+        save_settings(settings)
+        self.settings = settings
+
+    def _build_tray(self):
+        """Sistem tepsisi simgesi: göster / ayarlar / çık.
+
+        "Kapatılınca tepsiye küçült" tercihi bu simgeye bağlıdır; simge
+        olmadan küçültme uygulanamaz.
+        """
+        from PyQt6.QtGui import QAction
+        from PyQt6.QtWidgets import QMenu, QSystemTrayIcon
+
+        if getattr(self, "_tray_icon", None) is not None:
+            return self._tray_icon
+
+        tray = QSystemTrayIcon(application_icon(), self)
+        menu = QMenu()
+        show_action = QAction("Voxora Studio'yu göster", self)
+        show_action.triggered.connect(self._restore_from_tray)
+        settings_action = QAction("Ayarlar", self)
+        settings_action.triggered.connect(self._open_settings)
+        quit_action = QAction("Çıkış", self)
+        quit_action.triggered.connect(self._quit_from_tray)
+        menu.addAction(show_action)
+        menu.addAction(settings_action)
+        menu.addSeparator()
+        menu.addAction(quit_action)
+        tray.setContextMenu(menu)
+        tray.activated.connect(self._on_tray_activated)
+        tray.show()
+        self._tray_icon = tray
+        return tray
+
+    def _on_tray_activated(self, reason):
+        if reason == QSystemTrayIcon.ActivationReason.Trigger:
+            self._restore_from_tray()
+
+    def _restore_from_tray(self):
+        self.showNormal()
+        self.raise_()
+        self.activateWindow()
+
+    def _open_settings(self):
+        self._restore_from_tray()
+        labels = getattr(self, "_nav_labels", [])
+        if "Ayarlar" in labels:
+            self._switch_page(labels.index("Ayarlar"))
+
+    def _quit_from_tray(self):
+        self._close_finalized = True
+        self._save_before_close()
+        audio_player.stop()
+        if getattr(self, "_tray_icon", None) is not None:
+            self._tray_icon.hide()
+        QApplication.quit()
+
+    def _should_minimize_to_tray(self) -> bool:
+        """Kapatma olayında pencereyi gizlemeli miyiz?
+
+        Tepsi simgesi yoksa küçültme uygulanamaz: kullanıcı uygulamayı
+        kaybeder ve geri getiremez.
+        """
+        tray = getattr(self, "_tray_icon", None)
+        tray_available = tray is not None and tray.isVisible()
+        option = getattr(self, "_tray_option", None)
+        if option is None:
+            return False
+        return option.should_minimize(tray_available=tray_available)
 
     def _current_ui_settings(self) -> dict:
         return {
