@@ -1,47 +1,35 @@
-# Voxora Studio - bağımlılıklar (bölümlenmiş)
+# Voxora Studio — çalışma zamanı bağımlılıkları
+#
+# Tasarım: paket yalnız EMA Lightning motorunu içerir (ONNX, torch gerekmez).
+# Chatterbox ve VoxCPM2 isteğe bağlıdır; kütüphaneleri motor paketi (.vxp)
+# olarak indirilir ve kullanıcı veri klasörüne açılır (app/engine_pack.py).
+# torch, transformers, diffusers, librosa burada YOKTUR — pakete gömülseler
+# kurulum dosyası iki katına çıkardı.
 
-# Core - TTS motoru (Chatterbox Multilingual V3, Türkçe native)
-chatterbox-tts
-torch==2.6.0
-torchaudio==2.6.0
+# --- Ses motoru: EMA Lightning (paketle gelir) -------------------------------
+# ONNX grafikleri + onnxruntime. Ağırlıklar models/ema-onnx altında paketlenir.
+onnxruntime
 
-# Core - TTS motoru (EMA Lightning: yalnız Türkçe, tek ses, ~34 MB, hızlı)
-# PyTorch >=2.1 ve Python >=3.11 ister; ağırlıklar ilk kullanımda HF'ten iner.
-ema-lightning>=1.1.2
+# Türkçe metin normalizasyonu (EMA ön işlemcisi: sayı, kısaltma, tarih okuma).
+normalizer_tr
 
-# GPU - AMD/NVIDIA hızlandırma (DirectML)
-# v0.1.0: provider kontrolü aktif, model yok (CPU'ya düşer)
-# v0.1.1: scripts/export_onnx.py ile model doldurulur
-# Koşullu kurulum: scripts/setup_env.py + scripts/gpu_detect.py:has_directml_capable_gpu()
-# - AMD/Intel Arc varsa ve NVIDIA yoksa kurulur.
-# - Diğer durumlarda atlanır (~50-150 MB tasarruf).
-# onnxruntime-directml
-
-# GUI - PyQt6 (pencere, thread, sinyal)
+# --- Arayüz -------------------------------------------------------------------
 PyQt6
 
-# Sayısal ses verisi
+# --- Ses verisi ---------------------------------------------------------------
 numpy
-
-# Ses çalma - sounddevice (tensor/dosya ayrımı yok, MP3/WAV çalar)
 sounddevice
-
-# WAV kayıt - soundfile (en basit, ek bağımlılık yok)
 soundfile
-
-# MP3 kayıt - pydub (ffmpeg'e delege eder; sistemde ffmpeg gerekir)
 pydub
 
-# Trash - çöp kutusuna taşıma (cross-platform; Windows'ta Geri Dönüşüm)
+# --- Dosya işlemleri ---------------------------------------------------------
 send2trash
 
-# Perth watermarker - Chatterbox Multilingual TTS watermark
-resemble-perth
+# --- Güncelleme ---------------------------------------------------------------
+requests
 
-# pkg_resources - perth.perth_net bunu ister; setuptools>=81'de kaldırıldı.
-# 81+ kurulursa PerthImplicitWatermarker sessizce None olur ve motor 'NoneType' object
-# is not callable ile düşer. Gömülü pakette build.bat --hidden-import ile güvence altına alınır.
-setuptools<81
+# --- Model indirme (isteğe bağlı motorlar) -----------------------------------
+huggingface_hub
 
-# Paketleme - build.bat ile Windows onedir paketi
+# --- Paketleme ----------------------------------------------------------------
 PyInstaller

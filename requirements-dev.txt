@@ -1,0 +1,20 @@
+# Voxora Studio — geliştirme bağımlılıkları (isteğe bağlı motorlar)
+#
+# Bunlar PAKETE GİRMEZ. Yalnız Chatterbox / VoxCPM2 motorlarını geliştirirken
+# veya motor paketi (.vxp) üretirken gerekir.
+#
+#   python -m pip install -r requirements-dev.txt
+#
+# Son kullanıcı bu dosyayı kurmaz: motor paketleri app/engine_pack.py ile
+# kullanıcının veri klasörüne açılır.
+
+# Chatterbox Multilingual V3 (16 dil + ses klonlama)
+chatterbox-tts           # torch, transformers, diffusers, librosa, perth'i getirir
+torch
+torchaudio
+
+# VoxCPM2 (30 dil, ses tasarımı) — yalnız CUDA'da çalışır
+voxcpm
+
+# EMA Lightning'ın PyTorch sürümü (ONNX sürümü pakette; bu yalnız karşılaştırma)
+ema-lightning

@@ -35,7 +35,9 @@ echo ============================================================
 echo.
 
 echo [1/5] Gerekli import'lar dogrulaniyor...
-"%PYEXE%" -c "import torch, torchaudio, PyQt6, sounddevice, soundfile, pydub, send2trash, numpy, PyInstaller, ema_lightning, normalizer_tr; print('[OK] Tum importlar basarili.')"
+REM EMA-ONNX-only build: torch/chatterbox/torchaudio PAKETE GIRMEZ.
+REM Indirilebilir motorlar (.vxp) kendi kutuphanelerini getirir.
+"%PYEXE%" -c "import PyQt6, sounddevice, soundfile, pydub, send2trash, numpy, onnxruntime, PyInstaller, normalizer_tr; print('[OK] Tum importlar basarili (torch yok, EMA ONNX)')"
 if errorlevel 1 (
     echo [HATA] Import dogrulamasi basarisiz. Once setup.bat calistir.
     pause
@@ -57,25 +59,34 @@ echo.
     --distpath "dist" ^
     --workpath "build_temp" ^
     --hidden-import "PyQt6.sip" ^
-    --hidden-import "torch" ^
-    --hidden-import "torchaudio" ^
     --hidden-import "sounddevice" ^
     --hidden-import "soundfile" ^
     --hidden-import "pydub" ^
     --hidden-import "send2trash" ^
     --hidden-import "numpy" ^
-    --hidden-import "pkg_resources" ^
-    --collect-all "perth" ^
-    --collect-all "ema_lightning" ^
+    --hidden-import "onnxruntime" ^
     --collect-all "normalizer_tr" ^
     --exclude-module "matplotlib" ^
     --exclude-module "pandas" ^
     --exclude-module "notebook" ^
     --exclude-module "IPython" ^
     --exclude-module "pip" ^
+    --exclude-module "torch" ^
+    --exclude-module "torchaudio" ^
+    --exclude-module "chatterbox" ^
+    --exclude-module "perth" ^
+    --exclude-module "diffusers" ^
+    --exclude-module "transformers" ^
+    --exclude-module "librosa" ^
+    --exclude-module "numba" ^
+    --exclude-module "scipy" ^
+    --exclude-module "sklearn" ^
+    --exclude-module "ema_lightning" ^
     --copy-metadata "requests" ^
     --add-data "bin;bin" ^
     --add-data "app\assets;app\assets" ^
+    --add-data "assets;assets" ^
+    --add-data "models\ema-onnx;models\ema-onnx" ^
     "app.py"
 
 if errorlevel 1 (
@@ -94,7 +105,9 @@ echo.
 echo [3/5] Paket klasoru surumleniyor...
 REM `move /y` klasor hedefte "Erisim engellendi" verebiliyor (Defender taramasi);
 REM Python shutil.move ayni isi guvenilir yapar.
-"%PYEXE%" -c "import shutil;from pathlib import Path;src=Path(r'dist\VoxoraStudio');dst=Path(r'dist\%PACKAGE_STEM%');shutil.rmtree(dst, ignore_errors=True);shutil.move(str(src), str(dst));print('paket:', dst)" 
+REM DIKKAT: hedef klasor onceden varsa shutil.move onu IC ICE acar
+REM (dist\X\VoxoraStudio\...). Bu yuzden hedef ONCE silinir, sonra tasinir.
+"%PYEXE%" -c "import shutil;from pathlib import Path;src=Path(r'dist\VoxoraStudio');dst=Path(r'dist\%PACKAGE_STEM%');shutil.rmtree(dst, ignore_errors=True);assert not dst.exists(), 'hedef silinemedi: '+str(dst);shutil.move(str(src), str(dst));print('paket:', dst)" 
 if errorlevel 1 (
     echo [HATA] dist\VoxoraStudio -^> dist\%PACKAGE_STEM% tasinamadi.
     pause

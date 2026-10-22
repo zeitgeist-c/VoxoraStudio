@@ -1,8 +1,10 @@
 """
-Voxora Studio - ses çalma (tensor / WAV / MP3 -> hoparlör).
+Voxora Studio - ses çalma (dizi / WAV / MP3 -> hoparlör).
 
 sounddevice üzerinden çaldığı için MP3 codec sorunu yok.
 QMediaPlayer kullanmıyoruz (Qt6'da MP3 codec ayrı kurulum gerektirir).
+
+Ses verisi numpy float32'dir; torch bağımlılığı kaldırıldı (bkz. tts_engine).
 """
 from __future__ import annotations
 
@@ -12,7 +14,6 @@ import os
 import numpy as np
 import sounddevice as sd
 import soundfile as sf
-import torch
 
 from file_utils import bundled_bin as _bundled_bin
 
@@ -38,10 +39,23 @@ except Exception as e:
     log.warning("pydub yüklenemedi: %s (MP3 çalma/kayıt devre dışı)", e)
 
 
-def play_tensor(wav: torch.Tensor, sr: int, blocking: bool = False) -> None:
-    """PyTorch tensor -> numpy -> sounddevice.play (dosya yazmaz, hızlı)."""
-    data = wav.squeeze().detach().cpu().numpy().astype(np.float32)
-    sd.play(data, samplerate=sr)
+def _as_mono_float32(audio) -> np.ndarray:
+    """Herhangi bir ses girdisini (numpy/torch/liste) float32 mono diziye çevir."""
+    if hasattr(audio, "detach"):  # torch tensörü geldiyse
+        audio = audio.detach().cpu().numpy()
+    data = np.asarray(audio, dtype=np.float32)
+    if data.ndim > 1:
+        data = data.reshape(-1)
+    return data
+
+
+def play_tensor(wav, sr: int, blocking: bool = False) -> None:
+    """Ses dizisi -> sounddevice.play (dosya yazmaz, hızlı).
+
+    Adı geriye dönük uyumluluk için korundu; artık numpy bekler, torch
+    tensörü de kabul edilir.
+    """
+    sd.play(_as_mono_float32(wav), samplerate=sr)
     if blocking:
         sd.wait()
 

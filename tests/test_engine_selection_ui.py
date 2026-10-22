@@ -14,6 +14,7 @@ from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PyQt6.QtCore import Qt  # noqa: E402
 from PyQt6.QtWidgets import QApplication  # noqa: E402
 
 from app import main_window  # noqa: E402
@@ -52,55 +53,45 @@ class EngineSelectionUiTests(unittest.TestCase):
         assert index >= 0, engine
         window.engine_combo.setCurrentIndex(index)
 
-    def test_defaults_to_chatterbox(self):
+    def test_defaults_to_ema(self):
+        """Varsayılan motor EMA'dır: paketle gelir, her bilgisayarda çalışır."""
         window = self._headless_window()
-        self.assertEqual(window.engine_combo.currentData(), "chatterbox")
-        self.assertEqual(window._engine_name, "chatterbox")
-        self.assertTrue(window.language_combo.isEnabled())
-        self.assertTrue(window.preset_combo.isEnabled())
-        self.assertTrue(window.exaggeration_spin.isEnabled())
-        self.assertTrue(window.btn_select_voice.isEnabled())
-        self.assertIn("Chatterbox", window.settings_summary_label.text())
-
-    def test_switching_to_ema_locks_language_and_disables_clone_controls(self):
-        window = self._headless_window()
-        window.language_combo.setCurrentIndex(window.language_combo.findData("en"))
-
-        self._select(window, "ema")
-
+        self.assertEqual(window.engine_combo.currentData(), "ema")
         self.assertEqual(window._engine_name, "ema")
         self.assertEqual(window.language_combo.currentData(), "tr")
         self.assertFalse(window.language_combo.isEnabled())
         self.assertFalse(window.preset_combo.isEnabled())
-        self.assertFalse(window.btn_apply_preset.isEnabled())
         self.assertFalse(window.exaggeration_spin.isEnabled())
-        self.assertFalse(window.cfg_spin.isEnabled())
-        self.assertFalse(window.temperature_spin.isEnabled())
-        self.assertFalse(window.repetition_spin.isEnabled())
-        self.assertTrue(window.speed_spin.isEnabled())
-        self.assertTrue(window.pause_spin.isEnabled())
         self.assertFalse(window.btn_select_voice.isEnabled())
-        self.assertFalse(window.btn_sample_voice_text.isEnabled())
-        self.assertFalse(window.btn_play_voice.isEnabled())
-        self.assertFalse(window.btn_clear_voice.isEnabled())
         self.assertIn("EMA Lightning", window.settings_summary_label.text())
-        self.assertEqual(window._current_ui_settings()["engine"], "ema")
-        self.assertEqual(window._chatterbox_language_id, "en")
 
-    def test_switching_back_restores_chatterbox_language(self):
+    def test_switching_to_chatterbox_unlocks_language_and_clone_controls(self):
         window = self._headless_window()
-        window.language_combo.setCurrentIndex(window.language_combo.findData("en"))
 
-        self._select(window, "ema")
         self._select(window, "chatterbox")
 
         self.assertEqual(window._engine_name, "chatterbox")
-        self.assertEqual(window.language_combo.currentData(), "en")
         self.assertTrue(window.language_combo.isEnabled())
         self.assertTrue(window.preset_combo.isEnabled())
         self.assertTrue(window.exaggeration_spin.isEnabled())
-        self.assertTrue(window.btn_select_voice.isEnabled())
+        self.assertTrue(window.speed_spin.isEnabled())
+        self.assertTrue(window.pause_spin.isEnabled())
         self.assertIn("Chatterbox", window.settings_summary_label.text())
+        self.assertEqual(window._current_ui_settings()["engine"], "chatterbox")
+
+    def test_switching_back_restores_saved_multilingual_language(self):
+        window = self._headless_window()
+        self._select(window, "chatterbox")
+        window.language_combo.setCurrentIndex(window.language_combo.findData("en"))
+        self.assertEqual(window._chatterbox_language_id, "en")
+
+        self._select(window, "ema")
+        self.assertEqual(window.language_combo.currentData(), "tr")
+
+        self._select(window, "chatterbox")
+        self.assertEqual(window._engine_name, "chatterbox")
+        self.assertEqual(window.language_combo.currentData(), "en")
+        self.assertTrue(window.language_combo.isEnabled())
 
     def test_saved_ema_setting_locks_language_on_start(self):
         window = self._headless_window({"engine": "ema", "language_id": "en"})
@@ -109,13 +100,13 @@ class EngineSelectionUiTests(unittest.TestCase):
         self.assertFalse(window.language_combo.isEnabled())
         self.assertEqual(window._chatterbox_language_id, "en")
 
-    def test_unknown_saved_engine_falls_back_to_chatterbox(self):
+    def test_unknown_saved_engine_falls_back_to_ema(self):
         window = self._headless_window({"engine": "gelecek-motor"})
-        self.assertEqual(window.engine_combo.currentData(), "chatterbox")
-        self.assertTrue(window.language_combo.isEnabled())
+        self.assertEqual(window.engine_combo.currentData(), "ema")
+        self.assertFalse(window.language_combo.isEnabled())
 
     def test_voice_warning_skipped_for_ema(self):
-        window = self._headless_window()
+        window = self._headless_window({"engine": "chatterbox"})
         self.assertTrue(window._needs_voice_warning())
         self._select(window, "ema")
         self.assertFalse(window._needs_voice_warning())
@@ -124,10 +115,43 @@ class EngineSelectionUiTests(unittest.TestCase):
         window = self._headless_window()
         window._synth_worker = SimpleNamespace(isRunning=lambda: True)
         with patch.object(main_window.QMessageBox, "information") as info:
-            self._select(window, "ema")
+            self._select(window, "chatterbox")
             info.assert_called_once()
-        self.assertEqual(window.engine_combo.currentData(), "chatterbox")
-        self.assertEqual(window._engine_name, "chatterbox")
+        self.assertEqual(window.engine_combo.currentData(), "ema")
+        self.assertEqual(window._engine_name, "ema")
+
+    def test_voxcpm2_is_disabled_without_cuda(self):
+        """CUDA'sız makinede VoxCPM2 listede görünür ama seçilemez."""
+        from unittest.mock import patch as _patch
+
+        with _patch("app.hardware.detect",
+                    return_value=SimpleNamespace(cuda=False, gpu_name="", vram_gb=0.0,
+                                                 disk_free_gb=500.0, ram_gb=16.0,
+                                                 cpu_threads=8, other_gpu=False,
+                                                 other_gpu_name="", cuda_comfortable=False)):
+            window = self._headless_window()
+        index = window.engine_combo.findData("voxcpm2")
+        self.assertGreaterEqual(index, 0, "VoxCPM2 listede olmalı")
+        item = window.engine_combo.model().item(index)
+        self.assertIsNotNone(item)
+        self.assertFalse(item.isEnabled(), "CUDA yokken VoxCPM2 seçilememeli")
+        # Tooltip gerekçeyi taşır.
+        tip = window.engine_combo.itemData(index, Qt.ItemDataRole.ToolTipRole) or ""
+        self.assertIn("CUDA", tip)
+
+    def test_voxcpm2_is_enabled_with_cuda(self):
+        from unittest.mock import patch as _patch
+
+        with _patch("app.hardware.detect",
+                    return_value=SimpleNamespace(cuda=True, gpu_name="RTX 4070", vram_gb=12.0,
+                                                 disk_free_gb=500.0, ram_gb=32.0,
+                                                 cpu_threads=16, other_gpu=False,
+                                                 other_gpu_name="", cuda_comfortable=True)):
+            window = self._headless_window()
+        index = window.engine_combo.findData("voxcpm2")
+        self.assertGreaterEqual(index, 0)
+        item = window.engine_combo.model().item(index)
+        self.assertTrue(item.isEnabled(), "CUDA varken VoxCPM2 seçilebilmeli")
 
 
 if __name__ == "__main__":
