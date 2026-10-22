@@ -53,7 +53,7 @@ Gereksinim: Python 3.11 + ffmpeg (MP3 için) + Inno Setup 6 (kurulum dosyası i�
 setup.bat          :: internet/donanım/ffmpeg kontrolü, CUDA yoksa CPU
 install_check.bat  :: kurulum doğrulama
 run.bat            :: konsolsuz başlat (debug: VOXORA_SHOW_CONSOLE=1)
-build.bat          :: dist\VoxoraStudio-0.6.0\ + dist\installer\VoxoraStudio-0.6.0-Setup.exe
+build.bat          :: dist\VoxoraStudio-0.6.1\ + dist\installer\VoxoraStudio-0.6.1-Setup.exe
 ```
 
 Test: `smoke_test.py` (light/full), `python -m unittest discover -s tests -v`.

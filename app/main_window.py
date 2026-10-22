@@ -2417,38 +2417,43 @@ class MainWindow(QMainWindow):
             self.update_stats_label.setText(
                 "Sağlama toplamı denetleniyor, birkaç dakika sürebilir.")
             self.btn_update_cancel.setEnabled(False)
-        elif phase == "extract":
-            self.update_status_label.setText("Paket açılıyor… yeni sürüm kuruluyor.")
-            self.update_stats_label.setText("Yeni sürüm klasörü hazırlanıyor; program yenisiyle başlayacak.")
-            self.btn_update_cancel.setEnabled(False)
 
     def _on_update_installed(self, version: str, launcher: str):
         self.update_progress.setRange(0, 1000)
         self.update_progress.setValue(1000)
         self.update_status_label.setText(
-            f"Sürüm {version} hazır. Program yeniden başlatılıyor…")
-        self.update_stats_label.setText("Eski sürüm, yenisi açıldıktan sonra silinecek.")
-        self.status_label.setText(f"Sürüm {version} kuruldu; yeniden başlatılıyor.")
-        self._restart_into_update(launcher)
+            f"Sürüm {version} indirildi. Kurulum başlatılıyor…")
+        self.update_stats_label.setText(
+            "Program kapanacak; kurulum yerinde güncelleyip bitince programı yeniden açacak.")
+        self.status_label.setText(f"Sürüm {version} indirildi; kurulum başlatılıyor.")
+        self._launch_update_installer(launcher)
 
-    def _restart_into_update(self, launcher: str):
-        """Swap betiğini kura ve kapanış akışını başlat (çalışan işler varsa sor)."""
+    def _launch_update_installer(self, launcher: str):
+        """İndirilen kurulumu sessiz kipte başlat, sonra kendi kapanışımızı tamamla.
+
+        v0.6.0 kalıbı: kurulum (Inno Setup) Restart Manager ile çalışan
+        uygulamayı kapatır, {app} altını yerinde günceller ve bağımsız bekçiyle
+        programı yeniden açar. v0.5.x'in swap betiği ve kardeş klasör akışı
+        kaldırıldı — çağrılırsa AttributeError olur ve Qt slot yakalanmayan
+        istisnada süreci düşürür (canlıda sessiz çökme).
+        """
         if self._close_finalized:
-            return  # kapanış zaten kurala bağlandı; betik çalışıyor
+            return  # kapanış zaten kurala bağlandı; kurulum çalışıyor
         from . import updater
         try:
-            updater.spawn_swap(os.getpid(), Path(launcher))
-        except OSError as exc:
-            # Devir betiği kurulamazsa program kapanmamalı: kullanıcıya yeni
-            # sürümün yerini söyle, asılı kalmasın.
-            log.exception("Yeniden başlatma betiği kurulamadı")
-            self.status_label.setText("Güncelleme kuruldu; yeniden başlatma başarısız.")
+            updater.spawn_installer(Path(launcher))
+        except (updater.UpdateError, OSError) as exc:
+            # Kurulum başlatılamazsa program kapanmamalı: kullanıcıya indirilen
+            # dosyanın yerini söyle, asılı kalmasın.
+            log.exception("Kurulum başlatılamadı")
+            self.status_label.setText("Güncelleme indirildi; kurulum başlatılamadı.")
+            self._show_update_error("Kurulum başlatılamadı; kurulum dosyasını elle çalıştırabilirsiniz.")
             QMessageBox.warning(
                 self,
-                "Güncelleme kuruldu",
-                "Yeni sürüm kuruldu ancak program kendini yeniden başlatamadı.\n\n"
+                "Güncelleme indirildi",
+                "Güncelleme indirildi ancak kurulum başlatılamadı.\n\n"
                 f"Ayrıntı: {exc}\n\n"
-                "Programı kapatıp yeni sürümü şuradan açabilirsiniz:\n"
+                "Kurulum dosyasını şuradan elle çalıştırabilirsiniz:\n"
                 f"{launcher}",
             )
             return

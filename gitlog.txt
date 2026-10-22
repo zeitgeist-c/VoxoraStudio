@@ -1,6 +1,11 @@
 Voxora Studio versiyon günlüğü
 =======================
 
+v0.6.1 (2026-10-22) — Güncelleme kurulumu çökmesi düzeltmesi
+- "İndir ve Kur" artık indirme bitince sessizce kapanmıyor. v0.6.0'da kaldırılan swap betiği çağrısı arayüzde kalmıştı; Qt, sinyal içindeki yakalanmayan hatada süreci düşürdüğü için kurulum hiç başlamadan program kapanıyordu.
+- Akış düzeltildi: indirilen kurulum dosyası sessiz kipte başlatılır, kurulum bitince program kendini yeniden açar. Kurulum başlatılamazsa program AÇIK kalır ve indirilen dosyanın yolu gösterilir (elle çalıştırılsın diye).
+- Delta paketi: 0.6.0 tabanlı kurulumlar için ~89 MB hızlı güncelleme; 0.6.0'ın kendisi bu hatayı içerdiği için düzeltmeye geçiş ya uygulama içinden (delta/setup) ya da Setup.exe'yi elle çalıştırarak yapılır.
+
 v0.6.0 (2026-10-22) — Kurulum dosyası, yerinde güncelleme ve delta
 - Windows kurulum dosyası geldi: dist\installer\VoxoraStudio-X.Y.Z-Setup.exe (Inno Setup 6, Türkçe arayüz, 382 MB). Kullanıcı tek dosya çalıştırır; masaüstü ve Başlat Menüsü kısayolları kurulumda seçilir.
 - Delta (hızlı) güncelleme: 0.5.5 → 0.6.0 için yalnız 2 dosya değiştiği ölçüldü; 89,3 MB'lık .vxd paketi tam 382 MB setup yerine iner. Delta uygulama KAPANIRKEN çalışır (çalışan Python süreci _internal\base_library.zip'i kilitler, kendi kütüphanesini değiştiremez); kapanışta Python çalıştırmayan PowerShell işçisi dosyaları yükseltilmiş olarak kopyalar, her dosyayı SHA-256 ile doğrular ve programı normal kullanıcı olarak geri açar. Tek UAC onayı.

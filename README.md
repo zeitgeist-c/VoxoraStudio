@@ -52,7 +52,7 @@ Requirements: Python 3.11 + ffmpeg (for MP3) + Inno Setup 6 (for the installer).
 setup.bat          :: checks internet/hardware/ffmpeg, CUDA or CPU fallback
 install_check.bat  :: verify installation
 run.bat            :: start consoleless (debug: VOXORA_SHOW_CONSOLE=1)
-build.bat          :: dist\VoxoraStudio-0.6.0\ + dist\installer\VoxoraStudio-0.6.0-Setup.exe
+build.bat          :: dist\VoxoraStudio-0.6.1\ + dist\installer\VoxoraStudio-0.6.1-Setup.exe
 ```
 
 Tests: `smoke_test.py` (light/full), `python -m unittest discover -s tests -v`.
