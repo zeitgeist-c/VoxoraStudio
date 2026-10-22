@@ -17,6 +17,7 @@ import threading
 import time
 from pathlib import Path
 
+import numpy as np
 from PyQt6.QtCore import QThread, pyqtSignal
 
 import audio_compressor
@@ -24,7 +25,8 @@ from tts_engine import TTSEngine
 
 from . import updater
 
-__all__ = ["TqdmProgressBridge", "SynthWorker", "EngineLoader", "CompressWorker", "UpdateWorker"]
+__all__ = ["TqdmProgressBridge", "SynthWorker", "EngineLoader", "CompressWorker",
+           "UpdateWorker", "ModelInstallWorker"]
 
 log = logging.getLogger(__name__)
 
@@ -130,28 +132,86 @@ class SynthWorker(QThread):
                     self.cancelled.emit("Üretim kullanıcı tarafından durduruldu.")
                     return
                 elapsed = time.perf_counter() - started_at
-                wav_cpu = wav.cpu()
-                waves.append(wav_cpu)
+                waves.append(np.asarray(wav, dtype=np.float32).reshape(-1))
                 sr = s
                 if pause_seconds > 0 and index < total:
-                    import torch
-
                     pause_samples = int(pause_seconds * sr)
                     if pause_samples > 0:
-                        waves.append(torch.zeros(wav_cpu.shape[:-1] + (pause_samples,), dtype=wav_cpu.dtype))
+                        waves.append(np.zeros(pause_samples, dtype=np.float32))
                 self.chunk_done.emit(index, total, elapsed)
 
             if sr is None:
                 self.failed.emit("Ses örnekleme oranı alınamadı.")
                 return
 
-            import torch
-
-            merged = torch.cat(waves, dim=-1)
+            merged = np.concatenate(waves) if waves else np.zeros(0, dtype=np.float32)
             self.finished_ok.emit(merged, sr)
         except Exception as e:
             log.exception("Sentez hatası")
             self.failed.emit(str(e))
+
+
+class ModelInstallWorker(QThread):
+    """İndirilebilir motoru arka planda indirir ve kurar.
+
+    Arayüz iş parçacığı donmaz; iptal ``request_cancel`` ile istenir ve indirici
+    her 256 KB'da bunu kontrol eder. İptal edilen indirme ``.part`` dosyasını
+    korur, yeniden başlatıldığında kaldığı yerden devam eder.
+    """
+
+    progress = pyqtSignal(int, int, float, float)   # tamamlanan, toplam, hız, kalan
+    message = pyqtSignal(str)
+    ok = pyqtSignal(str, str)                       # motor, ayrıntı
+    failed = pyqtSignal(str, str)                   # motor, hata
+    cancelled = pyqtSignal(str)                     # motor
+
+    def __init__(self, engine: str, parent=None):
+        super().__init__(parent)
+        self._engine = engine
+        self._stop = threading.Event()
+
+    def request_cancel(self) -> None:
+        self._stop.set()
+
+    def run(self) -> None:
+        from app import downloader, engines as engine_registry, model_manager
+
+        label = engine_registry.spec(self._engine).label
+        try:
+            state = model_manager.install_engine(
+                self._engine,
+                on_progress=self._on_progress,
+                should_stop=self._stop.is_set,
+            )
+        except downloader.Cancelled:
+            self.cancelled.emit(self._engine)
+            return
+        except Exception as exc:
+            log.exception("Motor kurulumu başarısız: %s", self._engine)
+            self.failed.emit(self._engine, str(exc))
+            return
+        if self._stop.is_set():
+            self.cancelled.emit(self._engine)
+            return
+        self.ok.emit(self._engine, f"{label} kuruldu — {state.size_label}")
+
+    def _on_progress(self, update) -> None:
+        if self._stop.is_set():
+            return
+        filename = update.filename or ""
+        if update.phase == "verifying":
+            self.message.emit(f"Doğrulanıyor: {filename}")
+        elif update.phase == "connecting":
+            self.message.emit(f"Bağlanıyor: {filename}")
+        elif filename and not filename.endswith(".onnx") and not filename.endswith(".vxp"):
+            # Dosya adı bir aşama metniyse onu göster.
+            self.message.emit(filename)
+        self.progress.emit(
+            int(update.completed),
+            int(update.total),
+            float(update.speed),
+            float(update.remaining or 0.0),
+        )
 
 
 class EngineLoader(QThread):

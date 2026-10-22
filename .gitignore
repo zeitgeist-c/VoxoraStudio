@@ -12,7 +12,12 @@ env/
 # Çıktılar
 outputs/
 logs/
-models/
+# Kullanıcı model ağırlıkları (indirilenler) git'e girmez.
+models/*
+# EMA ONNX ağırlıkları PAKETLENİR (build.bat --add-data): git'e girmeli.
+# 44 MB; paketle gelen tek motor. Diğer motor ağırlıkları kullanıcıda kalır.
+!models/ema-onnx/
+!models/README.md
 state/*
 *.wav
 *.mp3

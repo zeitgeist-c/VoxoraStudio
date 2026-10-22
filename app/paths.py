@@ -27,11 +27,15 @@ log = logging.getLogger(__name__)
 __all__ = [
     "USER_DATA_DIRNAME",
     "package_root",
+    "executable_dir",
     "user_data_root",
     "state_dir",
     "logs_dir",
     "outputs_dir",
     "updates_dir",
+    "models_dir",
+    "engines_dir",
+    "bundled_models_dir",
     "ensure_user_dirs",
     "legacy_portable_packages",
     "migrate_legacy_state",
@@ -57,10 +61,29 @@ def _is_frozen() -> bool:
 
 
 def package_root() -> Path:
-    """Çalışan paketin kökü: donmuş pakette EXE'nin klasörü, kaynakta depo kökü."""
+    """Salt-okunur paket kaynaklarının kökü (PyInstaller ``_internal``).
+
+    Donmuş pakette ``sys._MEIPASS``: PyInstaller ``--add-data`` ile eklenen her
+    şey (models, assets, bin) ``_internal/`` altına düşer ve buradan okunur.
+    ``sys.executable``in klasörü YANLIŞTIR — orada yalnız EXE ve ``_internal``
+    klasörü vardır. Kaynak kopyada depo kökü döner.
+    """
     if _is_frozen():
+        bundle = getattr(sys, "_MEIPASS", "")
+        if bundle:
+            return Path(bundle)
         return Path(sys.executable).resolve().parent
     return Path(__file__).resolve().parent.parent
+
+
+def executable_dir() -> Path:
+    """EXE'nin bulunduğu klasör (kullanıcıya "program nerede" demek için).
+
+    Donmuş pakette ``Program Files\\VoxoraStudio``; kaynakta depo kökü.
+    """
+    if _is_frozen():
+        return Path(sys.executable).resolve().parent
+    return package_root()
 
 
 def user_data_root() -> Path:
@@ -92,6 +115,37 @@ def outputs_dir() -> Path:
 def updates_dir() -> Path:
     """İndirilen kurulum dosyalarının geçici yeri (kurulum sonrası silinir)."""
     return user_data_root() / "updates"
+
+
+def models_dir() -> Path:
+    """İndirilen model ağırlıkları (motor başına bir alt klasör).
+
+    Kullanıcının seçebildiği tek kök: Ayarlar ▸ Modeller ▸ "Model klasörü".
+    Hugging Face önbelleği DEĞİL — kullanıcı ağırlıkları burada bulur, taşır,
+    yedekler. Motorda ``HF_HOME`` buraya çevrilerek huggingface_hub da aynı
+    yeri kullanır.
+    """
+    override = os.environ.get("VOXORA_MODELS_DIR")
+    if override:
+        return Path(override)
+    return user_data_root() / "models"
+
+
+def engines_dir() -> Path:
+    """İndirilebilir motor paketlerinin açıldığı yer (.vxp → motor başına klasör).
+
+    Program klasöründen ve sistem Python'undan ayrı: güncelleme program
+    klasörünü silip yeniden yazar, motor paketleri kullanıcıda kalır.
+    """
+    return user_data_root() / "engines"
+
+
+def bundled_models_dir() -> Path:
+    """Paketle gelen model ağırlıkları (yalnız EMA).
+
+    Donmuş pakette ``<paket>/_internal/models``; kaynakta ``<depo>/models``.
+    """
+    return package_root() / "models"
 
 
 def ensure_user_dirs() -> None:

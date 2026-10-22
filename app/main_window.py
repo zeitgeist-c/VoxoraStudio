@@ -60,19 +60,16 @@ from config import (
     DEFAULT_OPUS_BITRATE,
     DEFAULT_OUTPUT_DIR,
     DEFAULT_OUTPUT_FORMAT,
-    ENGINE_EMA,
     OUTPUT_FORMAT_EXTENSIONS,
     OUTPUT_FORMAT_MP3,
     OUTPUT_FORMAT_OPUS,
     OUTPUT_FORMAT_WAV,
-    VALID_ENGINES,
     VALID_OUTPUT_FORMATS,
 )
 from file_utils import safe_filename_from_text, safe_remove_to_trash, trash_available, unique_path
 
 from .constants import (
     CONFIRM_CHUNK_COUNT,
-    ENGINE_OPTIONS,
     LANGUAGE_SAMPLES,
     LANGUAGES,
     OUTPUT_FORMAT_HELP,
@@ -82,6 +79,7 @@ from .constants import (
     format_label,
     quality_options_for,
 )
+from . import engines as engine_registry
 from .branding import BRAND_PRIMARY, BRAND_SECONDARY, DISPLAY_NAME, TECHNICAL_TAGLINE, __version__
 from .dialogs import ModelLoadDialog, SynthesisDialog, VoiceGuideDialog
 from .icons import navigation_icon
@@ -127,59 +125,63 @@ def estimate_duration_range(
 
 
 def trim_leading_silence(
-    wav: "torch.Tensor",
+    wav: np.ndarray,
     sr: int,
     threshold: float = 0.005,
     max_trim_ms: int = 500,
     pre_buffer_ms: int = 20,
-) -> "torch.Tensor":
+) -> np.ndarray:
     """Sentez çıktısının başındaki sessiz kısmı kırp.
 
-    Mutlak genlik eşiği yöntemiyle ilk sesli sample'i bulur ve öncesini atar.
+    Mutlak genlik eşiği yöntemiyle ilk sesli örneği bulur ve öncesini atar.
     Maks. ``max_trim_ms`` kırpılır; kırpma noktasından ``pre_buffer_ms`` kadar
     önce tutulur (atak geçişini yumuşatır). Tüm koşullar koruyucu: girdi
     zayıfsa (sr <= 0, boş, hepsi sessiz) orijinali döner.
 
     Args:
-        wav: Torch tensor, shape (1, samples) veya (samples,).
+        wav: float32 mono dizi.
         sr: Sample rate (Hz).
         threshold: Genlik eşiği (0.0-1.0 normalize).
         max_trim_ms: Bu kadar ms'den fazla kırpma; üstü sınır.
         pre_buffer_ms: Kırpma noktası öncesi korunacak tampon (ms).
 
     Returns:
-        Kırpılmış (veya koşulsuz orijinal) torch tensor. Cihaz/dtype korunur.
+        Kırpılmış dizi (veya koşulsuz orijinal). dtype korunur.
     """
-    import torch
+    # Tek yetkili uygulama tts_engine'de; burada geriye dönük ad korunur.
+    from tts_engine import trim_leading_silence as _trim
 
-    if wav is None or sr is None or sr <= 0:
-        return wav
-    numel = wav.shape[-1] if wav.dim() >= 1 else 0
-    if numel == 0:
-        return wav
-    data = wav.squeeze().detach().cpu().contiguous()
-    if data.dim() != 1 or data.numel() == 0:
-        return wav
-    abs_data = data.abs()
-    if abs_data.numel() == 0:
-        return wav
-    above = (abs_data > threshold).nonzero(as_tuple=False).squeeze(-1)
-    if above.numel() == 0:
-        return wav  # Hep sessiz; olduğu gibi bırak
-    first_idx = int(above[0].item())
-    max_samples = int(max_trim_ms * sr / 1000)
-    pre_samples = int(pre_buffer_ms * sr / 1000)
-    keep_from = max(0, first_idx - pre_samples)
-    if keep_from >= max_samples:
-        keep_from = 0  # Çok uzun sessizlik; pre-buffer verme
-    if keep_from <= 0:
-        return wav
-    return wav[..., keep_from:].contiguous()
+    return _trim(
+        wav,
+        sr,
+        threshold=threshold,
+        max_trim_ms=max_trim_ms,
+        pre_buffer_ms=pre_buffer_ms,
+    )
 
 
 def queue_split_lines(text: str) -> list[str]:
     """Çok satırlı metni dolu satırlara böler (boş olmayan, trim'li)."""
     return [line.strip() for line in text.splitlines() if line.strip()]
+
+
+def format_bytes(count: int) -> str:
+    """Baytı insan okunur biçime çevir: 512 B, 4,6 MB, 2,99 GB."""
+    if count < 1024:
+        return f"{count} B"
+    if count < 1024 ** 2:
+        return f"{count / 1024:.0f} KB"
+    if count < 1024 ** 3:
+        return f"{count / 1024 ** 2:.1f} MB".replace(".", ",")
+    return f"{count / 1024 ** 3:.2f} GB".replace(".", ",")
+
+
+def _as_mono(audio) -> np.ndarray:
+    """Ses verisini float32 mono numpy dizisine çevir (torch tensörü de olur)."""
+    if hasattr(audio, "detach"):
+        audio = audio.detach().cpu().numpy()
+    data = np.asarray(audio, dtype=np.float32)
+    return data.reshape(-1) if data.ndim > 1 else data
 
 
 def history_delete_dialog_texts(trash_ok: bool) -> tuple[str, str]:
@@ -250,6 +252,8 @@ class MainWindow(QMainWindow):
         self._settings_saved_on_close = False
         self._resolved_theme = "dark"
         self._page_transition = None
+        self._model_worker = None
+        self._first_run_dialog = None
         self._update_worker: UpdateWorker | None = None
         self._update_manual = False
         self._update_info = None
@@ -257,6 +261,8 @@ class MainWindow(QMainWindow):
 
         self._build_ui()
         self._load_saved_settings()
+        # İlk açılış: hiç indirilebilir motor kurulu değilse sihirbazı göster.
+        QTimer.singleShot(0, self._maybe_show_first_run)
         # Sistem tepsisi simgesi: "Kapatılınca tepsiye küçült" tercihi buna
         # bağlıdır. Her zaman oluşturulur; tercih kapalıysa kullanılmaz.
         self._build_tray()
@@ -304,7 +310,13 @@ class MainWindow(QMainWindow):
         topbar_row.addWidget(self.brand_version)
         topbar_row.addSpacing(14)
 
-        nav_items = [("Üretim", "generate", 0), ("Arşiv", "history", 1), ("Araçlar", "compress", 2), ("Ayarlar", "settings", 3)]
+        nav_items = [
+            ("Üretim", "generate", 0),
+            ("Arşiv", "history", 1),
+            ("Araçlar", "compress", 2),
+            ("Modeller", "download", 3),
+            ("Ayarlar", "settings", 4),
+        ]
         self._nav_labels = [label for label, _, _ in nav_items]
         self._nav_icon_names = [icon_name for _, icon_name, _ in nav_items]
         self._nav_buttons = []
@@ -335,10 +347,15 @@ class MainWindow(QMainWindow):
         self.btn_compress_start = ActionButton(
             "Sıkıştırmayı Başlat", variant="primary", size="large", icon_name="compress"
         )
+        self.btn_model_cancel = ActionButton(
+            "Durdur", variant="secondary", size="large", icon_name="close"
+        )
+        self.btn_model_cancel.setVisible(False)
+        self.btn_model_cancel.clicked.connect(self.on_cancel_model_install)
         self._page_action_stack = QStackedWidget()
         self._page_action_stack.setObjectName("pageActionStack")
         self._page_action_stack.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
-        for action in (self.btn_generate, None, self.btn_compress_start, None):
+        for action in (self.btn_generate, None, self.btn_compress_start, self.btn_model_cancel, None):
             action_page = QWidget()
             action_layout = QHBoxLayout(action_page)
             action_layout.setContentsMargins(0, 0, 0, 0)
@@ -350,6 +367,7 @@ class MainWindow(QMainWindow):
             ("Ses Üretim Stüdyosu", "Metninizi doğal ve etkileyici bir sese dönüştürün"),
             ("Üretim Arşivi", "Seslerinizi bulun, dinleyin ve yeniden kullanın"),
             ("Araçlar", "Sıkıştırma ve sistem araçları tek merkezde"),
+            ("Ses Modelleri", "Motorları indirin, kurun ve disk kullanımını yönetin"),
             ("Stüdyo Ayarları", "Ses, çıktı ve sistem tercihlerinizi yönetin"),
         )
         self.page_header = PageHeader(*self._page_meta[0], action=self._page_action_stack)
@@ -360,6 +378,7 @@ class MainWindow(QMainWindow):
         self.pages.addWidget(self._build_generate_page())
         self.pages.addWidget(self._build_history_page())
         self.pages.addWidget(self._build_compress_page())
+        self.pages.addWidget(self._build_models_page())
         self.pages.addWidget(self._build_settings_page())
         root.addWidget(self.pages, stretch=1)
 
@@ -476,6 +495,31 @@ class MainWindow(QMainWindow):
         voice_row2.addStretch(1)
         right_col.addWidget(voice_card)
 
+        # Ses tasarımı yalnız VoxCPM2'de var: referans ses olmadan tarifle ses.
+        self.voice_design_card = SectionCard(
+            "Ses Tasarımı",
+            "Referans ses olmadan, tarifle yeni bir ses üretin (yalnız VoxCPM2).",
+        )
+        design_row = QHBoxLayout()
+        design_row.setSpacing(8)
+        self.voice_design_edit = QLineEdit()
+        self.voice_design_edit.setPlaceholderText(
+            "Örn: Genç bir kadın, sıcak ve sakin ton, hafif yavaş"
+        )
+        self.voice_design_edit.setToolTip(
+            "Yazdığınız tarif üretilen metnin başına parantez içinde eklenir.\n"
+            "Cinsiyet, yaş, ton, duygu ve hız belirtebilirsiniz."
+        )
+        design_row.addWidget(self.voice_design_edit, stretch=1)
+        self.btn_design_clear = ActionButton(
+            "Temizle", variant="ghost", size="small", icon_name="delete"
+        )
+        self.btn_design_clear.clicked.connect(self.voice_design_edit.clear)
+        design_row.addWidget(self.btn_design_clear)
+        self.voice_design_card.content_layout.addLayout(design_row)
+        self.voice_design_card.setVisible(False)
+        right_col.addWidget(self.voice_design_card)
+
         playback_card = SectionCard("Sonuç", "Üretim tamamlandığında ses burada görünür.")
         self.waveform_view = WaveformView()
         self.waveform_view.setMinimumHeight(70)
@@ -544,13 +588,9 @@ class MainWindow(QMainWindow):
         settings_grid.setVerticalSpacing(12)
 
         self.engine_combo = QComboBox()
-        for engine_label, engine_value in ENGINE_OPTIONS:
-            self.engine_combo.addItem(engine_label, engine_value)
-        self.engine_combo.setToolTip(
-            "Chatterbox: 16 dil ve referans sesle klonlama (ağır, yavaş).\n"
-            "EMA Lightning: yalnız Türkçe, tek ses, CPU'da bile çok hızlı.\n"
-            "Motor değişince model arka planda yeniden yüklenir."
-        )
+        # Motor listesi app.engines kaydından gelir; donanıma uymayan motor
+        # listede görünür ama seçilemez (kapalı öğe + gerekçe tooltip'te).
+        self._populate_engine_combo()
         self.engine_combo.currentIndexChanged.connect(self._on_engine_changed)
 
         self.preset_combo = QComboBox()
@@ -948,6 +988,331 @@ class MainWindow(QMainWindow):
         compress_layout.addWidget(self._tool_stack, stretch=1)
         return self._make_scroll_page(compress_tab)
 
+    def _build_models_page(self) -> QScrollArea:
+        """Modeller sayfası: motorları indir/kaldır, disk kullanımını gör.
+
+        Kart başına bir motor. Üç durum vardır ve üçü de ayrı görünür:
+        kurulu, indirilmedi, yarım (kütüphane var ağırlık yok ya da tersi).
+        Donanıma uymayan motor kartı görünür ama eylem düğmesi kapalıdır —
+        kullanıcı "neden yok" diye sormasın, gerekçeyi kartta okusun.
+        """
+        from app import engines as engine_registry
+        from app import hardware, model_manager
+
+        profile = hardware.detect()
+        body = QWidget()
+        body.setObjectName("pageBody")
+        col = QVBoxLayout(body)
+        col.setContentsMargins(0, 0, 0, 8)
+        col.setSpacing(14)
+
+        self._model_cards: dict[str, dict] = {}
+
+        for spec in engine_registry.ordered():
+            state = model_manager.state_for(spec.key)
+            usable, reason = engine_registry.availability(
+                spec, cuda=profile.cuda, disk_free_gb=profile.disk_free_gb
+            )
+            card = SectionCard(spec.label, engine_registry.capabilities_text(spec))
+            row = QHBoxLayout()
+            row.setSpacing(10)
+
+            info = QVBoxLayout()
+            info.setSpacing(3)
+            size_label = QLabel(f"İndirme boyutu: {state.size_label}")
+            size_label.setObjectName("modelMeta")
+            info.addWidget(size_label)
+            note = QLabel(spec.notice or spec.tagline)
+            note.setObjectName("modelNote")
+            note.setWordWrap(True)
+            info.addWidget(note)
+            if not usable and reason:
+                warn = QLabel(reason)
+                warn.setObjectName("modelWarning")
+                warn.setWordWrap(True)
+                info.addWidget(warn)
+            row.addLayout(info, stretch=1)
+
+            status = StatusPill(state.status_text(), "neutral")
+            row.addWidget(status)
+            row.addSpacing(6)
+
+            progress = QProgressBar()
+            progress.setRange(0, 100)
+            progress.setValue(0)
+            progress.setTextVisible(False)
+            progress.setMaximumWidth(140)
+            progress.setVisible(False)
+            row.addWidget(progress)
+
+            action = ActionButton("İndir", variant="primary", size="small", icon_name="download")
+            action.setEnabled(usable and state.download_available and not state.installed)
+            action.clicked.connect(lambda _c=False, key=spec.key: self._on_model_install(key))
+            row.addWidget(action)
+
+            remove = ActionButton("Kaldır", variant="secondary", size="small", icon_name="delete")
+            remove.setEnabled(state.installed and not spec.bundled)
+            remove.clicked.connect(lambda _c=False, key=spec.key: self._on_model_remove(key))
+            row.addWidget(remove)
+
+            card.content_layout.addLayout(row)
+            col.addWidget(card)
+            self._model_cards[spec.key] = {
+                "status": status,
+                "action": action,
+                "remove": remove,
+                "progress": progress,
+                "note": note,
+                "card": card,
+            }
+
+        # Model klasörü + disk durumu
+        folder_card = SectionCard("Model klasörü", "İndirilen ağırlıklar burada tutulur.")
+        folder_row = QHBoxLayout()
+        folder_row.setSpacing(10)
+        from app import paths as app_paths
+
+        self.model_folder_label = QLabel(str(app_paths.models_dir()))
+        self.model_folder_label.setObjectName("modelPath")
+        self.model_folder_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        folder_row.addWidget(self.model_folder_label, stretch=1)
+        self.btn_model_open = ActionButton("Klasörü aç", variant="secondary", size="small", icon_name="folder")
+        self.btn_model_open.clicked.connect(self.on_open_models_folder)
+        folder_row.addWidget(self.btn_model_open)
+        self.btn_model_refresh = ActionButton("Yenile", variant="ghost", size="small", icon_name="refresh")
+        self.btn_model_refresh.clicked.connect(self._refresh_models_page)
+        folder_row.addWidget(self.btn_model_refresh)
+        folder_card.content_layout.addLayout(folder_row)
+
+        self.model_disk_label = QLabel("")
+        self.model_disk_label.setObjectName("modelMeta")
+        folder_card.content_layout.addWidget(self.model_disk_label)
+        col.addWidget(folder_card)
+        col.addStretch(1)
+
+        self._refresh_models_disk_label()
+        return self._make_scroll_page(body)
+
+    def _refresh_models_disk_label(self) -> None:
+        """Disk kullanımı: pakette gelen + indirilen ağırlıklar."""
+        if not hasattr(self, "model_disk_label"):
+            return
+        from app import engines as engine_registry
+        from app import hardware, model_manager
+
+        def _dir_size(path) -> int:
+            total = 0
+            try:
+                for entry in path.rglob("*"):
+                    if entry.is_file():
+                        try:
+                            total += entry.stat().st_size
+                        except OSError:
+                            pass
+            except OSError:
+                pass
+            return total
+
+        used = 0
+        parts: list[str] = []
+        for spec in engine_registry.ordered():
+            if spec.key == model_manager.LOCAL_ENGINE:
+                root = model_manager.weights_dir(spec.key)
+            else:
+                root = model_manager.weights_dir(spec.key)
+            size = _dir_size(root) if root.is_dir() else 0
+            if size:
+                used += size
+                parts.append(f"{spec.label}: {size / 1024 ** 2:.0f} MB")
+        free = hardware.free_disk_gb()
+        head = f"Kullanılan: {used / 1024 ** 2:.0f} MB"
+        if parts:
+            head += "  (" + " · ".join(parts) + ")"
+        if free:
+            head += f"    Boş alan: {free:g} GB"
+        self.model_disk_label.setText(head)
+
+    def _refresh_models_page(self) -> None:
+        """Kart durumlarını yeniden ölç (kurulum sonrası çağrılır)."""
+        if not hasattr(self, "_model_cards"):
+            return
+        from app import engines as engine_registry
+        from app import hardware, model_manager
+
+        profile = hardware.detect(force=True)
+        for spec in engine_registry.ordered():
+            widgets = self._model_cards.get(spec.key)
+            if not widgets:
+                continue
+            state = model_manager.state_for(spec.key)
+            usable, reason = engine_registry.availability(
+                spec, cuda=profile.cuda, disk_free_gb=profile.disk_free_gb
+            )
+            widgets["status"].setText(state.status_text())
+            widgets["status"].set_tone(
+                "success" if state.installed else ("warning" if state.partial else "neutral")
+            )
+            busy = widgets["progress"].isVisible()
+            widgets["action"].setEnabled(
+                usable and state.download_available and not state.installed and not busy
+            )
+            widgets["remove"].setEnabled(state.installed and not spec.bundled and not busy)
+            if not usable and reason:
+                widgets["note"].setText(reason)
+            elif not state.download_available and state.detail:
+                widgets["note"].setText(state.detail)
+            else:
+                widgets["note"].setText(spec.notice or spec.tagline)
+        self._refresh_models_disk_label()
+
+    def on_open_models_folder(self) -> None:
+        from app import paths as app_paths
+
+        target = app_paths.models_dir()
+        try:
+            target.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            self._show_error("Klasör açılamadı", f"{target} oluşturulamadı.")
+            return
+        self._open_folder(str(target))
+
+    def _on_model_install(self, engine: str) -> None:
+        """İndirmeyi arka planda başlat; ilerlemeyi karta yaz."""
+        from app import engines as engine_registry
+        from app.workers import ModelInstallWorker
+
+        widgets = self._model_cards.get(engine)
+        spec = engine_registry.spec(engine)
+        if widgets is None:
+            return
+        if self._model_worker is not None and self._model_worker.isRunning():
+            QMessageBox.information(
+                self, "İndirme sürüyor",
+                "Önce süren indirmenin bitmesini bekleyin.",
+            )
+            return
+        answer = QMessageBox.question(
+            self,
+            f"{spec.label} indirilsin mi?",
+            f"Toplam indirme: {spec.size_label()}\n\n"
+            "İndirme sırasında programı kullanmaya devam edebilirsiniz. "
+            "Durdurursanız kaldığı yerden devam eder.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        widgets["progress"].setValue(0)
+        widgets["progress"].setVisible(True)
+        widgets["action"].setEnabled(False)
+        widgets["status"].setText("İndiriliyor…")
+        widgets["status"].set_tone("info")
+        self.btn_model_cancel.setVisible(True)
+        self.status_label.setText(f"{spec.label} indiriliyor…")
+
+        worker = ModelInstallWorker(engine)
+        worker.progress.connect(self._on_model_progress)
+        worker.message.connect(self._on_model_message)
+        worker.ok.connect(self._on_model_installed)
+        worker.failed.connect(self._on_model_failed)
+        worker.cancelled.connect(self._on_model_cancelled)
+        self._model_worker = worker
+        worker.start()
+
+    def _on_model_progress(self, done: int, total: int, speed: float, remaining: float) -> None:
+        if not hasattr(self, "_model_cards"):
+            return
+        for widgets in self._model_cards.values():
+            if widgets["progress"].isVisible():
+                if total > 0:
+                    widgets["progress"].setRange(0, 100)
+                    widgets["progress"].setValue(int(done * 100 / total))
+                else:
+                    widgets["progress"].setRange(0, 0)  # belirsiz
+                widgets["status"].setText(f"%{done * 100 / total:.0f}" if total else "İndiriliyor…")
+                break
+        if total > 0:
+            text = f"İndiriliyor: {format_bytes(done)} / {format_bytes(total)}"
+            if speed > 0:
+                text += f" · {format_bytes(int(speed))}/sn"
+            if remaining:
+                text += f" · kalan ~{int(remaining // 60)}:{int(remaining % 60):02d}"
+            self.status_label.setText(text)
+
+    def _on_model_message(self, text: str) -> None:
+        self.status_label.setText(text)
+
+    def _on_model_installed(self, engine: str, detail: str) -> None:
+        self._model_worker = None
+        self.btn_model_cancel.setVisible(False)
+        widgets = self._model_cards.get(engine, {})
+        if widgets:
+            widgets["progress"].setVisible(False)
+            widgets["progress"].setRange(0, 100)
+        self._refresh_models_page()
+        from app import engines as engine_registry
+
+        self.status_label.setText(f"{engine_registry.spec(engine).label} kuruldu.")
+
+    def _on_model_failed(self, engine: str, message: str) -> None:
+        self._model_worker = None
+        self.btn_model_cancel.setVisible(False)
+        widgets = self._model_cards.get(engine, {})
+        if widgets:
+            widgets["progress"].setVisible(False)
+        self._refresh_models_page()
+        self.status_label.setText("İndirme tamamlanamadı.")
+        self._show_error("İndirme hatası", message)
+
+    def _on_model_cancelled(self, engine: str) -> None:
+        self._model_worker = None
+        self.btn_model_cancel.setVisible(False)
+        widgets = self._model_cards.get(engine, {})
+        if widgets:
+            widgets["progress"].setVisible(False)
+        self._refresh_models_page()
+        self.status_label.setText("İndirme durduruldu; kaldığı yerden devam eder.")
+
+    def on_cancel_model_install(self) -> None:
+        if self._model_worker is not None and self._model_worker.isRunning():
+            self._model_worker.request_cancel()
+            self.status_label.setText("İndirme durduruluyor…")
+
+    def _on_model_remove(self, engine: str) -> None:
+        from app import engines as engine_registry
+        from app import model_manager
+
+        spec = engine_registry.spec(engine)
+        answer = QMessageBox.question(
+            self,
+            f"{spec.label} kaldırılsın mı?",
+            "Motor dosyaları ve indirilen model ağırlıkları silinecek.\n\n"
+            "Ürettiğiniz sesler ve ayarlarınız korunur. Yeniden kullanmak "
+            "isterseniz tekrar indirmeniz gerekir.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            model_manager.remove_engine(engine)
+        except Exception as exc:
+            self._show_error("Kaldırılamadı", str(exc))
+            return
+        # Aktif motor kaldırıldıysa güvenli olana dön.
+        if self._engine_name == engine:
+            self._engine_name = engine_registry.DEFAULT_ENGINE
+            if hasattr(self, "engine_combo"):
+                index = self.engine_combo.findData(engine_registry.DEFAULT_ENGINE)
+                if index >= 0:
+                    self.engine_combo.blockSignals(True)
+                    self.engine_combo.setCurrentIndex(index)
+                    self.engine_combo.blockSignals(False)
+            self._apply_engine_ui_state(self._engine_name)
+            self._init_engine_async()
+        self._refresh_models_page()
+        self.status_label.setText(f"{spec.label} kaldırıldı.")
+
     def _switch_tool(self, index: int):
         if 0 <= index < self._tool_stack.count():
             self._tool_stack.setCurrentIndex(index)
@@ -1074,12 +1439,59 @@ class MainWindow(QMainWindow):
 
     # ---- motor seçimi -----------------------------------------------------
 
+    def _populate_engine_combo(self):
+        """Motor kutusunu kayıttan doldur; donanıma uymayan öğeyi kilitle.
+
+        Kullanıcı VoxCPM2'yi CUDA'sız bir makinede göremez demek yanlış olur:
+        görmeli ki "neden yok" sorusu doğmasın. Bu yüzden liste tamdır ama
+        uygun olmayan öğe gri ve seçilemez; gerekçe tooltip'te yazar.
+        """
+        from app import hardware
+
+        profile = hardware.detect()
+        combo = self.engine_combo
+        combo.clear()
+        for spec in engine_registry.ordered():
+            ok, reason = engine_registry.availability(
+                spec, cuda=profile.cuda, disk_free_gb=profile.disk_free_gb
+            )
+            label = spec.label
+            if not spec.bundled:
+                label += f" — {spec.size_label()}"
+            combo.addItem(label, spec.key)
+            index = combo.count() - 1
+            notes = [spec.tagline]
+            if spec.notice:
+                notes.append(spec.notice)
+            if reason:
+                notes.append(reason)
+            combo.setItemData(index, "\n".join(notes), Qt.ItemDataRole.ToolTipRole)
+            if not ok:
+                item = combo.model().item(index)
+                if item is not None:
+                    item.setEnabled(False)
+        combo.setToolTip(
+            "Motor değişince model arka planda yeniden yüklenir.\n"
+            "Gri öğeler bu bilgisayarda çalışamaz; nedeni üzerine gelince görünür."
+        )
+
     def _on_engine_changed(self, _index: int = 0):
         """Ayarlar'daki motor değişti: arayüzü uygula ve motoru yeniden yükle."""
         if not hasattr(self, "engine_combo"):
             return
         name = self.engine_combo.currentData()
-        if name not in VALID_ENGINES or name == self._engine_name:
+        if name not in engine_registry.keys() or name == self._engine_name:
+            return
+        spec = engine_registry.spec(name)
+        from app import hardware
+
+        profile = hardware.detect()
+        ok, reason = engine_registry.availability(
+            spec, cuda=profile.cuda, disk_free_gb=profile.disk_free_gb
+        )
+        if not ok:
+            QMessageBox.information(self, "Bu motor kullanılamaz", reason)
+            self._revert_engine_combo()
             return
         if self._synth_worker and self._synth_worker.isRunning():
             QMessageBox.information(
@@ -1089,8 +1501,8 @@ class MainWindow(QMainWindow):
             )
             self._revert_engine_combo()
             return
-        if name == ENGINE_EMA:
-            # EMA yalnız Türkçe okur; dili EMA'dan çıkınca geri yüklemek için sakla.
+        if spec.single_language:
+            # Tek dilli motor: çıkarken dili geri yüklemek için sakla.
             self._chatterbox_language_id = self.language_combo.currentData() or "tr"
         self._engine_name = name
         self._apply_engine_ui_state(name)
@@ -1107,12 +1519,12 @@ class MainWindow(QMainWindow):
             self.engine_combo.blockSignals(False)
 
     def _on_language_changed(self, _index: int = 0):
-        """Chatterbox dil tercihini izle (EMA aktifken dil kilitlidir)."""
-        if self._engine_name != ENGINE_EMA:
+        """Dil tercihini izle (tek dilli motorda dil kilitlidir)."""
+        if not engine_registry.spec(self._engine_name).single_language:
             self._chatterbox_language_id = self.language_combo.currentData() or "tr"
 
     def _chatterbox_only_widgets(self) -> tuple:
-        """Yalnız Chatterbox'ta anlamlı olan ayar widget'ları."""
+        """Yalnız çok dilli/klonlayan motorlarda anlamlı ayar widget'ları."""
         return (
             self.preset_combo,
             self.btn_apply_preset,
@@ -1125,49 +1537,55 @@ class MainWindow(QMainWindow):
     def _apply_engine_ui_state(self, engine_name: str):
         """Seçili motora göre arayüzü ayarla.
 
-        EMA yalnız Türkçe ve tek seslidir: dil "tr"ye kilitlenir, referans ses
-        düğmeleri ve Chatterbox'a özel parametreler kapanır; hız ve duraklama
-        geçerli kalır.
+        Tek dilli motor (EMA): dil kilitlenir, referans ses düğmeleri ve
+        örnekleme parametreleri kapanır; hız ve duraklama geçerli kalır.
+        Çok dilli motor: dil açılır, ses profili kullanılabilir.
         """
-        self._engine_name = engine_name
-        ema = engine_name == ENGINE_EMA
+        spec = engine_registry.spec(engine_name)
+        self._engine_name = spec.key
+        simple = spec.single_language
 
-        index = self.language_combo.findData("tr" if ema else self._chatterbox_language_id)
+        preferred = spec.languages[0] if simple else self._chatterbox_language_id
+        index = self.language_combo.findData(preferred)
         if index >= 0 and self.language_combo.currentIndex() != index:
             self.language_combo.blockSignals(True)
             self.language_combo.setCurrentIndex(index)
             self.language_combo.blockSignals(False)
         self._update_language_tooltip()
-        self.language_combo.setEnabled(not ema)
+        self.language_combo.setEnabled(not simple)
 
         for widget in self._chatterbox_only_widgets():
-            widget.setEnabled(not ema)
+            widget.setEnabled(not simple)
 
+        if hasattr(self, "voice_design_card"):
+            self.voice_design_card.setVisible(bool(spec.voice_design))
         if hasattr(self, "voice_card"):
-            if ema:
+            if not spec.cloning:
                 self.voice_card.set_text(
                     "Ses Profili",
-                    "EMA Lightning tek kadın sesiyle okur; referans ses kullanılmaz.",
+                    f"{spec.label} sabit bir sesle okur; referans ses kullanılmaz.",
                 )
-                self.voice_label.setText("EMA Lightning — sabit ses (referans gerekmez)")
+                self.voice_label.setText(f"{spec.label} — sabit ses (referans gerekmez)")
             else:
-                self.voice_card.set_text("Ses Profili", "Referans ses yoksa varsayılan ses kullanılır.")
+                self.voice_card.set_text(
+                    "Ses Profili", "Referans ses yoksa varsayılan ses kullanılır."
+                )
                 if self.voice_prompt_path:
                     self._set_voice_prompt(self.voice_prompt_path, save=False)
                 else:
                     self.voice_label.setText("Ses örneği seçilmedi")
 
         has_voice = bool(self.voice_prompt_path)
-        self.btn_select_voice.setEnabled(not ema)
-        self.btn_sample_voice_text.setEnabled(not ema)
-        self.btn_play_voice.setEnabled((not ema) and has_voice)
-        self.btn_clear_voice.setEnabled((not ema) and has_voice)
+        self.btn_select_voice.setEnabled(spec.cloning)
+        self.btn_sample_voice_text.setEnabled(spec.cloning)
+        self.btn_play_voice.setEnabled(spec.cloning and has_voice)
+        self.btn_clear_voice.setEnabled(spec.cloning and has_voice)
         self.update_settings_summary()
 
     def _needs_voice_warning(self) -> bool:
-        """Referans ses uyarısı yalnız Chatterbox'ta ve ses örneği yokken sorulur."""
+        """Referans ses uyarısı yalnız klonlayan motorda ve ses örneği yokken."""
         return (
-            self._engine_name != ENGINE_EMA
+            engine_registry.spec(self._engine_name).cloning
             and not self.voice_prompt_path
             and not self._voice_warning_dismissed
         )
@@ -1187,10 +1605,8 @@ class MainWindow(QMainWindow):
         self._engine_loading = True
         self._refresh_engine_combo_enabled(busy=False)
         self._model_dialog = ModelLoadDialog(self)
-        if self._engine_name == ENGINE_EMA:
-            self._model_dialog.add_status("EMA Lightning motoru hazırlanıyor.")
-        else:
-            self._model_dialog.add_status("Uygulama açıldı. Ses motoru hazırlanıyor.")
+        spec = engine_registry.spec(self._engine_name)
+        self._model_dialog.add_status(f"Uygulama açıldı. {spec.label} hazırlanıyor.")
         self._model_dialog.show()
 
         self._loader = EngineLoader(engine_name=self._engine_name)
@@ -1381,15 +1797,21 @@ class MainWindow(QMainWindow):
         language = self.language_combo.currentText().split(" (")[0]
         speed = self.speed_spin.value()
         pause = self.pause_spin.value()
-        if self._engine_name == ENGINE_EMA:
+        spec = engine_registry.spec(self._engine_name)
+        if spec.single_language:
             self.settings_summary_label.setText(
-                f"EMA Lightning • {language} • {speed:.2f}x • Duraklama {pause:.2f} sn • Tek ses"
+                f"{spec.label} • {language} • {speed:.2f}x • "
+                f"Duraklama {pause:.2f} sn • Tek ses"
             )
             return
         preset = self.preset_combo.currentText()
-        voice = "Ses örneği var" if self.voice_prompt_path else "Varsayılan ses"
+        if spec.cloning:
+            voice = "Ses örneği var" if self.voice_prompt_path else "Varsayılan ses"
+        else:
+            voice = "Ses tasarımı"
         self.settings_summary_label.setText(
-            f"Chatterbox • {language} • {preset} • {speed:.2f}x • Duraklama {pause:.2f} sn • {voice}"
+            f"{spec.label} • {language} • {preset} • {speed:.2f}x • "
+            f"Duraklama {pause:.2f} sn • {voice}"
         )
 
     def _load_saved_settings(self):
@@ -1449,10 +1871,23 @@ class MainWindow(QMainWindow):
             if idx >= 0:
                 self.compress_bitrate_combo.setCurrentIndex(idx)
 
-        # Ses motoru (chatterbox | ema) ve Chatterbox dil tercihi
-        engine = str(settings.get("engine", DEFAULT_ENGINE))
-        if engine not in VALID_ENGINES:
-            engine = DEFAULT_ENGINE
+        # Ses motoru (ema | chatterbox | voxcpm2) ve çok dilli motorun dil tercihi
+        engine = str(settings.get("engine", engine_registry.DEFAULT_ENGINE))
+        if engine not in engine_registry.keys():
+            engine = engine_registry.DEFAULT_ENGINE
+        else:
+            # Kayıtlı motor artık bu donanımda çalışamıyorsa (ör. VoxCPM2
+            # CUDA'sız makinede) varsayılana düş: açılışta hata ile karşılaşma.
+            from app import hardware
+
+            profile = hardware.detect()
+            ok, _reason = engine_registry.availability(
+                engine_registry.spec(engine),
+                cuda=profile.cuda,
+                disk_free_gb=profile.disk_free_gb,
+            )
+            if not ok:
+                engine = engine_registry.DEFAULT_ENGINE
         self._chatterbox_language_id = str(
             settings.get("chatterbox_language_id") or settings.get("language_id", "tr")
         )
@@ -1477,6 +1912,58 @@ class MainWindow(QMainWindow):
         settings[key] = value
         save_settings(settings)
         self.settings = settings
+
+    def _maybe_show_first_run(self) -> None:
+        """İlk açılış sihirbazını göster (yalnız bir kez, motor yoksa).
+
+        ``exec()`` DEĞİL ``show()``: modal çağrı ana olay döngüsünü iç içe
+        çalıştırır ve sihirbaz açıkken programın geri kalanı kilitlenir. Model
+        yükleme ve güncelleme denetimi arka planda sürmeli. Sihirbaz modal
+        değildir; kullanıcı ana pencereyi kullanmaya devam edebilir.
+        """
+        from app import first_run
+
+        try:
+            if not first_run.should_show():
+                return
+            dialog = first_run.FirstRunDialog(self)
+            dialog.setModal(False)
+            dialog.selected.connect(self._on_first_run_selected)
+            dialog.finished.connect(dialog.deleteLater)
+            dialog.show()
+            dialog.raise_()
+            dialog.activateWindow()
+            self._first_run_dialog = dialog
+        except Exception:
+            # Sihirbaz açılamazsa program yine çalışsın; Modeller sekmesi var.
+            log.exception("İlk açılış sihirbazı açılamadı")
+
+    def _on_first_run_selected(self, engine: str) -> None:
+        """Sihirbazda motor seçildi: kurulu değilse indir, sonra etkinleştir."""
+        from app import engines as engine_registry
+        from app import model_manager
+
+        if not engine:
+            self.status_label.setText(
+                "Motor seçilmedi. Modeller sekmesinden indirebilirsiniz."
+            )
+            return
+        spec = engine_registry.spec(engine)
+        state = model_manager.state_for(spec.key)
+        index = self.engine_combo.findData(spec.key)
+        if index >= 0:
+            self.engine_combo.blockSignals(True)
+            self.engine_combo.setCurrentIndex(index)
+            self.engine_combo.blockSignals(False)
+        if state.installed:
+            self._engine_name = spec.key
+            self._apply_engine_ui_state(spec.key)
+            self._save_current_settings()
+            self._init_engine_async()
+            return
+        # İndirme Modeller sekmesinde ilerler; kullanıcı oraya yönlendirilir.
+        self._switch_page(3, animate=False)
+        self._on_model_install(spec.key)
 
     def _build_tray(self):
         """Sistem tepsisi simgesi: göster / ayarlar / çık.
@@ -1568,6 +2055,21 @@ class MainWindow(QMainWindow):
             "compress_bitrate": self.compress_bitrate_combo.currentData() if hasattr(self, "compress_bitrate_combo") else "48k",
             "update_last_check": self._update_last_check,
         }
+
+    def _apply_voice_design(self, text: str) -> str:
+        """Ses tasarımı tarifini metnin başına parantez içinde ekle.
+
+        Yalnız ses tasarımı destekleyen motorlarda ve tarif doluysa uygulanır.
+        Kullanıcı metne zaten parantezle başladıysa dokunulmaz.
+        """
+        if not hasattr(self, "voice_design_edit"):
+            return text
+        if not engine_registry.spec(self._engine_name).voice_design:
+            return text
+        description = self.voice_design_edit.text().strip()
+        if not description or text.lstrip().startswith("("):
+            return text
+        return f"({description}){text}"
 
     def _current_synthesis_settings(self) -> dict:
         settings = self._current_ui_settings().copy()
@@ -1713,50 +2215,53 @@ class MainWindow(QMainWindow):
             )
         else:
             self.device_label.setText("Cihaz: hazırlanıyor")
-        gpu_name = "Yok / CPU"
-        try:
-            import torch
+        from app import hardware
 
-            if torch.cuda.is_available():
-                gpu_name = torch.cuda.get_device_name(0)
-        except Exception:
-            pass
-        self.gpu_label.setText(f"GPU: {gpu_name}")
+        profile = hardware.detect()
+        self.gpu_label.setText(f"GPU: {profile.gpu_label}")
 
     def on_show_system_info(self):
-        try:
-            import torch
+        from app import engines as engine_registry
+        from app import hardware
 
-            torch_version = torch.__version__
-            cuda_available = torch.cuda.is_available()
-            cuda_version = torch.version.cuda
-            gpu_name = torch.cuda.get_device_name(0) if cuda_available else "CPU"
-        except Exception as e:
-            torch_version = f"Hata: {e}"
-            cuda_available = False
-            cuda_version = "?"
-            gpu_name = "?"
-
+        profile = hardware.detect(force=True)
         ffmpeg = "Var" if self._has_ffmpeg() else "Yok"
         engine = (
-            f"{self.engine.display_name} • {type(self.engine.engine).__name__} ({self.engine.device_name})"
+            f"{self.engine.display_name} • {type(self.engine.engine).__name__} "
+            f"({self.engine.device_name})"
             if self.engine
             else "Hazırlanıyor"
         )
-        QMessageBox.information(
-            self,
-            "Sistem Bilgisi",
-            "\n".join(
-                [
-                    f"Motor: {engine}",
-                    f"PyTorch: {torch_version}",
-                    f"CUDA aktif: {cuda_available}",
-                    f"CUDA sürümü: {cuda_version}",
-                    f"GPU: {gpu_name}",
-                    f"ffmpeg: {ffmpeg}",
-                ]
-            ),
-        )
+        lines = [
+            f"Motor: {engine}",
+            f"GPU: {profile.gpu_label}",
+            f"CUDA: {'hazır' if profile.cuda else 'yok'}",
+        ]
+        if profile.vram_gb:
+            lines.append(f"VRAM: {profile.vram_gb:g} GB")
+        if profile.ram_gb:
+            lines.append(f"RAM: {profile.ram_gb:g} GB")
+        if profile.cpu_threads:
+            lines.append(f"İşlemci: {profile.cpu_threads} iş parçacığı")
+        if profile.disk_free_gb:
+            lines.append(f"Boş disk: {profile.disk_free_gb:g} GB")
+        lines.append(f"ffmpeg: {ffmpeg}")
+        lines.append("")
+        lines.append("Motorlar:")
+        for spec in engine_registry.ordered():
+            ok, reason = engine_registry.availability(
+                spec, cuda=profile.cuda, disk_free_gb=profile.disk_free_gb
+            )
+            if spec.bundled:
+                state = "kurulu (paketle gelir)"
+            elif ok:
+                state = f"indirilebilir — {spec.size_label()}"
+            else:
+                state = "kullanılamaz"
+            lines.append(f"  • {spec.label}: {state}")
+            if not ok and reason:
+                lines.append(f"    {reason}")
+        QMessageBox.information(self, "Sistem Bilgisi", "\n".join(lines))
 
     def _has_ffmpeg(self) -> bool:
         from shutil import which
@@ -2542,6 +3047,8 @@ class MainWindow(QMainWindow):
         self.last_text = text
         self._save_current_settings()
 
+        # Ses tasarımı (yalnız VoxCPM2): tarif metnin başına eklenir.
+        text = self._apply_voice_design(text)
         chunks = chunker.split_into_chunks(text)
         if not chunks:
             QMessageBox.warning(self, "Uyarı", "Metin boş.")
@@ -2643,7 +3150,7 @@ class MainWindow(QMainWindow):
         self.last_sr = sr
         self.waveform_view.set_data(wav)
         self._set_outputs_enabled(True)
-        duration_text = f"{wav.shape[-1] / sr:.1f} sn"
+        duration_text = f"{len(wav) / sr:.1f} sn"
         self.last_output_path = None
         save_error = None
         try:
@@ -2718,7 +3225,7 @@ class MainWindow(QMainWindow):
         os.makedirs(self.output_dir, exist_ok=True)
         file_path = unique_path(self.output_dir, safe_filename_from_text(text, extension))
         if fmt == OUTPUT_FORMAT_WAV:
-            sf.write(file_path, wav.squeeze().cpu().numpy(), sr)
+            sf.write(file_path, _as_mono(wav), sr)
             return str(file_path)
         default_bitrate = DEFAULT_MP3_BITRATE if fmt == OUTPUT_FORMAT_MP3 else DEFAULT_OPUS_BITRATE
         bitrate = self._quality_by_format.get(fmt) or default_bitrate
@@ -2728,7 +3235,7 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             log.warning("Sıkıştırılmış çıktı yazılamadı (%s): %s", fmt, exc)
             fallback = file_path.with_suffix(".wav")
-            sf.write(fallback, wav.squeeze().cpu().numpy(), sr)
+            sf.write(fallback, _as_mono(wav), sr)
             self.status_label.setText(
                 f"{format_label(fmt)} yazılamadı; WAV olarak kaydedildi: {fallback.name}")
             return str(fallback)
@@ -2737,7 +3244,7 @@ class MainWindow(QMainWindow):
         """pydub + ffmpeg ile mp3/opus yaz (otomatik ve elle kaydın ortak yolu)."""
         from pydub import AudioSegment
 
-        data_np = np.clip(wav.squeeze().cpu().numpy(), -1.0, 1.0)
+        data_np = np.clip(_as_mono(wav), -1.0, 1.0)
         data = (data_np * 32767).astype(np.int16).tobytes()
         segment = AudioSegment(data=data, sample_width=2, frame_rate=sr, channels=1)
         segment.export(str(file_path), format="mp3" if fmt == OUTPUT_FORMAT_MP3 else "opus",
@@ -2754,9 +3261,9 @@ class MainWindow(QMainWindow):
         file_path, _ = QFileDialog.getSaveFileName(self, "WAV olarak kaydet", default_path, "WAV (*.wav)")
         if not file_path:
             return
-        sf.write(file_path, self.last_wav.squeeze().cpu().numpy(), self.last_sr)
+        sf.write(file_path, _as_mono(self.last_wav), self.last_sr)
         self.last_output_path = file_path
-        self._add_history_entry(file_path, self.last_text or self.text_edit.toPlainText(), f"{self.last_wav.shape[-1] / self.last_sr:.1f} sn")
+        self._add_history_entry(file_path, self.last_text or self.text_edit.toPlainText(), f"{len(self.last_wav) / self.last_sr:.1f} sn")
         self.status_label.setText(f"Kaydedildi: {file_path}")
 
     def on_save_mp3(self):
@@ -2769,7 +3276,7 @@ class MainWindow(QMainWindow):
         try:
             bitrate = self._quality_by_format.get(OUTPUT_FORMAT_MP3) or DEFAULT_MP3_BITRATE
             self._export_compressed(self.last_wav, self.last_sr, Path(file_path), OUTPUT_FORMAT_MP3, bitrate)
-            self._add_history_entry(file_path, self.last_text or self.text_edit.toPlainText(), f"{self.last_wav.shape[-1] / self.last_sr:.1f} sn")
+            self._add_history_entry(file_path, self.last_text or self.text_edit.toPlainText(), f"{len(self.last_wav) / self.last_sr:.1f} sn")
             self.status_label.setText(f"Kaydedildi: {file_path}")
         except Exception as e:
             QMessageBox.warning(

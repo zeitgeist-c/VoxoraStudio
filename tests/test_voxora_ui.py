@@ -145,6 +145,7 @@ class VoxoraUiTests(unittest.TestCase):
             "Ses Üretim Stüdyosu",
             "Üretim Arşivi",
             "Araçlar",
+            "Ses Modelleri",
             "Stüdyo Ayarları",
         )
         with (
@@ -157,7 +158,7 @@ class VoxoraUiTests(unittest.TestCase):
         ):
             window = MainWindow()
             self.assertEqual(window.windowTitle(), "Voxora Studio")
-            self.assertEqual(window.pages.count(), 4)
+            self.assertEqual(window.pages.count(), 5)
             self.assertEqual(tuple(title for title, _ in window._page_meta), expected_titles)
             self.assertFalse(window.windowIcon().isNull())
             self.assertEqual(window._resolved_theme, "dark")
@@ -199,7 +200,7 @@ class VoxoraUiTests(unittest.TestCase):
             window._switch_page(0, animate=False)
             self.assertEqual(
                 [button.text() for button in window._nav_buttons],
-                ["Üretim", "Arşiv", "Araçlar", "Ayarlar"],
+                ["Üretim", "Arşiv", "Araçlar", "Modeller", "Ayarlar"],
             )
             self.assertTrue(window._nav_buttons[0].isChecked())
             self.assertFalse(any(button.isChecked() for button in window._nav_buttons[1:]))

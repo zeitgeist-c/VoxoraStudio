@@ -1,6 +1,31 @@
 Voxora Studio versiyon günlüğü
 =======================
 
+v0.7.0 (2026-10-23) — Motor paketi mimarisi: EMA gömülü, diğerleri indirilebilir
+- Yapı değişti: kurulum paketi artık yalnız EMA Lightning motorunu içerir (44 MB, ONNX, torch gerekmez). Chatterbox ve VoxCPM2 isteğe bağlı; program içindeki Modeller sekmesinden indirilir. Hiçbir motor zorla indirilmez.
+- EMA ONNX'e taşındı: PyTorch yerine onnxruntime. Ölçüm (16 iş parçacığı, CPU): PyTorch yükleme 0,25 sn / sentez 0,39 sn (RTF 0,14) → ONNX yükleme 1,18 sn / sentez 0,09 sn (RTF 0,031). 3,4 kat hızlı ve paketten 365 MB'lık torch çıktı. DirectML denendi ve REDDEDİLDİ: AMD GPU'da RTF 0,39 — CPU'dan 15 kat yavaş.
+- Paket küçüldü: 1255 MB / 7163 dosya → 546 MB / 1558 dosya. Kurulum dosyası 364 MB → 180 MB. Delta 89 MB → 48 MB.
+- Donanım kapısı (app/hardware.py): nvidia-smi ile CUDA tespiti, GPU adı/VRAM, RAM, iş parçacığı, boş disk. Şüphede "yok" tarafına düşer — yanlış pozitif kullanıcıya 5 GB indirtip eli boş bırakır.
+- Motor kaydı (app/engines.py): dil listesi, klonlama, ses tasarımı, örnekleme hızı, hız yöntemi, boyut, lisans, donanım koşulu. Arayüzdeki elle yazılmış `if engine == "ema"` dalları kalktı; üçüncü motor eklenince ekran yalan söylemiyor.
+- VoxCPM2 CUDA'sız makinede SEÇİLEMEZ ve İNDİRİLEMEZ: motor kutusunda gri, gerekçe tooltip'te; Modeller kartında "kullanılamaz" ve neden. CUDA varsa açılır.
+- Motor paketi (.vxp, app/engine_pack.py): manifest.json + payload/. Build → verify (ZIP + her dosyanın SHA-256) → install (geçici klasöre aç, yeniden doğrula, atomik yer değiştir, eski sil). Kurulum başarısız olursa eski sürüm bozulmadan kalır. Zip-slip koruması (../, C:/, /etc/).
+- İndirici (app/downloader.py): .part ile kaldığı yerden devam (Range), her 256 KB'da iptal, disk alanı ön denetimi, 3 deneme, bozuk içerikte yarım dosya silinir. Hugging Face ağırlıkları LFS sha256 ile doğrulanır.
+- Modeller sekmesi: motor başına kart (durum, boyut, indir/kaldır, ilerleme, iptal), model klasörü, disk kullanımı. Yarım kurulum ayrı gösterilir — "kurulu" denip sonra yüklenemeyen motor olmaz.
+- İlk açılış sihirbazı (app/first_run.py): hiç indirilebilir motor kurulu değilken bir kez sorar; EMA varsayılan (indirme yok), "Sonra" ile atlanabilir. Modal DEĞİL: exec() ana olay döngüsünü kilitliyordu, show() kullanılıyor.
+- Ses tasarımı alanı: yalnız VoxCPM2 seçiliyken görünür; tarif metnin başına parantez içinde eklenir. Kullanıcı zaten parantezle başladıysa dokunulmaz.
+- Ortak ses yüzeyi numpy oldu: tts_engine, audio_player, workers, main_window torch görmez. Torch yalnız indirilebilir motorların kendi içinde.
+- Gerçek hatalar bulundu ve düzeltildi:
+  1. package_root() sys.executable.parent döndürüyordu; --add-data dosyaları _internal/ altına düşer. Paket EMA ağırlıklarını bulamayıp Hugging Face'ten indirmeye çalışıyordu. sys._MEIPASS kullanılıyor. Regresyon testi: tests/test_paths.py.
+  2. Modeller sayfası ilk açılışta modal exec() ile kilitleniyordu (test 90 sn timeout). show() + setModal(False).
+  3. installed_version() site-packages'i arıyordu ama payload köke açılıyordu; payload artık site-packages altına.
+  4. Hash uyuşmazlığında .part dosyası kalıyordu; silinip yeniden deneme temiz indirme yapıyor.
+  5. expected_size=0 iken indirme hiç başlamıyordu.
+  6. build.bat: hedef klasör önceden varsa shutil.move iç içe açıyordu (dist/X/VoxoraStudio/...). Hedef önce siliniyor, silinemezse assert ile duruyor.
+- Ölü kod temizlendi: OnnxEngine (SYNTHESIS_READY=False, NotImplementedError), scripts/export_onnx.py, 9 adet VoxoraStudio-*.spec, make_update_package/make_versioned_launcher .pyc artıkları, tmp-wordarc-*.png, test_onnx_engine.py.
+- requirements.txt yalnız çalışma zamanı (onnxruntime, PyQt6, numpy, sounddevice, soundfile, pydub, send2trash, requests, huggingface_hub, normalizer_tr); requirements-dev.txt isteğe bağlı motorlar (torch, chatterbox-tts, voxcpm, ema-lightning) — pakete girmez.
+- README/README.tr gerçek boyutlarla güncellendi: Chatterbox 3,5 GB (6 dosya = 2,99 GB ağırlık + ~400 MB kütüphane), VoxCPM2 5,2 GB. Eski "3,2 GB / 34 MB" yanlıştı (HF cache'te iki snapshot kopyası vardı).
+- Doğrulama: 302 test geçti; smoke test TÜM KONTROLLER BAŞARILI; paketin kendi EXE'si açıldı ve SIFIR ağ isteğiyle EMA'yı paketten yükledi (log: "EMA Lightning hazır (ONNX, CPU)", "Aktif motor: EMA Lightning (cpu)"), kullanıcı klasörüne model indirmedi; paket ağırlıklarından gerçek sentez RTF 0,048 (3,32 sn ses, 48 kHz WAV).
+
 v0.6.1 (2026-10-22) — Güncelleme kurulumu çökmesi düzeltmesi
 - "İndir ve Kur" artık indirme bitince sessizce kapanmıyor. v0.6.0'da kaldırılan swap betiği çağrısı arayüzde kalmıştı; Qt, sinyal içindeki yakalanmayan hatada süreci düşürdüğü için kurulum hiç başlamadan program kapanıyordu.
 - Akış düzeltildi: indirilen kurulum dosyası sessiz kipte başlatılır, kurulum bitince program kendini yeniden açar. Kurulum başlatılamazsa program AÇIK kalır ve indirilen dosyanın yolu gösterilir (elle çalıştırılsın diye).

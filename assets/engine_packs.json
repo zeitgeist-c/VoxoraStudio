@@ -1,0 +1,44 @@
+{
+  "_note": "İndirilebilir motorların sürüm pinleri. Motor paketleri (.vxp) VoxoraStudio-Releases deposunda bu etiket altında yayınlanır; ağırlıklar Hugging Face'ten gelir. Etiketi yalnız paket içeriği değiştiğinde yükselt ve yeni .vxp yükle.",
+  "release_repo": "zeitgeist-c/VoxoraStudio-Releases",
+  "tag": "engines-v1",
+  "engines": {
+    "chatterbox": {
+      "runtime": {
+        "file": "VoxoraStudio-Chatterbox-1.0.0.vxp",
+        "size": 0,
+        "sha256": ""
+      },
+      "weights": {
+        "repo_id": "ResembleAI/chatterbox",
+        "files": [
+          "ve.pt",
+          "t3_mtl23ls_v2.safetensors",
+          "s3gen.pt",
+          "grapheme_mtl_merged_expanded_v1.json",
+          "conds.pt",
+          "Cangjie5_TC.json"
+        ]
+      }
+    },
+    "voxcpm2": {
+      "runtime": {
+        "file": "VoxoraStudio-VoxCPM2-2.0.3.vxp",
+        "size": 0,
+        "sha256": ""
+      },
+      "weights": {
+        "repo_id": "openbmb/VoxCPM2",
+        "files": [
+          "config.json",
+          "model.safetensors",
+          "audiovae.pth",
+          "tokenizer.json",
+          "tokenizer_config.json",
+          "special_tokens_map.json",
+          "tokenization_voxcpm2.py"
+        ]
+      }
+    }
+  }
+}
