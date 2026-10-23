@@ -216,4 +216,68 @@ def apply_staged(stage_dir: Path, manifest: DeltaManifest,
             target.unlink(missing_ok=True)
         except OSError:
             log.warning("Delta: silinemedi (kilit?): %s", target)
+    # Silinen dosyaların boş bıraktığı klasörleri temizle (en derinden yukarı).
+    # Önemli: 0.7.0 delta'sı 5610 dosyayı siler (torch gider); dosyaları değil
+    # de klasörleri bırakmak 354 boş klasörün kurulumda kalması demektir.
+    # Yalnızca BOŞ klasörler silinir; silinen dosyaların üst klasörleri dışına
+    # asla çıkılmaz (kullanıcı verisi, _internal kökü dokunulmaz).
+    _prune_empty_parents(root, [str(name) for name in manifest.removed])
     return written
+
+
+def _prune_empty_parents(root: Path, removed_names: list[str]) -> None:
+    """Silinen dosyaların boş kalan üst klasörlerini kökten yukarı sil.
+
+    ``os.scandir`` kullanılır: yol yoksa (aynı turda silinmiş olabilir) hata
+    değil "boş" sayılır; ``Path.iterdir`` ise ``FileNotFoundError`` fırlatır ve
+    ``OSError`` yakalayan blok temizliği sessizce yarıda keser.
+    """
+    import os
+
+    def _is_empty(folder: Path) -> bool:
+        try:
+            with os.scandir(folder) as entries:
+                return next(entries, None) is None
+        except FileNotFoundError:
+            return True   # zaten silinmiş -> boş say
+        except OSError:
+            return False  # erişilemiyor -> dokunma
+
+    def _parents_of(name: str):
+        parts = PurePosixPath(name).parts
+        for depth in range(len(parts) - 1, 0, -1):
+            yield root.joinpath(*parts[:depth])
+
+    # Silinen dosyaların üst klasörlerini topla (yinelenmeden).
+    candidates: set[Path] = set()
+    for name in removed_names:
+        for folder in _parents_of(name):
+            if folder in candidates:
+                break
+            candidates.add(folder)
+    # Post-order (önce en derin) sil: bir klasör yalnızca boş klasörler
+    # içerdiğinde bile silinebilmeli — "dolu" görünmesinin sebebi içteki
+    # boş klasörler olabilir. Yukarıdan tarama bu yüzden 45 klasör bırakıyordu.
+    def _prune(folder: Path) -> bool:
+        """Klasörü alt klasörleriyle sil; tamamen boşsa True döner."""
+        try:
+            children = list(folder.iterdir())
+        except OSError:
+            return False
+        removed_all = True
+        for child in children:
+            if child.is_dir():
+                if not _prune(child):
+                    removed_all = False
+            else:
+                removed_all = False  # dosya var -> dokunma
+        if not removed_all:
+            return False
+        try:
+            folder.rmdir()
+            return True
+        except OSError:
+            return False
+
+    for folder in sorted(candidates, key=lambda p: len(p.parts), reverse=True):
+        _prune(folder)
