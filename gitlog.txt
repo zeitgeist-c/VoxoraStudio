@@ -1,6 +1,12 @@
 Voxora Studio versiyon günlüğü
 =======================
 
+v0.7.1 (2026-10-23) — Delta güncelleme boş klasör düzeltmesi
+- Hata: delta `removed` listesi 5610 dosyayı silince boş kalan 354 klasör (torch artığı, 544 KB) kurulumda kalıyordu. Hem `apply_staged` hem üretim PowerShell işçisi etkileniyordu.
+- Çözüm: post-order (önce en derin) özyinelemeli klasör temizliği; dosya içeren klasöre dokunulmaz. Regresyon: tests/test_delta_cleanup.py.
+- E2E (izole 0.6.1 kopyası): marker kipi + üretim PS işçisi + yükseltilmiş `_runas` yolu — üçü de 1558 dosya birebir eşleşti, torch 0 dosya/0 klasör, klasör farkı 0.
+- scripts/delta_gercek_testi.py 0.7.0'a güncellendi, taban sürümü parametre oldu.
+
 v0.7.0 (2026-10-23) — Motor paketi mimarisi: EMA gömülü, diğerleri indirilebilir
 - Canlı delta E2E tamamlandı: 0.6.1 → 0.7.0 (48 MB, 5610 dosya silinir). Gerçek hata: removed listesi boş klasörleri bırakıyordu (354 klasör, 544 KB torch artığı). Post-order özyinelemeli klasör temizliği hem apply_staged hem PowerShell işçisine eklendi; tests/test_delta_cleanup.py regresyonu. E2E: marker kipi ve üretim işçisi 1558 dosya birebir, torch tam silindi, klasör farkı 0.
 - Yapı değişti: kurulum paketi artık yalnız EMA Lightning motorunu içerir (44 MB, ONNX, torch gerekmez). Chatterbox ve VoxCPM2 isteğe bağlı; program içindeki Modeller sekmesinden indirilir. Hiçbir motor zorla indirilmez.
