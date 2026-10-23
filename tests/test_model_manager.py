@@ -13,7 +13,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from app import downloader, engine_pack, engines, model_manager
+from app import downloader, engine_pack, engines, hardware, model_manager
 
 
 class ModelManagerTests(unittest.TestCase):
@@ -95,7 +95,7 @@ class ModelManagerTests(unittest.TestCase):
         """Yalnız kütüphane kuruluysa durum "yarım" demeli, "kurulu" değil."""
         (self.root / "engines" / "chatterbox" / "site-packages").mkdir(parents=True)
         (self.root / "engines" / "chatterbox" / "installed.json").write_text(
-            json.dumps({"engine": "chatterbox", "engine_version": "1.0"}))
+            json.dumps({"engine": "chatterbox", "engine_version": "1.0.1"}))
         state = model_manager.state_for("chatterbox")
         self.assertTrue(state.runtime_ok)
         self.assertFalse(state.weights_ok)
@@ -114,11 +114,27 @@ class ModelManagerTests(unittest.TestCase):
         self.assertFalse(state.installed)
         self.assertIn("motor dosyaları", state.status_text())
 
+    def test_pinned_runtime_update_keeps_weights_and_requires_runtime(self):
+        target = self.root / "engines" / "chatterbox"
+        (target / "site-packages").mkdir(parents=True)
+        (target / "installed.json").write_text(json.dumps({"engine_version": "0.0.1"}))
+        weights = model_manager.weights_dir("chatterbox")
+        weights.mkdir(parents=True)
+        for name in model_manager.pins()["engines"]["chatterbox"]["weights"]["files"]:
+            (weights / name).write_bytes(b"w")
+        data = model_manager.pins()
+        data["engines"]["chatterbox"]["runtime"]["version"] = "1.0.1"
+        with patch.object(model_manager, "pins", return_value=data):
+            state = model_manager.state_for("chatterbox")
+        self.assertFalse(state.runtime_ok)
+        self.assertTrue(state.weights_ok)
+        self.assertTrue(state.partial)
+
     def test_fully_installed(self):
         engine_pack_dir = self.root / "engines" / "chatterbox" / "site-packages"
         engine_pack_dir.mkdir(parents=True)
         (self.root / "engines" / "chatterbox" / "installed.json").write_text(
-            json.dumps({"engine": "chatterbox", "engine_version": "1.0"}))
+            json.dumps({"engine": "chatterbox", "engine_version": "1.0.1"}))
         weights = model_manager.weights_dir("chatterbox")
         weights.mkdir(parents=True)
         for name in model_manager.pins()["engines"]["chatterbox"]["weights"]["files"]:
@@ -140,6 +156,15 @@ class ModelManagerTests(unittest.TestCase):
         )
 
     # --- kurulum akışı ----------------------------------------------------
+    def test_cuda_gate_rejects_direct_install_before_network(self):
+        with patch("app.hardware.detect", return_value=hardware.HardwareProfile()), \
+             patch.object(model_manager, "urls_for") as urls, \
+             patch.object(downloader, "download_file") as download:
+            with self.assertRaisesRegex(downloader.DownloadError, "CUDA"):
+                model_manager.install_engine("voxcpm2")
+        urls.assert_not_called()
+        download.assert_not_called()
+
     def test_install_calls_runtime_then_weights(self):
         calls: list[str] = []
 
@@ -153,9 +178,9 @@ class ModelManagerTests(unittest.TestCase):
             calls.append("install")
             target = self.root / "engines" / "chatterbox"
             (target / "site-packages").mkdir(parents=True, exist_ok=True)
-            (target / "installed.json").write_text(json.dumps({"engine_version": "1.0"}))
+            (target / "installed.json").write_text(json.dumps({"engine_version": "1.0.1"}))
             return engine_pack.Manifest(
-                engine="chatterbox", engine_version="1.0", python="3.11",
+                engine="chatterbox", engine_version="1.0.1", python="3.11",
                 platform="win_amd64", files=())
 
         def fake_hf(repo, dest, **_kwargs):
@@ -178,7 +203,7 @@ class ModelManagerTests(unittest.TestCase):
         """Kütüphane kuruluysa yalnız ağırlık iner (3 GB'lık paket yeniden inmez)."""
         target = self.root / "engines" / "chatterbox"
         (target / "site-packages").mkdir(parents=True)
-        (target / "installed.json").write_text(json.dumps({"engine_version": "1.0"}))
+        (target / "installed.json").write_text(json.dumps({"engine_version": "1.0.1"}))
         calls: list[str] = []
 
         def fake_hf(repo, dest, **_kwargs):
@@ -213,7 +238,7 @@ class ModelManagerTests(unittest.TestCase):
     def test_remove_clears_runtime_and_weights(self):
         target = self.root / "engines" / "chatterbox"
         (target / "site-packages").mkdir(parents=True)
-        (target / "installed.json").write_text(json.dumps({"engine_version": "1.0"}))
+        (target / "installed.json").write_text(json.dumps({"engine_version": "1.0.1"}))
         weights = model_manager.weights_dir("chatterbox")
         weights.mkdir(parents=True)
         (weights / "x.bin").write_bytes(b"x")
@@ -224,7 +249,7 @@ class ModelManagerTests(unittest.TestCase):
     def test_remove_keeps_weights_when_asked(self):
         target = self.root / "engines" / "chatterbox"
         (target / "site-packages").mkdir(parents=True)
-        (target / "installed.json").write_text(json.dumps({"engine_version": "1.0"}))
+        (target / "installed.json").write_text(json.dumps({"engine_version": "1.0.1"}))
         weights = model_manager.weights_dir("chatterbox")
         weights.mkdir(parents=True)
         (weights / "x.bin").write_bytes(b"x")

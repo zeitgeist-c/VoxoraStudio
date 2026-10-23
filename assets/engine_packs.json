@@ -5,9 +5,10 @@
   "engines": {
     "chatterbox": {
       "runtime": {
-        "file": "VoxoraStudio-Chatterbox-1.0.0.vxp",
-        "size": 298533800,
-        "sha256": "d0953902fb590136ef168befc64b76e5661debab6de5d5d96eb9c51a30947544"
+        "version": "1.0.1",
+        "file": "VoxoraStudio-Chatterbox-1.0.1.vxp",
+        "size": 323872356,
+        "sha256": "da6ff6a80b935eb4a272267e41833d8f9872c12fcf8b2059b970ad9ca4f111a0"
       },
       "weights": {
         "repo_id": "ResembleAI/chatterbox",

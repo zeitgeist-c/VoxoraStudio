@@ -19,6 +19,8 @@ if defined VOXORA_BUILD_PYTHON (
 for /f "tokens=2 delims== " %%V in ('findstr /b "__version__" app\version.py') do set "APP_VERSION=%%~V"
 set "PACKAGE_STEM=VoxoraStudio-%APP_VERSION%"
 set "APP_EXE=VoxoraStudio.exe"
+REM Ajan/arac PATH'indeki yabanci DLL'ler pakete sizmasin (Qt acilisini bozabilir).
+set "PATH=%SystemRoot%\System32;%SystemRoot%;%SystemRoot%\System32\Wbem;%SystemRoot%\System32\WindowsPowerShell\v1.0;%CD%\.venv\Scripts"
 set "ISCC=%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe"
 if not exist "%ISCC%" set "ISCC=%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
 if not exist "%ISCC%" set "ISCC=%ProgramFiles%\Inno Setup 6\ISCC.exe"
@@ -57,7 +59,7 @@ echo.
     --name "VoxoraStudio" ^
     --icon "app\assets\voxora.ico" ^
     --distpath "dist" ^
-    --workpath "build_temp" ^
+    --workpath "build_temp\%PACKAGE_STEM%" ^
     --hidden-import "PyQt6.sip" ^
     --hidden-import "sounddevice" ^
     --hidden-import "soundfile" ^
@@ -94,6 +96,9 @@ if errorlevel 1 (
     pause
     exit /b 1
 )
+
+"%PYEXE%" scripts\verify_build_sources.py "build_temp\%PACKAGE_STEM%\VoxoraStudio\COLLECT-00.toc"
+if errorlevel 1 exit /b 1
 
 if not exist "dist\VoxoraStudio\%APP_EXE%" (
     echo [HATA] Beklenen EXE yok: dist\VoxoraStudio\%APP_EXE%

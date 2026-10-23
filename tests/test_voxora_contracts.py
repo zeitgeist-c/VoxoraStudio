@@ -31,8 +31,8 @@ class BrandingContractTests(unittest.TestCase):
             "Chatterbox Multilingual • Yerel üretim",
         )
         self.assertEqual(branding.LOG_FILENAME, "VoxoraStudio.log")
-        self.assertEqual(branding.__version__, "0.7.1")
-        self.assertEqual(branding.PACKAGE_STEM, "VoxoraStudio-0.7.1")
+        self.assertEqual(branding.__version__, "0.7.2")
+        self.assertEqual(branding.PACKAGE_STEM, "VoxoraStudio-0.7.2")
         # Kurulum sabit klasore yazar; EXE adı sürüm taşımaz ki kısayollar kırılmasın.
         self.assertEqual(branding.EXECUTABLE_NAME, "VoxoraStudio.exe")
 
@@ -42,6 +42,9 @@ class BrandingContractTests(unittest.TestCase):
         self.assertIn('set "PACKAGE_STEM=VoxoraStudio-%APP_VERSION%"', build_text)
         self.assertIn("--onedir", build_text)
         self.assertIn("--noconsole", build_text)
+        self.assertIn('--workpath "build_temp\\%PACKAGE_STEM%"', build_text)
+        self.assertIn('set "PATH=%SystemRoot%\\System32;', build_text)
+        self.assertIn("scripts\\verify_build_sources.py", build_text)
         self.assertNotIn('--collect-all "torch"', build_text)
         self.assertNotIn('--exclude-module "setuptools"', build_text)
 

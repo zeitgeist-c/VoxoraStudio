@@ -1185,6 +1185,15 @@ class MainWindow(QMainWindow):
         spec = engine_registry.spec(engine)
         if widgets is None:
             return
+        from app import hardware
+
+        profile = hardware.detect()
+        usable, reason = engine_registry.availability(
+            spec, cuda=profile.cuda, disk_free_gb=profile.disk_free_gb
+        )
+        if not usable:
+            QMessageBox.information(self, "Bu motor kullanılamaz", reason)
+            return
         if self._model_worker is not None and self._model_worker.isRunning():
             QMessageBox.information(
                 self, "İndirme sürüyor",
@@ -1216,6 +1225,7 @@ class MainWindow(QMainWindow):
         worker.ok.connect(self._on_model_installed)
         worker.failed.connect(self._on_model_failed)
         worker.cancelled.connect(self._on_model_cancelled)
+        worker.finished.connect(self._on_model_worker_finished)
         self._model_worker = worker
         worker.start()
 
@@ -1243,7 +1253,6 @@ class MainWindow(QMainWindow):
         self.status_label.setText(text)
 
     def _on_model_installed(self, engine: str, detail: str) -> None:
-        self._model_worker = None
         self.btn_model_cancel.setVisible(False)
         widgets = self._model_cards.get(engine, {})
         if widgets:
@@ -1255,7 +1264,6 @@ class MainWindow(QMainWindow):
         self.status_label.setText(f"{engine_registry.spec(engine).label} kuruldu.")
 
     def _on_model_failed(self, engine: str, message: str) -> None:
-        self._model_worker = None
         self.btn_model_cancel.setVisible(False)
         widgets = self._model_cards.get(engine, {})
         if widgets:
@@ -1265,13 +1273,22 @@ class MainWindow(QMainWindow):
         self._show_error("İndirme hatası", message)
 
     def _on_model_cancelled(self, engine: str) -> None:
-        self._model_worker = None
         self.btn_model_cancel.setVisible(False)
         widgets = self._model_cards.get(engine, {})
         if widgets:
             widgets["progress"].setVisible(False)
         self._refresh_models_page()
         self.status_label.setText("İndirme durduruldu; kaldığı yerden devam eder.")
+
+    def _on_model_worker_finished(self) -> None:
+        # Sonuç sinyali run() dönmeden gelir. QThread'i ancak finished sonrası
+        # bırak; aksi halde pencere kapanırken çalışan iş parçacığı yok edilir.
+        worker = self.sender()
+        if self._model_worker is worker:
+            self._model_worker = None
+        if worker is not None:
+            worker.deleteLater()
+        self._on_background_worker_finished()
 
     def on_cancel_model_install(self) -> None:
         if self._model_worker is not None and self._model_worker.isRunning():
@@ -1657,6 +1674,8 @@ class MainWindow(QMainWindow):
     def _friendly_error(self, msg: str) -> str:
         lower = msg.lower()
         if "cuda" in lower or "gpu" in lower:
+            if engine_registry.spec(self._engine_name).requires_cuda:
+                return "Bu motor NVIDIA / CUDA gerektirir. CPU ile çalıştırılamaz."
             return "GPU kullanılamadı veya CUDA tarafında sorun oluştu. CPU ile tekrar denenebilir."
         if "audio_prompt" in lower or "librosa" in lower or "soundfile" in lower:
             return "Ses örneği okunamadı. Daha kısa, temiz bir WAV/MP3 dosyası deneyebilirsin."
@@ -1687,7 +1706,7 @@ class MainWindow(QMainWindow):
             audio_player.stop()
             event.accept()
             return
-        workers = [self._loader, self._synth_worker, self._compress_worker]
+        workers = [self._loader, self._synth_worker, self._compress_worker, self._model_worker]
         running = any(worker and worker.isRunning() for worker in workers)
         if self._update_worker is not None and self._update_worker.isRunning() \
                 and not self._close_requested:
@@ -1710,6 +1729,8 @@ class MainWindow(QMainWindow):
                 self._synth_worker.request_cancel()
             if self._compress_worker and self._compress_worker.isRunning():
                 self._compress_worker.request_cancel()
+            if self._model_worker and self._model_worker.isRunning():
+                self._model_worker.request_cancel()
             self.status_label.setText("Çalışan işlem tamamlanınca program kapatılacak...")
             event.ignore()
             return
@@ -1732,7 +1753,7 @@ class MainWindow(QMainWindow):
 
     def _on_background_worker_finished(self):
         if self._close_requested:
-            workers = [self._loader, self._synth_worker, self._compress_worker]
+            workers = [self._loader, self._synth_worker, self._compress_worker, self._model_worker]
             if not any(worker and worker.isRunning() for worker in workers):
                 self._close_finalized = True
                 self.close()
@@ -2219,6 +2240,8 @@ class MainWindow(QMainWindow):
 
         profile = hardware.detect()
         self.gpu_label.setText(f"GPU: {profile.gpu_label}")
+        if not profile.cuda:
+            self.gpu_label.setText(f"GPU: {profile.gpu_label} • Ses üretimi: CPU (CUDA yok)")
 
     def on_show_system_info(self):
         from app import engines as engine_registry
