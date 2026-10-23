@@ -2,6 +2,7 @@ Voxora Studio versiyon günlüğü
 =======================
 
 v0.7.0 (2026-10-23) — Motor paketi mimarisi: EMA gömülü, diğerleri indirilebilir
+- Canlı delta E2E tamamlandı: 0.6.1 → 0.7.0 (48 MB, 5610 dosya silinir). Gerçek hata: removed listesi boş klasörleri bırakıyordu (354 klasör, 544 KB torch artığı). Post-order özyinelemeli klasör temizliği hem apply_staged hem PowerShell işçisine eklendi; tests/test_delta_cleanup.py regresyonu. E2E: marker kipi ve üretim işçisi 1558 dosya birebir, torch tam silindi, klasör farkı 0.
 - Yapı değişti: kurulum paketi artık yalnız EMA Lightning motorunu içerir (44 MB, ONNX, torch gerekmez). Chatterbox ve VoxCPM2 isteğe bağlı; program içindeki Modeller sekmesinden indirilir. Hiçbir motor zorla indirilmez.
 - EMA ONNX'e taşındı: PyTorch yerine onnxruntime. Ölçüm (16 iş parçacığı, CPU): PyTorch yükleme 0,25 sn / sentez 0,39 sn (RTF 0,14) → ONNX yükleme 1,18 sn / sentez 0,09 sn (RTF 0,031). 3,4 kat hızlı ve paketten 365 MB'lık torch çıktı. DirectML denendi ve REDDEDİLDİ: AMD GPU'da RTF 0,39 — CPU'dan 15 kat yavaş.
 - Paket küçüldü: 1255 MB / 7163 dosya → 546 MB / 1558 dosya. Kurulum dosyası 364 MB → 180 MB. Delta 89 MB → 48 MB.

@@ -25,7 +25,7 @@ sys.path.insert(0, str(REPO))
 
 from app import delta, updater  # noqa: E402
 
-NEW_VERSION = "0.6.0"
+NEW_VERSION = "0.7.0"
 
 
 def sha256(path: Path) -> str:
@@ -105,13 +105,14 @@ def compare_with_new(root: Path, new_pkg: Path) -> list[str]:
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) != 4:
-        print("kullanım: delta_gercek_testi.py <kurulum> <eski_paket> <delta>",
+    if len(argv) != 5:
+        print("kullanım: delta_gercek_testi.py <kurulum> <eski_paket> <delta> <taban_sürüm>",
               file=sys.stderr)
         return 2
     root = Path(argv[1]).resolve()
     old_pkg = Path(argv[2]).resolve()
     delta_file = Path(argv[3]).resolve()
+    delta_base_version = argv[4]
     new_pkg = REPO / "dist" / f"VoxoraStudio-{NEW_VERSION}"
 
     print("kurulum:", root)
@@ -126,7 +127,7 @@ def main(argv: list[str]) -> int:
     print("kurulu EXE sha (eski):", sha256(root / "VoxoraStudio.exe")[:16])
 
     print("--- delta hazırlanıyor (fiş) ---")
-    returned = updater.apply_delta(delta_file, "0.5.5")
+    returned = updater.apply_delta(delta_file, delta_base_version)
     marker = Path(returned[0])
     print("fiş:", marker, "| var:", marker.is_file())
     print("hedef HÂLÂ eski mi:", sha256(root / "VoxoraStudio.exe")[:16])
