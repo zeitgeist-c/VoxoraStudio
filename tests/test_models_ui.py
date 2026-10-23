@@ -4,6 +4,8 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -11,9 +13,10 @@ from unittest.mock import patch
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtWidgets import QApplication  # noqa: E402
+from PyQt6.QtTest import QTest  # noqa: E402
 
 from app import engines as engine_registry  # noqa: E402
-from app import first_run, model_manager  # noqa: E402
+from app import downloader, first_run, hardware, model_manager  # noqa: E402
 from app import main_window  # noqa: E402
 from app.main_window import MainWindow  # noqa: E402
 
@@ -111,7 +114,7 @@ class ModelsPageTests(_Base):
         # Kurulu gibi göster
         target = self.root / "engines" / "chatterbox"
         (target / "site-packages").mkdir(parents=True)
-        (target / "installed.json").write_text(json.dumps({"engine_version": "1.0"}))
+        (target / "installed.json").write_text(json.dumps({"engine_version": "1.0.1"}))
         weights = model_manager.weights_dir("chatterbox")
         weights.mkdir(parents=True)
         for name in model_manager.pins()["engines"]["chatterbox"]["weights"]["files"]:
@@ -128,7 +131,7 @@ class ModelsPageTests(_Base):
     def test_remove_deletes_when_confirmed(self):
         target = self.root / "engines" / "chatterbox"
         (target / "site-packages").mkdir(parents=True)
-        (target / "installed.json").write_text(json.dumps({"engine_version": "1.0"}))
+        (target / "installed.json").write_text(json.dumps({"engine_version": "1.0.1"}))
         win = self.window()
         with patch.object(main_window.QMessageBox, "question",
                           return_value=main_window.QMessageBox.StandardButton.Yes):
@@ -138,6 +141,64 @@ class ModelsPageTests(_Base):
     def test_cancel_button_hidden_until_download(self):
         win = self.window()
         self.assertFalse(win.btn_model_cancel.isVisible())
+
+    def test_direct_cuda_install_action_is_blocked_without_driver(self):
+        win = self.window()
+        with patch("app.hardware.detect", return_value=hardware.HardwareProfile()), \
+             patch.object(main_window.QMessageBox, "information") as info, \
+             patch.object(main_window.QMessageBox, "question") as question:
+            win._on_model_install("voxcpm2")
+        info.assert_called_once()
+        question.assert_not_called()
+        self.assertIsNone(win._model_worker)
+
+    def test_close_waits_for_model_download_cancellation(self):
+        win = self.window()
+        win.show()
+        started = threading.Event()
+        cancel_seen = threading.Event()
+        release = threading.Event()
+
+        def install(_engine, *, should_stop, **_kwargs):
+            started.set()
+            while not should_stop():
+                time.sleep(0.01)
+            cancel_seen.set()
+            release.wait(5)
+            raise downloader.Cancelled()
+
+        with patch.object(model_manager, "install_engine", side_effect=install), \
+             patch.object(win, "_should_minimize_to_tray", return_value=False), \
+             patch.object(main_window.QMessageBox, "question",
+                          return_value=main_window.QMessageBox.StandardButton.Yes):
+            win._model_cards["chatterbox"]["action"].click()
+            worker = win._model_worker
+            try:
+                self.assertTrue(started.wait(2))
+                self.assertFalse(win.close())
+                self.assertTrue(win.isVisible())
+                self.assertTrue(cancel_seen.wait(2))
+            finally:
+                worker.request_cancel()
+                release.set()
+                self.assertTrue(worker.wait(6000))
+                # Deliver queued cancellation and finished signals on the GUI thread.
+                QTest.qWait(50)
+            self.assertIsNone(win._model_worker)
+            self.assertFalse(win.isVisible())
+
+    def test_cuda_only_error_does_not_suggest_cpu_fallback(self):
+        win = self.window()
+        win._engine_name = "voxcpm2"
+        self.assertIn("CPU ile çalıştırılamaz", win._friendly_error("CUDA unavailable"))
+
+    def test_amd_status_explains_cpu_use(self):
+        win = self.window()
+        profile = hardware.HardwareProfile(other_gpu=True, other_gpu_name="AMD Radeon")
+        with patch("app.hardware.detect", return_value=profile):
+            win._refresh_system_labels()
+        self.assertIn("AMD Radeon", win.gpu_label.text())
+        self.assertIn("CPU (CUDA yok)", win.gpu_label.text())
 
 
 class FirstRunTests(_Base):
@@ -151,7 +212,7 @@ class FirstRunTests(_Base):
     def test_should_not_show_when_engine_installed(self):
         target = self.root / "engines" / "chatterbox"
         (target / "site-packages").mkdir(parents=True)
-        (target / "installed.json").write_text(json.dumps({"engine_version": "1.0"}))
+        (target / "installed.json").write_text(json.dumps({"engine_version": "1.0.1"}))
         weights = model_manager.weights_dir("chatterbox")
         weights.mkdir(parents=True)
         for name in model_manager.pins()["engines"]["chatterbox"]["weights"]["files"]:

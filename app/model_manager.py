@@ -100,7 +100,10 @@ def runtime_installed(engine: str) -> bool:
     """Motor çalışma zamanı kurulu mu? (Pakette gelen motor her zaman hazır.)"""
     if engine == LOCAL_ENGINE:
         return True
-    return engine_pack.is_installed(engine)
+    if not engine_pack.is_installed(engine):
+        return False
+    expected = str((_pin_for(engine).get("runtime") or {}).get("version") or "")
+    return not expected or engine_pack.installed_version(engine) == expected
 
 
 def _weights_ready(engine: str) -> bool:
@@ -193,6 +196,12 @@ def install_engine(
     spec = engine_registry.spec(engine)
     if spec.bundled:
         return state_for(engine)
+    if spec.requires_cuda:
+        from app import hardware
+
+        usable, reason = engine_registry.availability(spec, cuda=hardware.detect().cuda)
+        if not usable:
+            raise downloader.DownloadError(reason)
     url, weights_repo = urls_for(engine)
     if not url or not weights_repo:
         raise downloader.DownloadError(
@@ -210,7 +219,7 @@ def install_engine(
             ))
 
     # 1) Çalışma zamanı paketi
-    if not engine_pack.is_installed(engine):
+    if not runtime_installed(engine):
         announce(f"{spec.label} motor dosyaları indiriliyor")
         pack_path = engine_pack.engine_root(engine).parent / f".{engine}.vxp.download"
         downloader.download_file(

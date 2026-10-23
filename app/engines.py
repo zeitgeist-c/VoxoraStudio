@@ -120,7 +120,7 @@ ENGINES: dict[str, EngineSpec] = {
         cpu_ok=True,
         license="MIT",
         order=1,
-        notice="CPU'da yavaş çalışır; NVIDIA ekran kartı varsa belirgin hızlanır.",
+        notice="Bu motor paketi CPU üzerinde çalışır; uzun metinlerde üretim yavaş olabilir.",
     ),
     "voxcpm2": EngineSpec(
         key="voxcpm2",
