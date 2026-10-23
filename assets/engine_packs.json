@@ -6,8 +6,8 @@
     "chatterbox": {
       "runtime": {
         "file": "VoxoraStudio-Chatterbox-1.0.0.vxp",
-        "size": 0,
-        "sha256": ""
+        "size": 298533800,
+        "sha256": "d0953902fb590136ef168befc64b76e5661debab6de5d5d96eb9c51a30947544"
       },
       "weights": {
         "repo_id": "ResembleAI/chatterbox",
@@ -23,7 +23,7 @@
     },
     "voxcpm2": {
       "runtime": {
-        "file": "VoxoraStudio-VoxCPM2-2.0.3.vxp",
+        "file": "",
         "size": 0,
         "sha256": ""
       },
