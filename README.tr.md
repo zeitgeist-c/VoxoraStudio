@@ -1,116 +1,199 @@
-# VoxoraStudio — Yerel çok dilli seslendirme stüdyosu
+# VoxoraStudio — yerel çok dilli seslendirme stüdyosu
 
 > English: [README.md](./README.md)
 
-PyQt6 arayüzlü, tamamen yerel metinden sese üretim stüdyosu. Program **EMA
-Lightning** motoruyla kurulur (Türkçe, tek ses, 48 kHz, CPU'da bile hızlı);
-**Chatterbox** (16 dil + ses klonlama) ve **VoxCPM2** (30 dil + ses tasarımı)
-istenirse program içinden indirilir.
+**Metni yaz, sesi seç, dinle. Hiçbir şey makineden çıkmaz.**
 
-![Üretim stüdyosu](./docs/screenshots/01-uretim.png)
+VoxoraStudio tamamen kendi bilgisayarında çalışan bir PyQt6 metinden sese stüdyosudur. Kurulumla **EMA Lightning** gelir — Türkçe, tek ses, 48 kHz, CPU'da bile hızlı. **Chatterbox** (16 dil ve ses klonlama) ile **VoxCPM2** (30 dil ve ses tasarımı) yalnız istersen uygulama içinden indirilir.
 
-## Özellikler
+![VoxoraStudio · Üretim](./docs/screenshots/01-uretim.png)
 
-- **Üç ses motoru, kullanıcı seçer** — EMA Lightning pakette gelir; Chatterbox
-  ve VoxCPM2 Modeller sekmesinden indirilir. Hiçbiri zorla indirilmez.
-- **Ses klonlama** — referans örnek (5–20 sn öneri); Chatterbox ve VoxCPM2.
-- **Ses tasarımı** — referans ses olmadan, tarifle yeni ses (yalnız VoxCPM2).
-- **Donanım kapısı** — VoxCPM2 yalnız NVIDIA/CUDA olan bilgisayarlarda
-  seçilebilir ve indirilebilir; CUDA yoksa düğme kapalı ve nedeni yazılı.
-- **İnce ayar** — dil, hız, ifade, netlik, yaratıcılık, tekrar azaltma + presetler.
-- **Uzun metin parçalama** — parça işleme + süre tahmini.
-- **WAV + MP3 + OPUS** — ffmpeg ile biçime göre kalite seçimi.
-- **Üretim geçmişi** — otomatik kayıt, geri al, toplu sil, Geri Dönüşüm'e taşı.
-- **Kurulumlu sürüm** — Windows kurulum dosyası, tek tık güncelleme,
-  korunan ayarlar/modeller.
+---
 
-## Kurulum (kullanıcı)
+## İçindekiler
 
-`VoxoraStudio-X.Y.Z-Setup.exe` dosyasını çalıştırın (~180 MB).
+- [Ne yapar](#ne-yapar)
+- [Ekranlar, tek tek](#ekranlar-tek-tek)
+  - [1. Üretim](#1-üretim)
+  - [2. Arşiv](#2-arşiv)
+  - [3. Araçlar](#3-araçlar)
+  - [4. Modeller](#4-modeller)
+  - [5. Ayarlar](#5-ayarlar)
+- [Kurulum](#kurulum)
+- [Motorlar](#motorlar)
+- [Dosyalar nerede](#dosyalar-nerede)
+- [Kaynaktan derleme](#kaynaktan-derleme)
+- [Bilinmesi gereken sınırlar](#bilinmesi-gereken-sınırlar)
+- [Lisans](#lisans)
+
+---
+
+## Ne yapar
+
+| Yetenek | Ayrıntı |
+|---|---|
+| **Üç motor, seçim senin** | EMA uygulamayla gelir; Chatterbox ve VoxCPM2 Modeller sekmesinden indirilir. Arka planda hiçbir şey inmez |
+| **Ses klonlama** | 5–20 saniyelik referans örnek; Chatterbox ve VoxCPM2 |
+| **Ses tasarımı** | referans ses olmadan, yazılı tarifle yeni ses (yalnız VoxCPM2) |
+| **Donanım kapısı** | VoxCPM2 yalnız NVIDIA/CUDA olan bilgisayarlarda — aksi halde düğme kapalı ve kart nedeni yazıyor |
+| **İnce ayar** | dil, hız, ifade, netlik, yaratıcılık, tekrar azaltma ve hazır ayarlar |
+| **Uzun metin parçalama** | parçalara böl, parça başına işle, başlamadan süre tahmini |
+| **WAV + MP3 + OPUS** | ffmpeg üzerinden biçime göre kalite seçimi |
+| **Üretim arşivi** | otomatik kayıt, yeniden çal, kaynak metni geri al, klasörde göster, Geri Dönüşüm'e sil |
+| **Toplu kuyruk** | çok satırı yapıştır veya metin dosyası yükle, hepsini üret |
+| **Kurulumlu sürüm** | Windows kurulumu, kendi kendine güncelleme, ayarlar ve modeller korunur |
+
+---
+
+## Ekranlar, tek tek
+
+### 1. Üretim
+
+![Üretim](./docs/screenshots/01-uretim.png)
+
+Varsayılan çalışma alanı, üç sütuna bölünmüş.
+
+**Sol — metin**
+- Metin kutusu ve canlı sayaç: karakter, kelime, parça, tahmini süre.
+- `Yapıştır` ve `Temizle`.
+- Kutunun altındaki etkin yapılandırma şeridi: motor, dil, hız (`0.90x`), duraklama (`0.35 sn`), ses modu (`Tek ses`).
+
+**Sağ — ses profili ve sonuç**
+- **Ses Profili** — etkin motor kartı (`EMA Lightning`, *sabit ses, referans gerekmez*), `Seç`, `Dinle`, `Kaldır`, `Rehber` ile.
+- **Sonuç** — üretimden sonra dalga formu burada görünür; `Oynat`, `Durdur`, `WAV`, `MP3`.
+
+**Alt — toplu üretim kuyruğu**
+- `+ Metin Ekle`, `Dosyadan Yükle`, `Tümünü Üret`, `Temizle`.
+- Kuyruktaki her satır sırayla üretilir; kuyruk yeniden başlatmadan sağ çıkar.
+
+Sağ üstteki `Ses Üret` çalıştırmayı başlatır. Alt durum çubuğu her zaman motoru ve kullandığı aygıtı gösterir — `HAZIR · Hazır · EMA Lightning (cpu)`.
+
+Başlıkta ayrıca bir toplam sayaç (`Toplam: 0 üretim`) durur; Arşiv'i açmadan ne kadar ürettiğini bilirsin.
+
+### 2. Arşiv
+
+![Arşiv](./docs/screenshots/02-arsiv.png)
+
+Her üretim, en yenisi üstte.
+
+- Arama kutusu ve dosya listesi.
+- Sağda **Kayıt Ayrıntısı**: seçili üretimin özeti ve eylemleri.
+- `Yeniden Üret` — saklanan metinden yeniden üretir.
+- `Metni Geri Al` — özgün metni Üretim kutusuna geri koyar.
+- `Çal`, `Klasörde Göster`, `Sil`, `Toplu Sil`.
+
+Silmek dosyaları yok etmek yerine Geri Dönüşüm Kutusu'na taşır. Her kayıt kaynak metnini saklar; yeniden üretilen kayıt özgünü üreten metnin tam kendisini kullanır.
+
+### 3. Araçlar
+
+![Araçlar](./docs/screenshots/03-araclar.png)
+
+Tek sayfa değil, iki yardımcı.
+
+**Sıkıştır (Opus)**
+- Kaynak dosyalar: WAV, MP3, FLAC, OGG. `Dosya Ekle`, `Listeyi Temizle`.
+- Bitrate seçimi — `Normal (48 kbps)` ve üst seçenekler.
+- `Sonuçlar` neyin nereye üretildiğini gösterir.
+
+**Sistem Bilgisi** — motor kullanılabilirliği, aygıt ve uygulamanın motoru açmadan önce denetlediği donanım bilgileri.
+
+Sıkıştırma paketteki ffmpeg ile yerelde çalışır; yükleme yok, üçüncü taraf yeniden kodlama yok.
+
+### 4. Modeller
+
+![Modeller](./docs/screenshots/04-modeller.png)
+
+Motor başına bir kart: ne kadar yer kapladığı ve burada çalışıp çalışamayacağı.
+
+| Motor | Boyut | Diller | Durum |
+|---|---|---|---|
+| **EMA Lightning** | 44 MB | 1 (Türkçe) | uygulamayla kurulu |
+| **Chatterbox Multilingual** | 3,5 GB | 16, ses klonlama dahil | indirilmedi |
+| **VoxCPM2** | 5,2 GB | 30, ses tasarımı dahil | bu makine için yayımlanmadı |
+
+Her kartta durum rozeti — `Kurulu (programla gelir)`, `İndirilmedi`, `Henüz yayınlanmadı` — ve `İndir` / `Kaldır` düğmeleri var.
+
+VoxCPM2 donanıma bağlı: *"Yalnız NVIDIA ekran kartı olan bilgisayarlarda çalışır. Bu bilgisayarda NVIDIA ekran kartı / CUDA bulunamadı."* Kart, çalışmayacak bir indirme sunmak yerine bunu açıkça söyler.
+
+**Model klasörü** alt şeridi ağırlıkların nerede durduğunu, ne kadar yer tuttuğunu (`Kullanılan: 33 MB`) ve boş alanı gösterir; `Klasörü aç` / `Yenile` ile. Kurulum ve kaldırma bu klasöre dokunmaz, yani indirilen motorlar güncellemelerden sağ çıkar.
+
+### 5. Ayarlar
+
+![Ayarlar](./docs/screenshots/05-ayarlar.png)
+
+Solda beş bölüm, her birinin kendi paneli.
+
+**Ses**
+- Motor, hazır ayar, dil ve beş ayar: ifade, yaratıcılık, duraklama, hız, netlik, tekrar azaltma.
+- `Uygula` değişikliği uygular. Hazır ayarlar (`Anlatıcı` ve diğerleri) sıfırdan ayar yapmak zorunda kalmadan bilinen iyi bir bileşim kurar.
+
+**Çıktı** — biçim, kalite, çıktı klasörü.
+
+**Görünüm** — tema ve yerleşim.
+
+**Güncelleme** — güncelleme denetimi; SHA-256 doğrulanır ve program yerinde değiştirilir, ayarlar, çıktılar ve modeller korunur.
+
+**Sıfırla** — ayarları varsayılana döndürür. Bu tercihleri sıfırlar, üretimlerini değil.
+
+---
+
+## Kurulum
+
+`VoxoraStudio-<sürüm>-Setup.exe` dosyasını çalıştır (~180 MB).
 
 | Ne | Nerede | Güncelleme siler mi? |
 |---|---|---|
 | Program (EXE + kütüphaneler + ffmpeg + EMA modeli) | `C:\Program Files\VoxoraStudio` | Evet — yerine yenisi yazılır |
 | Ayarlar, geçmiş, çıktılar, loglar | `%LOCALAPPDATA%\VoxoraStudio` | **Hayır** |
-| İndirilen motorlar ve modeller | `%LOCALAPPDATA%\VoxoraStudio\engines` + `\models` | **Hayır** |
+| İndirilen motorlar ve modeller | `%LOCALAPPDATA%\VoxoraStudio\engines` ve `\models` | **Hayır** |
 
-Kurulum masaüstü ve Başlat Menüsü kısayolları oluşturur. Kaldırmada ayarlar,
-çıktılar ve indirilmiş modeller korunur.
+Kurulum masaüstü ve Başlat Menüsü kısayolları oluşturur. Kaldırmada ayarlar, çıktılar ve indirilmiş modeller korunur.
 
-### Ses motorları
+## Motorlar
 
-| Motor | Boyut | Diller | Nereden |
-|---|---|---|---|
-| **EMA Lightning** | 44 MB | Türkçe | Paketle gelir — indirme yok |
-| **Chatterbox Multilingual** | 3,5 GB | 16 | Modeller ▸ İndir |
-| **VoxCPM2** | 5,2 GB | 30 + ses tasarımı | Modeller ▸ İndir (yalnız CUDA) |
+| Motor | Diller | Ses klonlama | Ses tasarımı | Donanım |
+|---|---|---|---|---|
+| **EMA Lightning** | Türkçe | yok (tek sabit ses) | yok | CPU, uygulamayla gelir |
+| **Chatterbox Multilingual** | 16 | var | yok | CPU çalışır; uzun metinde yavaş |
+| **VoxCPM2** | 30 | var | var | NVIDIA/CUDA gerekir |
 
-Motor paketleri (`.vxp`) kullanıcı klasörüne açılır; sistem Python'una hiçbir
-şey kurulmaz, program klasörüne yazılmaz. Her dosya SHA-256 ile doğrulanır,
-indirme yarıda kalırsa kaldığı yerden devam eder.
+Hiçbiri `İndir` düğmesine basmadan inmez. Her kart indirme başlamadan boyutu ve gereksinimi yazar.
 
-### Güncelleme
+## Dosyalar nerede
 
-**Ayarlar ▸ Güncelleme** iki yoldan birini kullanır:
+| Ne | Nerede |
+|---|---|
+| Program | `C:\Program Files\VoxoraStudio` |
+| Ayarlar, geçmiş, çıktılar, loglar | `%LOCALAPPDATA%\VoxoraStudio` |
+| Motorlar | `%LOCALAPPDATA%\VoxoraStudio\engines` |
+| Modeller | `%LOCALAPPDATA%\VoxoraStudio\models` |
+| Güncellemeler | `%LOCALAPPDATA%\VoxoraStudio\updates` |
 
-- **Hızlı güncelleme (delta, ~48 MB):** yalnız değişen dosyalar iner.
-- **Tam kurulum (~180 MB):** delta yoksa tam setup iner ve sessiz kurulur.
+Ayrım şundan: kurulum program klasörünü tepeden tırnağa değiştirir. Dışarıdaki kullanıcı verisi her güncellemeden sağ çıkar.
 
-Her iki yolda da Windows bir kez yönetici izni ister ve program kendini
-yeniden başlatır. İndirilmiş motorlar ve modeller dokunulmadan kalır.
+## Kaynaktan derleme
 
-## Hızlı başlangıç (geliştirme)
-
-Gereksinim: Python 3.11 + ffmpeg (MP3 için) + Inno Setup 6 (kurulum dosyası için).
-
-```bat
-setup.bat          :: internet/donanım kontrolü, sanal ortam
-install_check.bat  :: kurulum doğrulama
-run.bat            :: konsolsuz başlat (debug: VOXORA_SHOW_CONSOLE=1)
-build.bat          :: dist\VoxoraStudio-X.Y.Z\ + dist\installer\VoxoraStudio-X.Y.Z-Setup.exe
+```powershell
+python -m venv .venv
+.\.venv\Scripts\pip install -r requirements.txt
+.\.venv\Scripts\python.exe app.py
 ```
 
-İsteğe bağlı motorları geliştirmek için: `pip install -r requirements-dev.txt`
-(torch, chatterbox-tts, voxcpm). Bunlar pakete girmez.
+Duman testi ve paketleme:
 
-Test: `smoke_test.py`, `python -m pytest -q`.
-
-Eski otomasyonlar için `TXTOTTS_SHOW_CONSOLE` ve `TXTOTTS_HIDDEN` değişkenleri
-geriye dönük uyumluluk amacıyla kabul edilir (`VOXORA_SHOW_CONSOLE` /
-`VOXORA_HIDDEN` olarak eşlenir).
-
-Kaynak kopyada (`python app.py`) veri yine depo kökündeki `state/`, `logs/`,
-`outputs/` altında tutulur; ayrım yalnız paketlenmiş kurulumda geçerlidir.
-
-## Proje yapısı
-
-```text
-app.py               giriş noktası
-app/main_window.py   ana pencere, sayfalar
-app/paths.py         program / kullanıcı verisi / model yolu ayrımı
-app/hardware.py      CUDA + GPU + RAM + disk tespiti (motor kapısı)
-app/engines.py       motor kayıtları: dil, yetenek, boyut, donanım koşulu
-app/model_manager.py motor kurulum durumu, indir/kaldır akışı
-app/engine_pack.py   .vxp motor paketi: üret, doğrula, kur, kaldır
-app/downloader.py    ilerlemeli, iptal edilebilir, SHA-256 doğrulamalı indirici
-app/ema_onnx.py      EMA Lightning ONNX motoru (torch gerekmez)
-app/voxcpm_engine.py VoxCPM2 motoru (yalnız CUDA)
-app/first_run.py     ilk açılış sihirbazı
-app/updater.py       kurulum dosyası indirme + sessiz kurulum
-installer/           Inno Setup betiği (VoxoraStudio.iss)
-tts_engine.py        motor yönlendirici (ortak yüzey: numpy)
-models/ema-onnx/     paketlenen EMA ağırlıkları
-assets/engine_packs.json   motor paketi sürüm pinleri
-scripts/             setup_env, gpu_detect, delta üretimi
+```powershell
+.\.venv\Scripts\python.exe smoke_test.py
 ```
 
-## Katkı
+`smoke_test.py` birim testlerini, kritik ve yerel içe aktarma denetimlerini, ortam denetimini ve isteğe bağlı entegrasyon çalıştırmasını koşar. Paketleme, projenin derleme betikleriyle kurulum dosyasını üretir; sürüm `app/version.py` içinde yaşar.
 
-Küçük PR, commit'e model dosyası/çıktı konmaz. Bkz. [.github/PULL_REQUEST_TEMPLATE.md](./.github/PULL_REQUEST_TEMPLATE.md).
+## Bilinmesi gereken sınırlar
+
+- EMA Lightning yalnız Türkçe ve tek ses. Amaç zaten bu — hızlı ve her zaman hazır yol.
+- VoxCPM2 AMD veya Intel GPU'da kullanılamaz; kart, aksini iddia etmek yerine indirmeyi kapatır.
+- Chatterbox CPU'da uzun metinde yavaştır; başlamadan parça ilerlemesi ve süre tahmini gösterilir.
+- Arşivden silmek dosyaları Geri Dönüşüm'e taşır; disk alanı ancak kutu boşaltıldığında geri kazanılır.
 
 ## Lisans
 
-Bkz. [LICENSE](./LICENSE) (bekliyor — teyit edilecek).
-
-Motor lisansları: EMA Lightning (Apache-2.0), Chatterbox (MIT),
-VoxCPM2 (Apache-2.0). Ticari kullanım serbest.
+MIT — bkz. [LICENSE](./LICENSE).

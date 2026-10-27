@@ -2,7 +2,7 @@
 
 Akış:
   1. ``check_for_update`` → GitHub'daki en yeni sürümü ve ``VoxoraStudio-X.Y.Z-Setup.exe``
-     asset'ini bulur (public ayna repo ``VoxoraStudio-Releases``).
+     asset'ini bulur (public ayna repo ``VoxoraStudio``).
   2. ``download`` → kurulumu ``%LOCALAPPDATA%\\VoxoraStudio\\updates``e indirir,
      boyut + SHA-256 doğrular. Doğrulanmamış dosya asla çalıştırılmaz.
   3. ``spawn_installer`` → Inno Setup'ı sessiz kipte çalıştırır. Kurulum,
@@ -38,7 +38,7 @@ from pathlib import Path, PurePosixPath
 
 from .branding import TECHNICAL_NAME, __version__
 
-RELEASE_REPO = "zeitgeist-c/VoxoraStudio-Releases"
+RELEASE_REPO = "zeitgeist-c/VoxoraStudio"
 API_LATEST = f"https://api.github.com/repos/{RELEASE_REPO}/releases/latest"
 USER_AGENT = f"{TECHNICAL_NAME}/{__version__}"
 UPDATES_DIRNAME = "updates"

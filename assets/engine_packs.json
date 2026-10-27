@@ -1,6 +1,6 @@
 {
-  "_note": "İndirilebilir motorların sürüm pinleri. Motor paketleri (.vxp) VoxoraStudio-Releases deposunda bu etiket altında yayınlanır; ağırlıklar Hugging Face'ten gelir. Etiketi yalnız paket içeriği değiştiğinde yükselt ve yeni .vxp yükle.",
-  "release_repo": "zeitgeist-c/VoxoraStudio-Releases",
+  "_note": "İndirilebilir motorların sürüm pinleri. Motor paketleri (.vxp) VoxoraStudio deposunda bu etiket altında yayınlanır; ağırlıklar Hugging Face'ten gelir. Etiketi yalnız paket içeriği değiştiğinde yükselt ve yeni .vxp yükle.",
+  "release_repo": "zeitgeist-c/VoxoraStudio",
   "tag": "engines-v1",
   "engines": {
     "chatterbox": {
