@@ -171,6 +171,15 @@ None of them is downloaded without you pressing `İndir`. Every card states size
 
 The split exists because the installer replaces the program folder wholesale. User data outside it survives every update.
 
+## Environment variables
+
+| Variable | Effect |
+|---|---|
+| `VOXORA_SHOW_CONSOLE` | keep the console window visible when the launcher starts |
+| `VOXORA_HIDDEN` | start hidden, without a visible window |
+
+`run.bat` also accepts the pre-rename names `TXTOTTS_SHOW_CONSOLE` and `TXTOTTS_HIDDEN` as aliases, so scripts written against the old launcher keep working. The new `VOXORA_*` names win when both are set.
+
 ## Build from source
 
 ```powershell

@@ -171,6 +171,15 @@ Hiçbiri `İndir` düğmesine basmadan inmez. Her kart indirme başlamadan boyut
 
 Ayrım şundan: kurulum program klasörünü tepeden tırnağa değiştirir. Dışarıdaki kullanıcı verisi her güncellemeden sağ çıkar.
 
+## Ortam değişkenleri
+
+| Değişken | Etkisi |
+|---|---|
+| `VOXORA_SHOW_CONSOLE` | başlatıcı açılırken konsol penceresini görünür tutar |
+| `VOXORA_HIDDEN` | görünür pencere olmadan, gizli başlatır |
+
+`run.bat` ayrıca adlandırma değişikliğinden önceki `TXTOTTS_SHOW_CONSOLE` ve `TXTOTTS_HIDDEN` adlarını takma ad olarak kabul eder; eski başlatıcıya göre yazılmış betikler çalışmaya devam eder. İkisi de tanımlıysa yeni `VOXORA_*` adları kazanır.
+
 ## Kaynaktan derleme
 
 ```powershell
