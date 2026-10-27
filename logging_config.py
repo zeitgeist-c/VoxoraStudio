@@ -1,7 +1,6 @@
 """Voxora Studio loglama yapılandırması (konsol + dosya, UTF-8)."""
 import logging
 import os
-import sys
 
 from app.branding import LOG_FILENAME
 from app.paths import logs_dir

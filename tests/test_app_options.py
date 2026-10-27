@@ -4,7 +4,6 @@ Bu dosya, uygulamadan bağımsız olarak çalışır ve diğer projelere
 kopyalanabilir: kayıt defterine yazmadan, sahte depo ile doğrular.
 """
 
-import os
 import tempfile
 import unittest
 from pathlib import Path

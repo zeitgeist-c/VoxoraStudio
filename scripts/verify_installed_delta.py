@@ -10,7 +10,6 @@ import hashlib
 import json
 from pathlib import Path
 import shutil
-import subprocess
 import sys
 
 REPO = Path(__file__).resolve().parents[1]

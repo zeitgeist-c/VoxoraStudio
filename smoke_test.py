@@ -123,7 +123,7 @@ def check_environment() -> bool:
         print(f"  [BİLGİ] perth watermarker yok: {e}")
 
     try:
-        from chatterbox.mtl_tts import ChatterboxMultilingualTTS
+        from chatterbox.mtl_tts import ChatterboxMultilingualTTS  # noqa: F401
         print("  chatterbox import: OK")
     except Exception as e:
         print(f"  [BİLGİ] chatterbox import: {e}")

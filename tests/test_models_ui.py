@@ -252,7 +252,6 @@ class FirstRunTests(_Base):
                    })()):
             dialog = first_run.FirstRunDialog()
         self.addCleanup(dialog.deleteLater)
-        radios = dialog.findChildren(type(dialog.findChildren(object)[0])) if False else None
         # VoxCPM2 seçilemez olmalı
         for button in dialog._group.buttons():
             if button.property("engineKey") == "voxcpm2":

@@ -1,7 +1,6 @@
 """Delta güncelleme testleri: manifest, doğrulama, uygulama, taban eşleşmesi."""
 from __future__ import annotations
 
-import hashlib
 import json
 import sys
 import tempfile

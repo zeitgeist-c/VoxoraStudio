@@ -68,7 +68,7 @@ def downgrade(root: Path, old_pkg: Path, names: list[str]) -> None:
         shutil.copy2(source, target)
         entries.append({"path": name, "sha256": sha256(source),
                         "size": source.stat().st_size})
-    marker = write_downgrade_marker(staged, entries, root)
+    write_downgrade_marker(staged, entries, root)
     result = staged / "result.json"
     ok = updater.apply_pending_payload(staged, root, entries, result,
                                        wait_pid=None)

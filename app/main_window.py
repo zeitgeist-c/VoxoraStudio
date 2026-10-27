@@ -23,7 +23,7 @@ from pathlib import Path
 
 import numpy as np
 import soundfile as sf
-from PyQt6.QtCore import QEasingCurve, QMetaObject, QParallelAnimationGroup, QPropertyAnimation, QSize, QThread, QTimer, Qt, pyqtSlot
+from PyQt6.QtCore import QEasingCurve, QMetaObject, QPropertyAnimation, QSize, QThread, QTimer, Qt, pyqtSlot
 from PyQt6.QtGui import QColor, QFont, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QApplication,
@@ -80,7 +80,7 @@ from .constants import (
     quality_options_for,
 )
 from . import engines as engine_registry
-from .branding import BRAND_PRIMARY, BRAND_SECONDARY, DISPLAY_NAME, TECHNICAL_TAGLINE, __version__
+from .branding import BRAND_PRIMARY, BRAND_SECONDARY, DISPLAY_NAME, __version__
 from .dialogs import ModelLoadDialog, SynthesisDialog, VoiceGuideDialog
 from .icons import navigation_icon
 from .theme import (
@@ -2843,7 +2843,6 @@ class MainWindow(QMainWindow):
         self._run_update_check(manual=True)
 
     def _run_update_check(self, manual: bool):
-        from . import updater
         if self._update_worker is not None and self._update_worker.isRunning():
             return
         if not self._updates_possible():
@@ -3089,7 +3088,7 @@ class MainWindow(QMainWindow):
             )
             box.setInformativeText("Ses Örneği Seç, Yine de Üret veya İptal.")
             btn_select = box.addButton("Ses Örneği Seç", QMessageBox.ButtonRole.AcceptRole)
-            btn_proceed = box.addButton("Yine de Üret", QMessageBox.ButtonRole.DestructiveRole)
+            box.addButton("Yine de Üret", QMessageBox.ButtonRole.DestructiveRole)
             btn_cancel = box.addButton("İptal", QMessageBox.ButtonRole.RejectRole)
             box.setDefaultButton(btn_select)
             box.exec()
