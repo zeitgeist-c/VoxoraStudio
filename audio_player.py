@@ -9,7 +9,6 @@ Ses verisi numpy float32'dir; torch bağımlılığı kaldırıldı (bkz. tts_en
 from __future__ import annotations
 
 import logging
-import os
 
 import numpy as np
 import sounddevice as sd
@@ -60,20 +59,27 @@ def play_tensor(wav, sr: int, blocking: bool = False) -> None:
         sd.wait()
 
 
+def _read_via_pydub(path: str) -> tuple[np.ndarray, int]:
+    """pydub (ffmpeg) ile çöz: soundfile'ın tanımadığı kaplar için yedek yol."""
+    if not _HAS_PYDUB:
+        raise RuntimeError("Ses çözülemedi; pydub/ffmpeg gerekli.")
+    seg = AudioSegment.from_file(path).set_channels(1).set_sample_width(2)
+    arr = np.array(seg.get_array_of_samples(), dtype=np.float32) / 32768.0
+    return arr, int(seg.frame_rate)
+
+
 def play_file(path: str, blocking: bool = False) -> None:
-    """WAV: soundfile.read; MP3: pydub -> numpy. Tek API."""
-    ext = os.path.splitext(path)[1].lower()
-    if ext == ".wav":
+    """WAV/FLAC/OGG/OPUS/MP3 çal → hoparlör. Tek API.
+
+    Ayrıştırma sırası: önce ``soundfile`` (WAV/FLAC/OGG/OPUS), olmazsa ``pydub``
+    + ffmpeg (MP3, M4A vb.). Eskiden yalnız ``.wav`` ve ``.mp3`` tanınıyordu;
+    OPUS uygulamanın kendi çıktı biçimi olduğu hâlde geçmişte "Çal" düğmesi
+    ``ValueError: Desteklenmeyen format: .opus`` ile sessizce düşüyordu.
+    """
+    try:
         data, sr = sf.read(path, dtype="float32")
-    elif ext == ".mp3":
-        if not _HAS_PYDUB:
-            raise RuntimeError("MP3 çalma için pydub gerekli (ve dolayısıyla ffmpeg).")
-        seg = AudioSegment.from_mp3(path).set_channels(1).set_sample_width(2)
-        arr = np.array(seg.get_array_of_samples(), dtype=np.float32) / 32768.0
-        sr = seg.frame_rate
-        data = arr
-    else:
-        raise ValueError(f"Desteklenmeyen format: {ext}")
+    except Exception:
+        data, sr = _read_via_pydub(path)
     sd.play(data, samplerate=sr)
     if blocking:
         sd.wait()

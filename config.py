@@ -13,8 +13,13 @@ DEFAULT_CFG_WEIGHT = 0.5
 # - ema: EMA Lightning (yalnız Türkçe, tek ses, ~34 MB, CPU'da bile hızlı)
 ENGINE_CHATTERBOX = "chatterbox"
 ENGINE_EMA = "ema"
-DEFAULT_ENGINE = ENGINE_CHATTERBOX
-VALID_ENGINES = (ENGINE_CHATTERBOX, ENGINE_EMA)
+ENGINE_VOXCPM2 = "voxcpm2"
+# Varsayılan, paketle gelen ve her bilgisayarda çalışan motordur; yetkili kaynak
+# ``app.engines.DEFAULT_ENGINE``. Buradaki değer onunla aynı olmalı: arayüz
+# "Ayarları sıfırla"da bu sabiti kullanır, ayrışırsa sıfırlama indirilebilir
+# motora düşürür (EMA kullanıcısı bir anda 3,4 GB indirme ekranıyla kalırdı).
+DEFAULT_ENGINE = ENGINE_EMA
+VALID_ENGINES = (ENGINE_CHATTERBOX, ENGINE_EMA, ENGINE_VOXCPM2)
 
 # Chunking
 DEFAULT_MAX_CHARS_PER_CHUNK = 400
