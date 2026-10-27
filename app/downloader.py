@@ -27,7 +27,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 log = logging.getLogger(__name__)
 
@@ -307,6 +307,12 @@ def download_hf_model(
     if not rows:
         raise DownloadError(f"Model deposunda indirilecek dosya bulunamadı: {repo_id}")
 
+    # Depo manifesti UZAKTAN gelir: ``rfilename`` değeri ``../`` ya da sürücü
+    # yolu içerirse dosya model klasörünün dışına yazılırdı (path traversal).
+    # İndirmeden önce her adı hedef kökün altına sabitle.
+    for row in rows:
+        row["path"] = _safe_relative(row["path"], target_dir)
+
     total_bytes = sum(row["size"] for row in rows)
     free_space_for(target_dir, total_bytes)
 
@@ -326,6 +332,29 @@ def download_hf_model(
             on_progress=on_progress,
         )
     return target_dir
+
+
+def _safe_relative(name: str, root: Path) -> str:
+    """Depo dosya adını doğrula: hedef kökün altında kalıyorsa adı aynen döndür.
+
+    Hugging Face manifesti uzaktan gelir; ``rfilename`` alanı ``../x``,
+    ``C:/x`` ya da UNC yolu taşıyabilir. Böyle bir ad ``target_dir / name``
+    ile birleştirildiğinde dosya model klasörünün dışına yazılırdı. Geçerli
+    depo adları bu kalıpları hiç içermez, bu yüzden kaçış denemesi hata sayılır
+    (sessizce yeniden yazmak indirme URL'ini de bozardı).
+    """
+    raw = str(name)
+    normalized = raw.replace("\\", "/")
+    if not normalized or normalized.startswith("/") or ":" in normalized.split("/")[0]:
+        raise DownloadError(f"Model deposunda geçersiz dosya yolu: {raw!r}")
+    parts = PurePosixPath(normalized).parts
+    if not parts or ".." in parts:
+        raise DownloadError(f"Model deposunda kök dışına çıkan dosya yolu: {raw!r}")
+    resolved = (root / Path(*parts)).resolve()
+    root_resolved = root.resolve()
+    if resolved != root_resolved and root_resolved not in resolved.parents:
+        raise DownloadError(f"Model deposunda kök dışına çıkan dosya yolu: {raw!r}")
+    return raw
 
 
 def _hf_manifest(repo_id: str) -> dict:
