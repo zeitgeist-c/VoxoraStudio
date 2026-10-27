@@ -184,6 +184,24 @@ def _as_mono(audio) -> np.ndarray:
     return data.reshape(-1) if data.ndim > 1 else data
 
 
+def _saved_float(settings: dict, key: str, default: float) -> float:
+    """Ayar dosyasından sayısal değer oku; bozuk/eksik değerde varsayılana düş.
+
+    Ayar dosyası elle düzenlenebilir ve eski sürümler farklı tip yazmış olabilir.
+    Doğrudan ``float(...)`` çağrısı bozuk tek bir alan yüzünden pencereyi hiç
+    açılmaz hâle getiriyordu (``ValueError: could not convert string to float``).
+    ``bool`` bilinçli olarak reddedilir: ``True`` sessizce 1,0 sn hız olurdu.
+    """
+    raw = settings.get(key, default)
+    if raw is None or isinstance(raw, bool):
+        return float(default)
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        log.warning("Ayar değeri sayı değil, varsayılan kullanılıyor: %s=%r", key, raw)
+        return float(default)
+
+
 def history_delete_dialog_texts(trash_ok: bool) -> tuple[str, str]:
     """Silme diyaloğu metinleri (saf, test edilebilir).
 
@@ -1852,12 +1870,16 @@ class MainWindow(QMainWindow):
         index = self.language_combo.findData(language)
         if index >= 0:
             self.language_combo.setCurrentIndex(index)
-        self.speed_spin.setValue(float(settings.get("speed", self.speed_spin.value())))
-        self.exaggeration_spin.setValue(float(settings.get("exaggeration", self.exaggeration_spin.value())))
-        self.cfg_spin.setValue(float(settings.get("cfg_weight", self.cfg_spin.value())))
-        self.temperature_spin.setValue(float(settings.get("temperature", self.temperature_spin.value())))
-        self.repetition_spin.setValue(float(settings.get("repetition_penalty", self.repetition_spin.value())))
-        self.pause_spin.setValue(float(settings.get("pause_between_chunks", self.pause_spin.value())))
+        self.speed_spin.setValue(_saved_float(settings, "speed", self.speed_spin.value()))
+        self.exaggeration_spin.setValue(
+            _saved_float(settings, "exaggeration", self.exaggeration_spin.value()))
+        self.cfg_spin.setValue(_saved_float(settings, "cfg_weight", self.cfg_spin.value()))
+        self.temperature_spin.setValue(
+            _saved_float(settings, "temperature", self.temperature_spin.value()))
+        self.repetition_spin.setValue(
+            _saved_float(settings, "repetition_penalty", self.repetition_spin.value()))
+        self.pause_spin.setValue(
+            _saved_float(settings, "pause_between_chunks", self.pause_spin.value()))
         fmt = str(settings.get("output_format") or DEFAULT_OUTPUT_FORMAT)
         self._output_format = fmt if fmt in VALID_OUTPUT_FORMATS else DEFAULT_OUTPUT_FORMAT
         self._quality_by_format = {
