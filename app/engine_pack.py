@@ -31,6 +31,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import shutil
 import tempfile
 import zipfile
@@ -130,10 +131,32 @@ class Manifest:
 
 # --- konumlar -----------------------------------------------------------------
 def engine_root(engine: str) -> Path:
-    """Bir motorun kurulu olduğu klasör."""
+    """Bir motorun kurulu olduğu klasör.
+
+    ``engine`` çağrılarda uygulama kayıtlarından gelir (sabit anahtarlar), fakat
+    ``install_pack`` bunu paket manifestinden okur. Manifest uzaktan indirilen
+    bir arşivden geldiği için ad burada da doğrulanır: aksi hâlde ``..`` ya da
+    ``C:/...`` içeren bir ad kurulumu kullanıcı veri klasörünün dışına yazardı.
+    """
     from app import paths as app_paths
 
-    return app_paths.engines_dir() / engine
+    root = app_paths.engines_dir()
+    name = _safe_engine_name(engine)
+    target = (root / name).resolve()
+    if target != root.resolve() and root.resolve() not in target.parents:
+        raise EnginePackError(f"Motor adı kök dışına çıkıyor: {engine!r}")
+    return target
+
+
+_ENGINE_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
+
+
+def _safe_engine_name(engine: str) -> str:
+    """Motor adı tek bir klasör adı olmalı: ayırıcı, sürücü, ``..`` yok."""
+    name = str(engine or "")
+    if not _ENGINE_NAME_RE.fullmatch(name) or ".." in name:
+        raise EnginePackError(f"Motor paketinde geçersiz motor adı: {engine!r}")
+    return name
 
 
 def site_packages_dir(engine: str) -> Path:
@@ -301,11 +324,12 @@ def install_pack(
 
     try:
         with zipfile.ZipFile(path) as archive:
-            members = [n for n in archive.namelist() if n.startswith(PAYLOAD_PREFIX)]
-            for name in members:
-                relative = name[len(PAYLOAD_PREFIX):]
-                if not relative or relative.endswith("/"):
-                    continue
+            # YALNIZ manifestte listelenen dosyalar açılır. Manifest dışı bir
+            # girdi (ör. site-packages'a düşen ``*.pth``) Python açılışında kod
+            # çalıştırır; doğrulanmamış dosya bu klasöre hiç inmemeli.
+            for row in manifest.files:
+                relative = str(row["path"])
+                name = f"{PAYLOAD_PREFIX}{relative}"
                 destination = _safe_join(packages_dir, relative)
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 with archive.open(name) as source, open(destination, "wb") as sink:

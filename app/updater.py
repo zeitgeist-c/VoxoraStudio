@@ -638,6 +638,63 @@ def write_delta_marker(staged: Path, manifest, root: Path) -> Path | None:
     return marker
 
 
+def _safe_delta_path(name: str) -> bool:
+    """Delta fişindeki yol tek bir göreli yol mu (``..``, sürücü, UNC yok)."""
+    raw = str(name or "")
+    normalized = raw.replace("\\", "/")
+    if not normalized or normalized.startswith("/"):
+        return False
+    if re.match(r"^[A-Za-z]:", normalized):
+        return False
+    parts = PurePosixPath(normalized).parts
+    return bool(parts) and ".." not in parts
+
+
+def validate_pending_delta(payload: dict) -> str:
+    """Kapanış fişini doğrula; geçerliyse boş string, değilse hata metni döndür.
+
+    Neden gerekli: ``state/pending_delta.json`` kullanıcının yazabildiği bir
+    klasörde durur ve işçi **yönetici olarak** çalışır. Fiş doğrulanmazsa,
+    kullanıcı yetkisiyle yazılmış bir fiş yükseltilmiş sürece rastgele dosya
+    kopyalatıp sildirebilir (yerel yetki yükseltme). Bu yüzden hedef yalnız
+    program klasörü, kaynak yalnız geçici klasör, dosya adları yalnız göreli
+    olabilir.
+    """
+    if not isinstance(payload, dict):
+        return "Delta fişi biçimsiz."
+    staged = Path(str(payload.get("staged") or ""))
+    target = Path(str(payload.get("target") or ""))
+    if not str(staged) or not str(target):
+        return "Delta fişinde kaynak/hedef eksik."
+    expected_target = package_root().resolve()
+    try:
+        target_resolved = target.resolve()
+    except OSError:
+        return "Delta fişi hedefi çözümlenemedi."
+    if target_resolved != expected_target:
+        return "Delta fişi hedefi program klasörü değil; uygulanmadı."
+    temp_root = Path(tempfile.gettempdir()).resolve()
+    try:
+        staged_resolved = staged.resolve()
+    except OSError:
+        return "Delta fişi kaynağı çözümlenemedi."
+    if staged_resolved != temp_root and temp_root not in staged_resolved.parents:
+        return "Delta fişi kaynağı geçici klasör dışında; uygulanmadı."
+    files = payload.get("files") or []
+    if not isinstance(files, list):
+        return "Delta fişinde dosya listesi biçimsiz."
+    for entry in files:
+        if not isinstance(entry, dict) or not _safe_delta_path(entry.get("path")):
+            return f"Delta fişinde güvensiz yol: {entry!r}"
+        digest = str(entry.get("sha256") or "")
+        if digest and not re.fullmatch(r"[0-9a-fA-F]{64}", digest):
+            return f"Delta fişinde geçersiz sha256: {entry.get('path')!r}"
+    for name in payload.get("removed") or []:
+        if not _safe_delta_path(name):
+            return f"Delta fişinde güvensiz silme yolu: {name!r}"
+    return ""
+
+
 def run_pending_delta() -> Path | None:
     """Kapanışta delta fişini tüketen bağımsız işçiyi başlat.
 
@@ -665,6 +722,13 @@ def run_pending_delta() -> Path | None:
         payload = json.loads(marker.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         log.exception("Delta fişi okunamadı: %s", marker)
+        return None
+    problem = validate_pending_delta(payload)
+    if problem:
+        # Fiş kullanıcının yazabildiği klasörde: doğrulanmadan yükseltilmiş
+        # işçiye verilmez. Bozuk fiş silinir, sonraki açılış temiz başlar.
+        log.error("Delta fişi reddedildi: %s", problem)
+        marker.unlink(missing_ok=True)
         return None
     result_file = marker.with_name("pending_delta_result.json")
     script = write_delta_worker(payload, marker, result_file, exe, os.getpid())
@@ -891,6 +955,10 @@ def apply_delta_marker(marker: Path, result_file: Path) -> int:
 
     try:
         payload = json.loads(marker.read_text(encoding="utf-8"))
+        problem = validate_pending_delta(payload)
+        if problem:
+            # Bu kip yükseltilmiş çalışabilir: fiş doğrulanmadan uygulanmaz.
+            raise ValueError(problem)
         staged = Path(payload["staged"])
         target = Path(payload["target"])
         result = _apply_marker_payload(staged, target,
