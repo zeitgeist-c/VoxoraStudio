@@ -184,6 +184,35 @@ def _as_mono(audio) -> np.ndarray:
     return data.reshape(-1) if data.ndim > 1 else data
 
 
+def _dir_size(root: Path) -> int:
+    """Klasörün toplam bayt boyutu (alt klasörler dahil).
+
+    ``Path.rglob("*")`` 22 000 dosyalık bir motor klasöründe 1,4 s sürüyordu:
+    her dosya için ayrı ``is_file()`` + ``stat()`` çağrısı ve Path nesnesi
+    üretimi var. ``os.scandir`` aynı toplamı 30 ms'de veriyor (ölçüm:
+    chatterbox site-packages boyutu). Modeller sekmesi her kurulum/kaldırma
+    sonrası bu etiketi yeniliyor, bu yüzden fark kullanıcıya yansıyor.
+    Sembolik bağlantılar izlenmez: döngü riski yok, çift sayım olmaz.
+    """
+    total = 0
+    stack = [str(root)]
+    while stack:
+        current = stack.pop()
+        try:
+            with os.scandir(current) as entries:
+                for entry in entries:
+                    try:
+                        if entry.is_dir(follow_symlinks=False):
+                            stack.append(entry.path)
+                        else:
+                            total += entry.stat(follow_symlinks=False).st_size
+                    except OSError:
+                        continue
+        except OSError:
+            continue
+    return total
+
+
 def _saved_float(settings: dict, key: str, default: float) -> float:
     """Ayar dosyasından sayısal değer oku; bozuk/eksik değerde varsayılana düş.
 
@@ -1118,26 +1147,10 @@ class MainWindow(QMainWindow):
         from app import engines as engine_registry
         from app import hardware, model_manager
 
-        def _dir_size(path) -> int:
-            total = 0
-            try:
-                for entry in path.rglob("*"):
-                    if entry.is_file():
-                        try:
-                            total += entry.stat().st_size
-                        except OSError:
-                            pass
-            except OSError:
-                pass
-            return total
-
         used = 0
         parts: list[str] = []
         for spec in engine_registry.ordered():
-            if spec.key == model_manager.LOCAL_ENGINE:
-                root = model_manager.weights_dir(spec.key)
-            else:
-                root = model_manager.weights_dir(spec.key)
+            root = model_manager.weights_dir(spec.key)
             size = _dir_size(root) if root.is_dir() else 0
             if size:
                 used += size

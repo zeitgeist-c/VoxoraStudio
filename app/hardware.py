@@ -156,22 +156,13 @@ def nvidia_vram_gb() -> float:
         return 0.0
 
 
-def _other_gpu() -> tuple[bool, str]:
+def _other_gpu(force: bool = False) -> tuple[bool, str]:
     """NVIDIA dışı GPU (AMD/Intel/Qualcomm) — DirectML adayı."""
     if os.name != "nt":
         return (False, "")
-    listing = _run(
-        [
-            "powershell",
-            "-NoProfile",
-            "-Command",
-            "Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name",
-        ],
-        timeout=15,
-    )
-    if not listing:
+    names = _windows_gpu_names(force=force)
+    if not names:
         return (False, "")
-    names = [line.strip() for line in listing.splitlines() if line.strip()]
     excluded = ("microsoft", "remote", "basic display", "virtual")
     for name in names:
         lower = name.lower()
@@ -185,7 +176,52 @@ def _other_gpu() -> tuple[bool, str]:
     return (False, "")
 
 
-def total_ram_gb() -> float:
+#: Tek PowerShell çağrısında okunan Windows sistem bilgisi (GPU adları + RAM).
+#: ``detect`` iki ayrı CIM sorgusu yapıyordu; her PowerShell başlatması ~250 ms
+#: sürüyor ve pencere açılışında bu bedel iki kez ödeniyordu.
+_WININFO_CMD = (
+    "$ErrorActionPreference='SilentlyContinue';"
+    "$g=(Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name) -join '|';"
+    "$r=(Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory;"
+    "Write-Output ('GPU=' + $g); Write-Output ('RAM=' + $r)"
+)
+_WININFO_CACHE: dict[str, tuple[list[str], float]] = {}
+
+
+def _windows_gpu_names(force: bool = False) -> list[str]:
+    return _windows_sysinfo(force=force)[0]
+
+
+def _windows_ram_gb(force: bool = False) -> float:
+    return _windows_sysinfo(force=force)[1]
+
+
+def _windows_sysinfo(force: bool = False) -> tuple[list[str], float]:
+    """(GPU adları, toplam RAM GB) — tek PowerShell çağrısı, önbellekli.
+
+    Sürücü yoksa, PowerShell kapalıysa ya da çıktı bozuksa ``([], 0.0)``.
+    """
+    cached = _WININFO_CACHE.get("data")
+    if cached is not None and not force:
+        return cached
+    raw = _run(["powershell", "-NoProfile", "-Command", _WININFO_CMD], timeout=15)
+    names: list[str] = []
+    ram_gb = 0.0
+    for line in (raw or "").splitlines():
+        text = line.strip()
+        if text.startswith("GPU="):
+            names = [part.strip() for part in text[4:].split("|") if part.strip()]
+        elif text.startswith("RAM="):
+            try:
+                ram_gb = round(float(text[4:].strip()) / 1024 ** 3, 1)
+            except (TypeError, ValueError):
+                ram_gb = 0.0
+    data = (names, ram_gb)
+    _WININFO_CACHE["data"] = data
+    return data
+
+
+def total_ram_gb(force: bool = False) -> float:
     if os.name != "nt":
         try:
             pages = os.sysconf("SC_PHYS_PAGES")
@@ -193,19 +229,7 @@ def total_ram_gb() -> float:
             return round(pages * size / 1024 ** 3, 1)
         except (AttributeError, ValueError, OSError):
             return 0.0
-    raw = _run(
-        [
-            "powershell",
-            "-NoProfile",
-            "-Command",
-            "[math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory/1GB,1)",
-        ],
-        timeout=15,
-    )
-    try:
-        return round(float(raw.replace(",", ".")), 1)
-    except (TypeError, ValueError):
-        return 0.0
+    return _windows_ram_gb(force=force)
 
 
 def free_disk_gb(path: str | None = None) -> float:
@@ -250,14 +274,14 @@ def detect(force: bool = False) -> HardwareProfile:
             notes.append("nvidia-smi kart adı vermedi")
         if vram <= 0:
             notes.append("VRAM okunamadı")
-    other, other_name = _other_gpu()
+    other, other_name = _other_gpu(force=force)
     profile = HardwareProfile(
         cuda=cuda,
         gpu_name=name,
         vram_gb=vram,
         other_gpu=other,
         other_gpu_name=other_name,
-        ram_gb=total_ram_gb(),
+        ram_gb=total_ram_gb(force=force),
         cpu_threads=os.cpu_count() or 0,
         disk_free_gb=free_disk_gb(),
         notes=tuple(notes),
