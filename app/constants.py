@@ -6,8 +6,6 @@ Dil listesi, referans ses örneği metni, üretim hazır ayarları ve motor seç
 from __future__ import annotations
 
 from config import (
-    ENGINE_CHATTERBOX,
-    ENGINE_EMA,
     OUTPUT_FORMAT_MP3,
     OUTPUT_FORMAT_OPUS,
     OUTPUT_FORMAT_WAV,
@@ -22,7 +20,6 @@ __all__ = [
     "THEME_DARK",
     "THEME_SYSTEM",
     "LANGUAGE_SAMPLES",
-    "ENGINE_OPTIONS",
     "OUTPUT_FORMAT_OPTIONS",
     "OUTPUT_QUALITY_OPTIONS",
     "OUTPUT_FORMAT_HELP",
@@ -71,12 +68,6 @@ def format_label(fmt: str) -> str:
         if key == fmt:
             return name
     return (fmt or "").upper()
-
-# Ses motoru seçenekleri (Ayarlar → Ses). İlk öğe varsayılan motordur.
-ENGINE_OPTIONS = (
-    ("Chatterbox — çok dilli • ses klonlama", ENGINE_CHATTERBOX),
-    ("EMA Lightning — Türkçe • hızlı", ENGINE_EMA),
-)
 
 LANGUAGES = {
     "tr": "Türkçe",
