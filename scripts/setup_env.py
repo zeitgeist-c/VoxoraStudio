@@ -166,8 +166,21 @@ def install_directml_if_needed(target: str) -> None:
         print("[UYARI] DirectML provider dogrulanamadi. Program CPU fallback ile calisabilir.")
 
 
-def install_project_requirements() -> None:
+def requirements_packages(target: str) -> list[str]:
+    """requirements.txt satırlarını kurulacak paket listesine çevir.
+
+    torch/torchaudio burada kurulmaz (sürüm ve wheel kaynağı ``install_torch``
+    kararına bağlı). DirectML hedefinde ``onnxruntime`` de atlanır:
+    ``onnxruntime-directml`` AYNI ``onnxruntime`` modülünü sağlar. İkisi birlikte
+    kurulunca iki ayrı dist-info aynı 620 dosyayı paylaşıyor; modül DirectML
+    sürümü (1.24.4) kalırken metadata düz sürümü (1.31.1) gösteriyor. Sonuç:
+    ``pip install -r requirements.txt`` DirectML wheel'ini sessizce ezip
+    ``DmlExecutionProvider``'ı kaldırıyor ve denetim araçları yanlış sürümü
+    tarıyor.
+    """
     skip = {"torch", "torchaudio", DIRECTML_PACKAGE}
+    if target == "directml":
+        skip.add("onnxruntime")
     packages: list[str] = []
 
     for raw in REQUIREMENTS.read_text(encoding="utf-8").splitlines():
@@ -189,7 +202,11 @@ def install_project_requirements() -> None:
             print(f"[setup] skip: {name}")
             continue
         packages.append(clean)
+    return packages
 
+
+def install_project_requirements(target: str = "cpu") -> None:
+    packages = requirements_packages(target)
     if packages:
         print("[BILGI] Proje paketleri kuruluyor...")
         pip_install(["--upgrade", *packages])
@@ -245,7 +262,7 @@ def main() -> int:
     install_torch(target)
 
     # 2) Proje gereksinimleri (chatterbox-tts vb.)
-    install_project_requirements()
+    install_project_requirements(target)
 
     # 3) DirectML (opsiyonel)
     install_directml_if_needed(target)
