@@ -60,6 +60,9 @@ def t(key, _fmt=True, **kwargs):
 
 TABLES = {}
 
+# Paketleme denetimi icin: yuklenemeyen katalog modulleri burada gorunur.
+LOAD_ERRORS = []
+
 def ui_languages():
     return list(LANGUAGES)
 
@@ -78,7 +81,7 @@ def _load():
                 if isinstance(_p, dict):
                     _en.update(_p)
             except ImportError:
-                pass
+                LOAD_ERRORS.append("i18n_strings_en%d" % _i)
         TABLES = {"en": _en, "tr": {}}
         for _kod, _ad in (("de", "DE"), ("es", "ES"), ("fr", "FR"),
                            ("it", "IT"), ("pt-BR", "PB"), ("ru", "RU"),
@@ -93,7 +96,7 @@ def _load():
                     if isinstance(_parca, dict):
                         _bir.update(_parca)
                 except ImportError:
-                    pass
+                    LOAD_ERRORS.append("i18n_strings_%s%d" % (_ad.lower(), _i))
             if _bir:
                 TABLES[_kod] = _bir
     except ImportError:

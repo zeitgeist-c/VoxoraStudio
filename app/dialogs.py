@@ -86,7 +86,7 @@ class ModelLoadDialog(QDialog):
         self.detail.setObjectName("dialogDetails")
         self.detail.setReadOnly(True)
         self.detail.setMaximumBlockCount(200)
-        self.detail.setPlaceholderText("Model hazırlama ayrıntıları burada görünecek.")
+        self.detail.setPlaceholderText(t("Model hazırlama ayrıntıları burada görünecek."))
         self.body_card.content_layout.addWidget(self.detail, stretch=1)
         root.addWidget(self.body_card, stretch=1)
 
@@ -121,8 +121,8 @@ class ModelLoadDialog(QDialog):
         self._timer.stop()
         self.progress.setRange(0, 1)
         self.progress.setValue(1)
-        self.title_label.setText("Model hazır")
-        self.state_pill.setText("Hazır")
+        self.title_label.setText(t("Model hazır"))
+        self.state_pill.setText(t("Hazır"))
         self.state_pill.set_tone("success")
         self.add_status(message)
         self.close_button.set_icon_name("check")
@@ -133,7 +133,7 @@ class ModelLoadDialog(QDialog):
         self._timer.stop()
         self.progress.setRange(0, 1)
         self.progress.setValue(0)
-        self.title_label.setText("Model yüklenemedi")
+        self.title_label.setText(t("Model yüklenemedi"))
         self.state_pill.setText("Hata")
         self.state_pill.set_tone("danger")
         self.add_status(message)
@@ -218,7 +218,7 @@ class VoiceGuideDialog(QDialog):
 
     def copy_text(self):
         QApplication.clipboard().setText(REFERENCE_SAMPLE_TEXT)
-        self.btn_copy.setText("Kopyalandı")
+        self.btn_copy.setText(t("Kopyalandı"))
         self.btn_copy.set_icon_name("check")
 
 
@@ -272,7 +272,7 @@ class SynthesisDialog(QDialog):
         self.detail.setObjectName("dialogDetails")
         self.detail.setReadOnly(True)
         self.detail.setMaximumBlockCount(300)
-        self.detail.setPlaceholderText("Üretim ayrıntıları burada görünecek.")
+        self.detail.setPlaceholderText(t("Üretim ayrıntıları burada görünecek."))
         self.body_card.content_layout.addWidget(self.detail, stretch=1)
         root.addWidget(self.body_card, stretch=1)
 
@@ -312,7 +312,7 @@ class SynthesisDialog(QDialog):
         self.cancel_button.setEnabled(False)
         self.state_pill.setText("Durduruluyor")
         self.state_pill.set_tone("warning")
-        self.status_label.setText("Durdurma isteği alındı. Üretim kesiliyor...")
+        self.status_label.setText(t("Durdurma isteği alındı. Üretim kesiliyor..."))
         self.detail.appendPlainText("Durdurma isteği alındı. Gerekirse işlem zorla kesilecek.")
         self.cancel_requested.emit()
 
@@ -354,8 +354,8 @@ class SynthesisDialog(QDialog):
     def finish_ok(self, message: str):
         self._timer.stop()
         self.progress.setValue(self.progress.maximum())
-        self.title_label.setText("Ses hazır")
-        self.state_pill.setText("Hazır")
+        self.title_label.setText(t("Ses hazır"))
+        self.state_pill.setText(t("Hazır"))
         self.state_pill.set_tone("success")
         self.status_label.setText(message)
         self.detail.appendPlainText(message)

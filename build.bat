@@ -51,6 +51,9 @@ echo [2/5] PyInstaller ile build baslatiliyor...
 echo NOT: Bu islem ~10-20 dakika surebilir.
 echo.
 
+REM Dinamik dil kataloglarini hidden-import olarak ekle (AUD-VOX-001).
+for /f "delims=" %%a in ('"%PYEXE%" scripts\catalog_hidden_imports.py') do set CATALOG_ARGS=%%a
+
 "%PYEXE%" -m PyInstaller ^
     --noconfirm ^
     --clean ^
@@ -67,6 +70,7 @@ echo.
     --hidden-import "send2trash" ^
     --hidden-import "numpy" ^
     --hidden-import "onnxruntime" ^
+    %CATALOG_ARGS% ^
     --collect-all "normalizer_tr" ^
     --exclude-module "matplotlib" ^
     --exclude-module "pandas" ^
