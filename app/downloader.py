@@ -17,6 +17,7 @@ Desen WordArc'ta sınanmıştır:
 - Disk alanı önceden kontrol edilir; yetmezse indirme hiç başlamaz.
 """
 from __future__ import annotations
+from i18n import t, set_language as ui_set_language, language as ui_language, LANGUAGES as UI_LANGUAGES
 
 import json
 import logging
@@ -87,8 +88,8 @@ def free_space_for(path: Path | str, needed_bytes: int) -> None:
     # 64 MB emniyet payı: geçici dosya + arşiv açılışı.
     if free < needed_bytes + 64 * 1024 * 1024:
         raise DownloadError(
-            f"Yeterli disk alanı yok: {needed_bytes / 1024 ** 3:.1f} GB gerekiyor, "
-            f"{free / 1024 ** 3:.1f} GB boş."
+            t(f"Yeterli disk alanı yok: {needed_bytes / 1024 ** 3:.1f} GB gerekiyor, ") +
+            t(f"{free / 1024 ** 3:.1f} GB boş.")
         )
 
 
@@ -181,7 +182,7 @@ def download_file(
                         received = 0
                     elif offset and status != 206:
                         raise DownloadError(
-                            "Sunucu kaldığı yerden devam etmeyi desteklemiyor."
+                            t("Sunucu kaldığı yerden devam etmeyi desteklemiyor.")
                         )
                     with open(part, "ab" if offset else "wb") as sink:
                         while True:
@@ -194,7 +195,7 @@ def download_file(
                             received += len(block)
                             if expected_size and offset > expected_size:
                                 raise DownloadError(
-                                    f"İndirilen dosya beklenenden büyük: {target.name}"
+                                    t(f"İndirilen dosya beklenenden büyük: {target.name}")
                                 )
                             report()
             report("verifying", force=True)
@@ -216,7 +217,7 @@ def download_file(
                 if isinstance(exc, DownloadError):
                     raise
                 raise DownloadError(
-                    f"İndirme tamamlanamadı: {target.name}\n{exc}"
+                    t(f"İndirme tamamlanamadı: {target.name}\n{exc}")
                 ) from exc
             log.warning("İndirme yeniden denenecek (%d/%d): %s", attempt + 1, _ATTEMPTS, exc)
             # İptal duyarlı bekleme (5, 10 sn).
@@ -226,7 +227,7 @@ def download_file(
             offset = part.stat().st_size if part.is_file() else 0
             completed_base = offset
             received = 0
-    raise DownloadError(f"İndirme tamamlanamadı: {target.name}")
+    raise DownloadError(t(f"İndirme tamamlanamadı: {target.name}"))
 
 
 def _matches(path: Path, expected_size: int, expected_sha256: str) -> bool:
@@ -239,16 +240,16 @@ def _matches(path: Path, expected_size: int, expected_sha256: str) -> bool:
 
 def _verify(path: Path, expected_size: int, expected_sha256: str, label: str) -> None:
     if not path.is_file():
-        raise DownloadError(f"İndirilen dosya oluşmadı: {label}")
+        raise DownloadError(t("İndirilen dosya oluşmadı: {label}", label=label))
     if expected_size and path.stat().st_size != expected_size:
         raise DownloadError(
-            f"İndirilen dosyanın boyutu tutmuyor: {label} "
+            t("İndirilen dosyanın boyutu tutmuyor: {label} ", label=label) +
             f"({path.stat().st_size} / {expected_size} bayt)."
         )
     if expected_sha256 and _sha256(path) != expected_sha256.lower():
         raise DownloadError(
-            f"İndirilen dosya bozuk (SHA-256 tutmuyor): {label}. "
-            "İndirmeyi yeniden deneyin."
+            t("İndirilen dosya bozuk (SHA-256 tutmuyor): {label}. ", label=label) +
+            t("İndirmeyi yeniden deneyin.")
         )
 
 
@@ -305,7 +306,7 @@ def download_hf_model(
             "Model deposunda beklenen dosyalar yok: " + ", ".join(missing[:4])
         )
     if not rows:
-        raise DownloadError(f"Model deposunda indirilecek dosya bulunamadı: {repo_id}")
+        raise DownloadError(t("Model deposunda indirilecek dosya bulunamadı: {repo_id}", repo_id=repo_id))
 
     # Depo manifesti UZAKTAN gelir: ``rfilename`` değeri ``../`` ya da sürücü
     # yolu içerirse dosya model klasörünün dışına yazılırdı (path traversal).
@@ -346,14 +347,14 @@ def _safe_relative(name: str, root: Path) -> str:
     raw = str(name)
     normalized = raw.replace("\\", "/")
     if not normalized or normalized.startswith("/") or ":" in normalized.split("/")[0]:
-        raise DownloadError(f"Model deposunda geçersiz dosya yolu: {raw!r}")
+        raise DownloadError(t("Model deposunda geçersiz dosya yolu: {raw!r}", raw=raw))
     parts = PurePosixPath(normalized).parts
     if not parts or ".." in parts:
-        raise DownloadError(f"Model deposunda kök dışına çıkan dosya yolu: {raw!r}")
+        raise DownloadError(t("Model deposunda kök dışına çıkan dosya yolu: {raw!r}", raw=raw))
     resolved = (root / Path(*parts)).resolve()
     root_resolved = root.resolve()
     if resolved != root_resolved and root_resolved not in resolved.parents:
-        raise DownloadError(f"Model deposunda kök dışına çıkan dosya yolu: {raw!r}")
+        raise DownloadError(t("Model deposunda kök dışına çıkan dosya yolu: {raw!r}", raw=raw))
     return raw
 
 
@@ -364,10 +365,10 @@ def _hf_manifest(repo_id: str) -> dict:
             return json.load(response)
     except urllib.error.HTTPError as exc:
         if exc.code == 404:
-            raise DownloadError(f"Model deposu bulunamadı: {repo_id}") from None
-        raise DownloadError(f"Model bilgisi alınamadı ({exc.code}): {repo_id}") from None
+            raise DownloadError(t("Model deposu bulunamadı: {repo_id}", repo_id=repo_id)) from None
+        raise DownloadError(t(f"Model bilgisi alınamadı ({exc.code}): {repo_id}")) from None
     except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
         raise DownloadError(
-            f"Model bilgisi alınamadı: {repo_id}\n{exc}\n"
-            "İnternet bağlantısını kontrol edin."
+            t("Model bilgisi alınamadı: {repo_id}\n{exc}\n", repo_id=repo_id, exc=exc) +
+            t("İnternet bağlantısını kontrol edin.")
         ) from exc

@@ -261,7 +261,7 @@ class DownloadTests(TempEnginesDir):
                 self.root / "bad.bin",
                 expected_sha256="0" * 64,
             )
-        self.assertIn("bozuk", str(ctx.exception))
+        self.assertIn("corrupt", str(ctx.exception))
         self.assertFalse((self.root / "bad.bin").exists())
 
     def test_download_resumes_from_part(self):

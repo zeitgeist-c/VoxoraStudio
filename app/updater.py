@@ -19,6 +19,7 @@ Kullanıcı verisi (``%LOCALAPPDATA%\\VoxoraStudio``) ve Hugging Face model
 olduğu için güncelleme onlara dokunmaz; modeller yeniden indirilmez.
 """
 from __future__ import annotations
+from i18n import t, set_language as ui_set_language, language as ui_language, LANGUAGES as UI_LANGUAGES
 
 import ctypes
 import hashlib
@@ -127,7 +128,7 @@ def parse_version(text: str) -> tuple:
     """'v0.3.10' / '0.3.10-beta' -> (0, 3, 10); sayısal olmayan kuyruk durur."""
     match = re.search(r"(\d+)\.(\d+)\.(\d+)", str(text or ""))
     if not match:
-        raise UpdateError(f"Sürüm numarası çözümlenemedi: {text!r}")
+        raise UpdateError(t("Sürüm numarası çözümlenemedi: {text!r}", text=text))
     return tuple(int(part) for part in match.groups())
 
 
@@ -216,7 +217,7 @@ def parse_release(payload: dict, version_prefix: str = "v",
         )
         break
     if info is None:
-        raise UpdateError(f"Yayınlanan en yeni sürümde {wanted} kurulum dosyası yok.")
+        raise UpdateError(t("Yayınlanan en yeni sürümde {wanted} kurulum dosyası yok.", wanted=wanted))
     _attach_delta(info, payload, version, current_version)
     return info
 
@@ -254,7 +255,7 @@ def fetch_latest(current_version: str = "") -> UpdateInfo:
         with urllib.request.urlopen(request, timeout=20) as response:
             payload = json.loads(response.read().decode("utf-8"))
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
-        raise UpdateError("Güncelleme sunucusuna ulaşılamadı.") from exc
+        raise UpdateError(t("Güncelleme sunucusuna ulaşılamadı.")) from exc
     return parse_release(payload, current_version=current_version)
 
 
@@ -267,7 +268,7 @@ def download_delta(info: UpdateInfo, dest: Path, progress=None, cancel=None,
                    phase=None) -> Path:
     """Delta paketini indir ve doğrula (``download``in delta karşılığı)."""
     if not info.delta_url:
-        raise UpdateError("Bu sürüm için delta paketi yok.")
+        raise UpdateError(t("Bu sürüm için delta paketi yok."))
     delta_info = UpdateInfo(
         version=info.version,
         asset_name=info.delta_name,
@@ -322,20 +323,20 @@ def download(info: UpdateInfo, dest: Path, progress=None, cancel=None,
                     pass
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
         dest.unlink(missing_ok=True)
-        raise UpdateError("Güncelleme indirmesi yarıda kesildi.") from exc
+        raise UpdateError(t("Güncelleme indirmesi yarıda kesildi.")) from exc
     if cancel is not None and cancel.is_set():
         dest.unlink(missing_ok=True)
         raise UpdateError("indirme iptal edildi")
     if info.size and written != info.size:
         dest.unlink(missing_ok=True)
-        raise UpdateError("İndirme dosya tamamlanmadan bitti.")
+        raise UpdateError(t("İndirme dosya tamamlanmadan bitti."))
     if info.sha256:
         if phase:
             phase("verify")
         actual = _sha256_of(dest)
         if actual.lower() != info.sha256.lower():
             dest.unlink(missing_ok=True)
-            raise UpdateError("İndirilen dosyanın sağlama toplamı uyuşmuyor.")
+            raise UpdateError(t("İndirilen dosyanın sağlama toplamı uyuşmuyor."))
     else:
         log.warning("Kurulum dosyası için SHA-256 yayınlanmamış: %s", info.asset_name)
     return dest
@@ -439,11 +440,11 @@ def _shell_execute_runas(exe: Path, parameters: str) -> int:
         code = ctypes.get_last_error()
         if code == _ERROR_CANCELLED:
             raise UpdateError(
-                "Kurulum için yönetici izni verilmedi. Güncelleme kurulmadı; "
-                "dilediğinizde tekrar deneyebilirsiniz.")
-        raise UpdateError(f"Kurulum başlatılamadı (ShellExecute hata {code}).")
+                t("Kurulum için yönetici izni verilmedi. Güncelleme kurulmadı; ") +
+                t("dilediğinizde tekrar deneyebilirsiniz."))
+        raise UpdateError(t("Kurulum başlatılamadı (ShellExecute hata {code}).", code=code))
     if not info.hProcess:
-        raise UpdateError("Kurulum başlatıldı ancak süreç tanıtıcısı alınamadı.")
+        raise UpdateError(t("Kurulum başlatıldı ancak süreç tanıtıcısı alınamadı."))
     try:
         kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
         kernel32.GetProcessId.argtypes = [ctypes.c_void_p]
@@ -469,7 +470,7 @@ def spawn_installer(installer: Path, restart: bool = True) -> int:
     ``runas`` kullanılır ve her güncellemede Windows bir kez onay sorar.
     """
     if not installer.is_file():
-        raise UpdateError(f"Kurulum dosyası bulunamadı: {installer}")
+        raise UpdateError(t("Kurulum dosyası bulunamadı: {installer}", installer=installer))
     flags = list(SILENT_FLAGS)
     if not restart:
         flags = [flag for flag in flags if flag != "/RESTARTAPPLICATIONS"]
@@ -533,7 +534,7 @@ def cleanup_updates_dir() -> str:
         except OSError:
             log.warning("İndirme kalıntısı silinemedi: %s", entry)
     if removed:
-        last_cleanup_result = "İndirme kalıntısı silindi."
+        last_cleanup_result = t("İndirme kalıntısı silindi.")
         log.info("Güncelleme kalıntıları silindi: %s", ", ".join(removed))
         return last_cleanup_result
     return ""
@@ -606,15 +607,15 @@ def apply_delta(archive: Path, current_version: str,
     manifest = delta_mod.read_manifest(archive)
     if not delta_mod.can_apply(manifest, current_version):
         raise UpdateError(
-            f"Delta paketi sürüm {manifest.base_version} için hazırlanmış; "
-            f"kurulu sürüm {current_version}. Tam kurulum gerekiyor.")
+            t(f"Delta paketi sürüm {manifest.base_version} için hazırlanmış; ") +
+            t("kurulu sürüm {current_version}. Tam kurulum gerekiyor.", current_version=current_version))
     staged = delta_mod.stage(archive, manifest)
     marker = write_delta_marker(staged, manifest, package_root())
     if marker is None:
         import shutil as _shutil
 
         _shutil.rmtree(staged, ignore_errors=True)
-        raise UpdateError("Delta güncelleme fişi yazılamadı.")
+        raise UpdateError(t("Delta güncelleme fişi yazılamadı."))
     log.info("Delta hazır; kapanışta uygulanacak: %s", marker)
     return [str(marker)]
 
@@ -661,37 +662,37 @@ def validate_pending_delta(payload: dict) -> str:
     olabilir.
     """
     if not isinstance(payload, dict):
-        return "Delta fişi biçimsiz."
+        return t("Delta fişi biçimsiz.")
     staged = Path(str(payload.get("staged") or ""))
     target = Path(str(payload.get("target") or ""))
     if not str(staged) or not str(target):
-        return "Delta fişinde kaynak/hedef eksik."
+        return t("Delta fişinde kaynak/hedef eksik.")
     expected_target = package_root().resolve()
     try:
         target_resolved = target.resolve()
     except OSError:
-        return "Delta fişi hedefi çözümlenemedi."
+        return t("Delta fişi hedefi çözümlenemedi.")
     if target_resolved != expected_target:
-        return "Delta fişi hedefi program klasörü değil; uygulanmadı."
+        return t("Delta fişi hedefi program klasörü değil; uygulanmadı.")
     temp_root = Path(tempfile.gettempdir()).resolve()
     try:
         staged_resolved = staged.resolve()
     except OSError:
-        return "Delta fişi kaynağı çözümlenemedi."
+        return t("Delta fişi kaynağı çözümlenemedi.")
     if staged_resolved != temp_root and temp_root not in staged_resolved.parents:
-        return "Delta fişi kaynağı geçici klasör dışında; uygulanmadı."
+        return t("Delta fişi kaynağı geçici klasör dışında; uygulanmadı.")
     files = payload.get("files") or []
     if not isinstance(files, list):
-        return "Delta fişinde dosya listesi biçimsiz."
+        return t("Delta fişinde dosya listesi biçimsiz.")
     for entry in files:
         if not isinstance(entry, dict) or not _safe_delta_path(entry.get("path")):
-            return f"Delta fişinde güvensiz yol: {entry!r}"
+            return t("Delta fişinde güvensiz yol: {entry!r}", entry=entry)
         digest = str(entry.get("sha256") or "")
         if digest and not re.fullmatch(r"[0-9a-fA-F]{64}", digest):
-            return f"Delta fişinde geçersiz sha256: {entry.get('path')!r}"
+            return t("Delta fişinde geçersiz sha256: {yol!r}", yol=entry.get('path'))
     for name in payload.get("removed") or []:
         if not _safe_delta_path(name):
-            return f"Delta fişinde güvensiz silme yolu: {name!r}"
+            return t("Delta fişinde güvensiz silme yolu: {name!r}", name=name)
     return ""
 
 
@@ -1016,9 +1017,9 @@ def _runas(argv: list[str], wait: bool = True) -> int:
         code = ctypes.get_last_error()
         if code == _ERROR_CANCELLED:
             raise UpdateError(
-                "Delta güncelleme için yönetici izni verilmedi. Güncelleme "
-                "kurulmadı; dilediğinizde tekrar deneyebilirsiniz.")
-        raise UpdateError(f"Delta yardımcısı başlatılamadı (hata {code}).")
+                t("Delta güncelleme için yönetici izni verilmedi. Güncelleme ") +
+                t("kurulmadı; dilediğinizde tekrar deneyebilirsiniz."))
+        raise UpdateError(t("Delta yardımcısı başlatılamadı (hata {code}).", code=code))
     if not info.hProcess:
         return 0
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)

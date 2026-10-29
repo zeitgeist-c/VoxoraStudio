@@ -169,20 +169,20 @@ class PendingDeltaValidationTests(unittest.TestCase):
 
     def test_foreign_target_is_rejected(self):
         payload = self._payload(target="C:/Windows/System32/drivers/etc")
-        self.assertIn("program klasörü", updater.validate_pending_delta(payload))
+        self.assertIn("program folder", updater.validate_pending_delta(payload))
 
     def test_staged_outside_temp_is_rejected(self):
         payload = self._payload(staged=str(self.app_root / "x"))
-        self.assertIn("geçici klasör", updater.validate_pending_delta(payload))
+        self.assertIn("temp folder", updater.validate_pending_delta(payload))
 
     def test_traversal_in_file_list_is_rejected(self):
         payload = self._payload(files=[
             {"path": "../../Windows/System32/kotu.dll", "sha256": "a" * 64}])
-        self.assertIn("güvensiz yol", updater.validate_pending_delta(payload))
+        self.assertIn("Unsafe path", updater.validate_pending_delta(payload))
 
     def test_absolute_removed_path_is_rejected(self):
         payload = self._payload(removed=["C:/Windows/System32/kritik.dll"])
-        self.assertIn("güvensiz", updater.validate_pending_delta(payload))
+        self.assertIn("Unsafe", updater.validate_pending_delta(payload))
 
     def test_bad_digest_is_rejected(self):
         payload = self._payload(files=[{"path": "a.dll", "sha256": "deadbeef"}])

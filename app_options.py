@@ -29,6 +29,7 @@ Kullanım (PyQt6 ile):
 """
 
 from __future__ import annotations
+from i18n import t, set_language as ui_set_language, language as ui_language, LANGUAGES as UI_LANGUAGES
 
 import logging
 import os
@@ -261,11 +262,11 @@ def build_settings_widgets(autostart: AutostartController, tray: TrayOption,
     """
     from PyQt6.QtWidgets import QCheckBox  # noqa: PLC0415
 
-    autostart_box = QCheckBox("Windows'ta otomatik başlat", parent)
+    autostart_box = QCheckBox(t("Windows'ta otomatik başlat"), parent)
     autostart_box.setChecked(autostart.is_enabled())
     autostart_box.toggled.connect(autostart.set_enabled)
 
-    tray_box = QCheckBox("Kapatılınca tepsiye küçült", parent)
+    tray_box = QCheckBox(t("Kapatılınca tepsiye küçült"), parent)
     tray_box.setChecked(tray.is_enabled())
     tray_box.toggled.connect(tray.set_enabled)
 
