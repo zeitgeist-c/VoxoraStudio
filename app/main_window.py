@@ -307,6 +307,8 @@ class MainWindow(QMainWindow):
         self._update_manual = False
         self._update_info = None
         self._update_last_check = str(self.settings.get("update_last_check", "") or "")
+        # Dil değişiminde canlı yenilenecek statik metin bağları: (setter, key, kwargs)
+        self._tr_items: list[tuple] = []
 
         self._build_ui()
         self._load_saved_settings()
@@ -330,6 +332,48 @@ class MainWindow(QMainWindow):
         theme = self.settings.get("theme", "dark") if self.settings else "dark"
         self._resolved_theme = apply_theme(QApplication.instance(), theme)
         self._refresh_theme_icons()
+
+    def _bind_text(self, setter, key: str, **kwargs) -> None:
+        """Statik bir metni kaydet; dil değişince ``setter`` yeniden uygulanır.
+
+        ``setter`` bir ``setText``/``setToolTip`` benzeri çağrılabilir olmalıdır.
+        Metin anahtarı Türkçe tutulur, çeviri ``t()`` üzerinden gelir; böylece
+        canlı dil değişiminde yeniden kurulum gerekmez.
+        """
+        self._tr_items.append((setter, key, kwargs))
+        setter(t(key, **kwargs))
+
+    def _retranslate_ui(self) -> None:
+        """Açık arayüzdeki kayıtlı statik metinleri seçili dile göre yenile."""
+        for setter, key, kwargs in list(self._tr_items):
+            try:
+                setter(t(key, **kwargs))
+            except RuntimeError:
+                # C++ tarafı silinmiş widget: bağ ölü, sessizce atla.
+                continue
+
+    def _refresh_dynamic_texts(self) -> None:
+        """Dile bağlı dinamik metinleri (özet, sayaç, kartlar) yeniden üret."""
+        for name in (
+            "_refresh_text_stats",
+            "update_settings_summary",
+            "update_text_info",
+            "_refresh_models_page",
+            "_refresh_models_disk_label",
+            "_refresh_system_labels",
+            "_refresh_queue_list",
+            "_refresh_history_list",
+            "_refresh_format_tiles",
+            "_refresh_quality_options",
+            "_refresh_output_dir_label",
+            "_show_update_current",
+        ):
+            method = getattr(self, name, None)
+            if callable(method):
+                try:
+                    method()
+                except (RuntimeError, AttributeError, TypeError):
+                    continue
 
     def _build_ui(self):
         central = QWidget()
@@ -360,9 +404,9 @@ class MainWindow(QMainWindow):
         topbar_row.addSpacing(14)
 
         nav_items = [
-            (t("Üretim"), "generate", 0),
-            (t("Arşiv"), "history", 1),
-            (t("Araçlar"), "compress", 2),
+            ("Üretim", "generate", 0),
+            ("Arşiv", "history", 1),
+            ("Araçlar", "compress", 2),
             ("Modeller", "download", 3),
             ("Ayarlar", "settings", 4),
         ]
@@ -370,17 +414,23 @@ class MainWindow(QMainWindow):
         self._nav_icon_names = [icon_name for _, icon_name, _ in nav_items]
         self._nav_buttons = []
         for label, icon_name, index in nav_items:
-            button = QPushButton(label)
+            button = QPushButton(t(label))
             button.setIcon(navigation_icon(icon_name))
             button.setIconSize(QSize(17, 17))
             button.setProperty("topnav", True)
             button.setCheckable(True)
             button.clicked.connect(lambda checked=False, i=index: self._switch_page(i))
+            self._bind_text(button.setText, label)
             topbar_row.addWidget(button)
             self._nav_buttons.append(button)
         self._nav_buttons[0].setChecked(True)
         topbar_row.addStretch(1)
-        self.stats_label = StatusPill(t(f"Toplam: {self.production_count} üretim"), "neutral")
+        self.stats_label = StatusPill("", "neutral")
+        self._bind_text(
+            self.stats_label.setText,
+            "Toplam: {count} üretim",
+            count=self.production_count,
+        )
         topbar_row.addWidget(self.stats_label)
         shell.addWidget(self.topbar)
 
@@ -413,13 +463,15 @@ class MainWindow(QMainWindow):
             self._page_action_stack.addWidget(action_page)
 
         self._page_meta = (
-            (t("Ses Üretim Stüdyosu"), t("Metninizi doğal ve etkileyici bir sese dönüştürün")),
-            (t("Üretim Arşivi"), t("Seslerinizi bulun, dinleyin ve yeniden kullanın")),
-            (t("Araçlar"), t("Sıkıştırma ve sistem araçları tek merkezde")),
-            ("Ses Modelleri", t("Motorları indirin, kurun ve disk kullanımını yönetin")),
-            (t("Stüdyo Ayarları"), t("Ses, çıktı ve sistem tercihlerinizi yönetin")),
+            ("Ses Üretim Stüdyosu", "Metninizi doğal ve etkileyici bir sese dönüştürün"),
+            ("Üretim Arşivi", "Seslerinizi bulun, dinleyin ve yeniden kullanın"),
+            ("Araçlar", "Sıkıştırma ve sistem araçları tek merkezde"),
+            ("Ses Modelleri", "Motorları indirin, kurun ve disk kullanımını yönetin"),
+            ("Stüdyo Ayarları", "Ses, çıktı ve sistem tercihlerinizi yönetin"),
         )
-        self.page_header = PageHeader(*self._page_meta[0], action=self._page_action_stack)
+        self.page_header = PageHeader(
+            t(self._page_meta[0][0]), t(self._page_meta[0][1]), action=self._page_action_stack
+        )
         root.addWidget(self.page_header)
 
         self.pages = QStackedWidget()
@@ -1076,7 +1128,7 @@ class MainWindow(QMainWindow):
 
             info = QVBoxLayout()
             info.setSpacing(3)
-            size_label = QLabel(t(f"İndirme boyutu: {state.size_label}"))
+            size_label = QLabel(t("İndirme boyutu: {size}", size=state.size_label))
             size_label.setObjectName("modelMeta")
             info.addWidget(size_label)
             note = QLabel(spec.notice or spec.tagline)
@@ -1166,7 +1218,7 @@ class MainWindow(QMainWindow):
                 used += size
                 parts.append(f"{spec.label}: {size / 1024 ** 2:.0f} MB")
         free = hardware.free_disk_gb()
-        head = t(f"Kullanılan: {used / 1024 ** 2:.0f} MB")
+        head = t("Kullanılan: {mb} MB", mb=f"{used / 1024 ** 2:.0f}")
         if parts:
             head += "  (" + " · ".join(parts) + ")"
         if free:
@@ -1283,7 +1335,7 @@ class MainWindow(QMainWindow):
                 widgets["status"].setText(f"%{done * 100 / total:.0f}" if total else t("İndiriliyor…"))
                 break
         if total > 0:
-            text = t(f"İndiriliyor: {format_bytes(done)} / {format_bytes(total)}")
+            text = t("İndiriliyor: {done} / {total}", done=format_bytes(done), total=format_bytes(total))
             if speed > 0:
                 text += f" · {format_bytes(int(speed))}/sn"
             if remaining:
@@ -1343,7 +1395,7 @@ class MainWindow(QMainWindow):
         spec = engine_registry.spec(engine)
         answer = QMessageBox.question(
             self,
-            t(f"{spec.label} kaldırılsın mı?"),
+            t("{label} kaldırılsın mı?", label=spec.label),
             t("Motor dosyaları ve indirilen model ağırlıkları silinecek.\n\n") +
             t("Ürettiğiniz sesler ve ayarlarınız korunur. Yeniden kullanmak ") +
             "isterseniz tekrar indirmeniz gerekir.",
@@ -1621,7 +1673,7 @@ class MainWindow(QMainWindow):
             if not spec.cloning:
                 self.voice_card.set_text(
                     "Ses Profili",
-                    t(f"{spec.label} sabit bir sesle okur; referans ses kullanılmaz."),
+                    t("{label} sabit bir sesle okur; referans ses kullanılmaz.", label=spec.label),
                 )
                 self.voice_label.setText(f"{spec.label} — sabit ses (referans gerekmez)")
             else:
@@ -1664,7 +1716,7 @@ class MainWindow(QMainWindow):
         self._refresh_engine_combo_enabled(busy=False)
         self._model_dialog = ModelLoadDialog(self)
         spec = engine_registry.spec(self._engine_name)
-        self._model_dialog.add_status(t(f"Uygulama açıldı. {spec.label} hazırlanıyor."))
+        self._model_dialog.add_status(t("Uygulama açıldı. {label} hazırlanıyor.", label=spec.label))
         self._model_dialog.show()
 
         self._loader = EngineLoader(engine_name=self._engine_name)
@@ -1688,7 +1740,7 @@ class MainWindow(QMainWindow):
         self._apply_engine_ui_state(self._engine_name)
         self._refresh_engine_combo_enabled(busy=False)
         display = getattr(engine, "display_name", type(engine.engine).__name__)
-        message = t(f"Hazır - {display} ({engine.device_name})")
+        message = t("Hazır - {display} ({device})", display=display, device=engine.device_name)
         self.status_label.setText(message)
         self.engine_status_pill.setText("HAZIR")
         self.engine_status_pill.set_tone("success")
@@ -2310,9 +2362,9 @@ class MainWindow(QMainWindow):
         if profile.ram_gb:
             lines.append(f"RAM: {profile.ram_gb:g} GB")
         if profile.cpu_threads:
-            lines.append(t(f"İşlemci: {profile.cpu_threads} iş parçacığı"))
+            lines.append(t("İşlemci: {threads} iş parçacığı", threads=profile.cpu_threads))
         if profile.disk_free_gb:
-            lines.append(t(f"Boş disk: {profile.disk_free_gb:g} GB"))
+            lines.append(t("Boş disk: {gb} GB", gb=f"{profile.disk_free_gb:g}"))
         lines.append(f"ffmpeg: {ffmpeg}")
         lines.append("")
         lines.append("Motorlar:")
@@ -2880,7 +2932,7 @@ class MainWindow(QMainWindow):
         self._update_info = info
         self._render_update_offer()
         self.status_label.setText(
-            t(f"Yeni sürüm {info.version} çıktı — Ayarlar ▸ Güncelleme"))
+            t("Yeni sürüm {ver} çıktı — Ayarlar ▸ Güncelleme", ver=info.version))
 
     def _render_update_offer(self):
         """Bekleyen sürüm teklifi (indirme başlamadan önceki durum)."""
@@ -2889,7 +2941,7 @@ class MainWindow(QMainWindow):
         if info is None:
             return
         self.update_status_label.setText(
-            t(f"Yeni sürüm {info.version} hazır ({updater.format_bytes(info.size)}). ") +
+            t("Yeni sürüm {ver} hazır ({size}). ", ver=info.version, size=updater.format_bytes(info.size)) +
             t("Program kapanıp yerinde güncellenecek; ayarlar ve çıktılar korunur."))
         self.update_stats_label.setText("")
         self.update_progress.setVisible(False)
@@ -3050,9 +3102,8 @@ class MainWindow(QMainWindow):
         kod = self.ui_lang_combo.currentData() if hasattr(self, "ui_lang_combo") else "en"
         ui_set_language(kod or "en")
         self._set_option("ui_language", kod or "en")
-        QMessageBox.information(
-            self, t("Arayüz dili"),
-            t("Dil kaydedildi. Değişiklik program yeniden başlatılınca uygulanır."))
+        self._retranslate_ui()
+        self._refresh_dynamic_texts()
 
     def _set_outputs_enabled(self, enabled: bool):
         for button in (self.btn_play, self.btn_stop, self.btn_save_wav, self.btn_save_mp3):
@@ -3147,7 +3198,7 @@ class MainWindow(QMainWindow):
             )
 
         self._synth_cancel_requested = False
-        self._set_busy(True, t(f"Üretiliyor... 0/{len(chunks)}"))
+        self._set_busy(True, t("Üretiliyor... 0/{n}", n=len(chunks)))
         self.progress.setRange(0, len(chunks) * 1000)
         self.progress.setValue(0)
 
@@ -3312,7 +3363,7 @@ class MainWindow(QMainWindow):
             fallback = file_path.with_suffix(".wav")
             sf.write(fallback, _as_mono(wav), sr)
             self.status_label.setText(
-                t(f"{format_label(fmt)} yazılamadı; WAV olarak kaydedildi: {fallback.name}"))
+                t("{fmt} yazılamadı; WAV olarak kaydedildi: {name}", fmt=format_label(fmt), name=fallback.name))
             return str(fallback)
 
     def _export_compressed(self, wav, sr, file_path: Path, fmt: str, bitrate: str) -> None:
@@ -3488,9 +3539,9 @@ class MainWindow(QMainWindow):
         self.btn_compress_add.setEnabled(True)
         self.btn_compress_clear.setEnabled(True)
         total = self._compress_ok_count + self._compress_fail_count
-        msg = t(f"✓ {self._compress_ok_count} başarılı")
+        msg = t("✓ {ok} başarılı", ok=self._compress_ok_count)
         if self._compress_fail_count > 0:
-            msg += t(f", ✗ {self._compress_fail_count} başarısız")
+            msg += t(", ✗ {fail} başarısız", fail=self._compress_fail_count)
         self.status_label.setText(f"Sıkıştırma tamamlandı: {msg}")
         QMessageBox.information(
             self,

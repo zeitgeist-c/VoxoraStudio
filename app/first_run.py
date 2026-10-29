@@ -151,7 +151,7 @@ class FirstRunDialog(QDialog):
             cost = QLabel(
                 "Programla birlikte gelir — indirme yok"
                 if spec.bundled
-                else t(f"{spec.size_label()} — bağlantınıza göre birkaç dakika")
+                else t("{size} — bağlantınıza göre birkaç dakika", size=spec.size_label())
             )
             cost.setObjectName("modelNote")
             text_col.addWidget(cost)
