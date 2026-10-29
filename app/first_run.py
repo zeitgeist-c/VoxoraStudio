@@ -219,9 +219,9 @@ class FirstRunDialog(QDialog):
             return
         state = model_manager.state_for(self._choice)
         if state.installed:
-            self.btn_start.setText("Başla")
+            self.btn_start.setText(t("Başla"))
         else:
-            self.btn_start.setText("İndir ve başla")
+            self.btn_start.setText(t("İndir ve başla"))
         self.btn_start.setEnabled(True)
 
     def _on_start(self) -> None:

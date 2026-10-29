@@ -494,7 +494,7 @@ class MainWindow(QMainWindow):
         editor_toolbar.addWidget(self.btn_clean_text)
         editor_card.content_layout.addLayout(editor_toolbar)
         self.text_edit = QTextEdit()
-        self.text_edit.setPlaceholderText("Metni buraya yazın ya da Yapıştır ile panodan alın.\nHer dolu satır ayrı bir ses olarak üretilebilir.")
+        self.text_edit.setPlaceholderText(t("Metni buraya yazın ya da Yapıştır ile panodan alın.\nHer dolu satır ayrı bir ses olarak üretilebilir."))
         self.text_edit.setFont(QFont("Segoe UI", 11))
         editor_card.content_layout.addWidget(self.text_edit, stretch=1)
         left_col.addWidget(editor_card, stretch=3)
@@ -904,7 +904,7 @@ class MainWindow(QMainWindow):
 
         list_card = SectionCard(t("Arşiv"), t("Kayıt seçin; ayrıntısı sağda açılır."))
         self._history_search = QLineEdit()
-        self._history_search.setPlaceholderText("Ara (ad veya metin)…")
+        self._history_search.setPlaceholderText(t("Ara (ad veya metin)…"))
         self._history_search.setClearButtonEnabled(True)
         self._history_search.textChanged.connect(self._on_history_search_changed)
         list_card.content_layout.addWidget(self._history_search)
@@ -1255,7 +1255,7 @@ class MainWindow(QMainWindow):
         widgets["progress"].setValue(0)
         widgets["progress"].setVisible(True)
         widgets["action"].setEnabled(False)
-        widgets["status"].setText("İndiriliyor…")
+        widgets["status"].setText(t("İndiriliyor…"))
         widgets["status"].set_tone("info")
         self.btn_model_cancel.setVisible(True)
         self.status_label.setText(f"{spec.label} indiriliyor…")
@@ -1310,7 +1310,7 @@ class MainWindow(QMainWindow):
         if widgets:
             widgets["progress"].setVisible(False)
         self._refresh_models_page()
-        self.status_label.setText("İndirme tamamlanamadı.")
+        self.status_label.setText(t("İndirme tamamlanamadı."))
         self._show_error(t("İndirme hatası"), message)
 
     def _on_model_cancelled(self, engine: str) -> None:
@@ -1319,7 +1319,7 @@ class MainWindow(QMainWindow):
         if widgets:
             widgets["progress"].setVisible(False)
         self._refresh_models_page()
-        self.status_label.setText("İndirme durduruldu; kaldığı yerden devam eder.")
+        self.status_label.setText(t("İndirme durduruldu; kaldığı yerden devam eder."))
 
     def _on_model_worker_finished(self) -> None:
         # Sonuç sinyali run() dönmeden gelir. QThread'i ancak finished sonrası
@@ -1334,7 +1334,7 @@ class MainWindow(QMainWindow):
     def on_cancel_model_install(self) -> None:
         if self._model_worker is not None and self._model_worker.isRunning():
             self._model_worker.request_cancel()
-            self.status_label.setText("İndirme durduruluyor…")
+            self.status_label.setText(t("İndirme durduruluyor…"))
 
     def _on_model_remove(self, engine: str) -> None:
         from app import engines as engine_registry
@@ -1565,7 +1565,7 @@ class MainWindow(QMainWindow):
         self._engine_name = name
         self._apply_engine_ui_state(name)
         self._save_current_settings()
-        self.status_label.setText("Ses motoru değiştiriliyor...")
+        self.status_label.setText(t("Ses motoru değiştiriliyor..."))
         self._init_engine_async()
 
     def _revert_engine_combo(self):
@@ -1631,7 +1631,7 @@ class MainWindow(QMainWindow):
                 if self.voice_prompt_path:
                     self._set_voice_prompt(self.voice_prompt_path, save=False)
                 else:
-                    self.voice_label.setText("Ses örneği seçilmedi")
+                    self.voice_label.setText(t("Ses örneği seçilmedi"))
 
         has_voice = bool(self.voice_prompt_path)
         self.btn_select_voice.setEnabled(spec.cloning)
@@ -1702,7 +1702,7 @@ class MainWindow(QMainWindow):
         message = t("Motor yüklenemedi:\n{msg}", msg=msg)
         self._engine_loading = False
         self._refresh_engine_combo_enabled(busy=False)
-        self.status_label.setText("Motor yüklenemedi.")
+        self.status_label.setText(t("Motor yüklenemedi."))
         self.engine_status_pill.setText("HATA")
         self.engine_status_pill.set_tone("danger")
         self._reset_progress()
@@ -1772,7 +1772,7 @@ class MainWindow(QMainWindow):
                 self._compress_worker.request_cancel()
             if self._model_worker and self._model_worker.isRunning():
                 self._model_worker.request_cancel()
-            self.status_label.setText("Çalışan işlem tamamlanınca program kapatılacak...")
+            self.status_label.setText(t("Çalışan işlem tamamlanınca program kapatılacak..."))
             event.ignore()
             return
         if running:
@@ -1805,7 +1805,7 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, t("Pano boş"), t("Panoda yapıştırılacak metin bulunamadı."))
             return
         self.text_edit.setPlainText(text)
-        self.status_label.setText("Panodaki metin üretim alanına yapıştırıldı.")
+        self.status_label.setText(t("Panodaki metin üretim alanına yapıştırıldı."))
         self.update_text_info()
 
     def on_clean_text(self):
@@ -2268,7 +2268,7 @@ class MainWindow(QMainWindow):
         if os.path.isdir(folder_path):
             self._open_folder(folder_path)
             if not os.path.exists(file_path):
-                self.status_label.setText("Ses dosyası bulunamadı; kayıt klasörü açıldı.")
+                self.status_label.setText(t("Ses dosyası bulunamadı; kayıt klasörü açıldı."))
             return
         QMessageBox.warning(self, t("Dosya bulunamadı"), t("Bu geçmiş kaydının ses dosyası artık bulunamıyor."))
 
@@ -2280,7 +2280,7 @@ class MainWindow(QMainWindow):
                 f"Cihaz: {self.engine.device_name} • Motor: {self.engine.display_name}"
             )
         else:
-            self.device_label.setText("Cihaz: hazırlanıyor")
+            self.device_label.setText(t("Cihaz: hazırlanıyor"))
         from app import hardware
 
         profile = hardware.detect()
@@ -2372,7 +2372,7 @@ class MainWindow(QMainWindow):
         self.btn_clear_voice.setEnabled(True)
         self.update_settings_summary()
         if save:
-            self.status_label.setText("Ses örneği seçildi; yeni üretimde bu ses karakteri kullanılacak.")
+            self.status_label.setText(t("Ses örneği seçildi; yeni üretimde bu ses karakteri kullanılacak."))
             self._save_current_settings()
 
     def on_select_voice(self):
@@ -2400,10 +2400,10 @@ class MainWindow(QMainWindow):
 
     def on_clear_voice(self):
         self.voice_prompt_path = None
-        self.voice_label.setText("Ses örneği seçilmedi; varsayılan ses kullanılacak.")
+        self.voice_label.setText(t("Ses örneği seçilmedi; varsayılan ses kullanılacak."))
         self.btn_play_voice.setEnabled(False)
         self.btn_clear_voice.setEnabled(False)
-        self.status_label.setText("Ses örneği kaldırıldı; varsayılan sese dönüldü.")
+        self.status_label.setText(t("Ses örneği kaldırıldı; varsayılan sese dönüldü."))
         self.update_settings_summary()
         self._save_current_settings()
 
@@ -2473,7 +2473,7 @@ class MainWindow(QMainWindow):
         """Kuyruktaki bir sonraki metni text_edit'e al ve on_generate çağır."""
         if not self._queue:
             self._queue_running = False
-            self.status_label.setText("Kuyruk tamamlandı.")
+            self.status_label.setText(t("Kuyruk tamamlandı."))
             return
         text = self._queue[0]  # İptalde geri eklemek için pop etmeyelim
         self.text_edit.setPlainText(text)
@@ -2528,7 +2528,7 @@ class MainWindow(QMainWindow):
     def _on_history_selection_changed(self):
         item = self._selected_history_item()
         if item is None:
-            self._history_detail_name.setText("Kayıt seçilmedi")
+            self._history_detail_name.setText(t("Kayıt seçilmedi"))
             self._history_detail_meta.setText("")
             self._history_detail_wave.clear()
             return
@@ -2593,7 +2593,7 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Metin yok", t("Bu geçmiş kaydında geri alınacak metin bulunamadı."))
             return
         self.text_edit.setPlainText(text)
-        self.status_label.setText("Geçmişteki metin üretim alanına alındı.")
+        self.status_label.setText(t("Geçmişteki metin üretim alanına alındı."))
         self.update_text_info()
 
     def on_regenerate_from_history(self):
@@ -2646,7 +2646,7 @@ class MainWindow(QMainWindow):
                 self._set_voice_prompt(path, save=False)
 
         self.update_settings_summary()
-        self.status_label.setText("Geçmiş ayarlar yüklendi; üretim başlatılıyor...")
+        self.status_label.setText(t("Geçmiş ayarlar yüklendi; üretim başlatılıyor..."))
 
         # Üretimi başlat
         self.on_generate()
@@ -2794,7 +2794,7 @@ class MainWindow(QMainWindow):
             self.theme_combo.setCurrentIndex(theme_idx)
         # Voice
         self.voice_prompt_path = None
-        self.voice_label.setText("Ses örneği seçilmedi; varsayılan ses kullanılacak.")
+        self.voice_label.setText(t("Ses örneği seçilmedi; varsayılan ses kullanılacak."))
         self.btn_play_voice.setEnabled(False)
         self.btn_clear_voice.setEnabled(False)
         # Ses motoru (önizleme; gerçek yükleme en sonda)
@@ -2811,7 +2811,7 @@ class MainWindow(QMainWindow):
 
         self.update_settings_summary()
         self.update_text_info()
-        self.status_label.setText("Tüm ayarlar varsayılana sıfırlandı.")
+        self.status_label.setText(t("Tüm ayarlar varsayılana sıfırlandı."))
         if engine_changed:
             self._init_engine_async()
 
@@ -2914,7 +2914,7 @@ class MainWindow(QMainWindow):
         self.update_progress.setVisible(False)
 
     def _show_update_checking(self):
-        self.update_status_label.setText("Denetleniyor…")
+        self.update_status_label.setText(t("Denetleniyor…"))
         self.update_stats_label.setText("")
         self.btn_update_check.setEnabled(False)
 
@@ -2944,8 +2944,8 @@ class MainWindow(QMainWindow):
         self._update_worker.phase.connect(self._on_update_phase)
         self._update_worker.failed.connect(self._on_update_failed)
         self._update_worker.installed.connect(self._on_update_installed)
-        self.update_status_label.setText("Güncelleme indiriliyor…")
-        self.update_stats_label.setText("Sunucuya bağlanılıyor…")
+        self.update_status_label.setText(t("Güncelleme indiriliyor…"))
+        self.update_stats_label.setText(t("Sunucuya bağlanılıyor…"))
         self.update_progress.setVisible(True)
         self.update_progress.setRange(0, 0)
         self.btn_update_cancel.setVisible(True)
@@ -2962,7 +2962,7 @@ class MainWindow(QMainWindow):
         if self._update_info is not None:
             self._render_update_offer()
             if running:
-                self.update_stats_label.setText("İndirme iptal edildi.")
+                self.update_stats_label.setText(t("İndirme iptal edildi."))
         else:
             self._show_update_current()
         self.btn_update_check.setEnabled(True)
@@ -2985,7 +2985,7 @@ class MainWindow(QMainWindow):
         if phase == "verify":
             self.update_progress.setRange(0, 1000)
             self.update_progress.setValue(1000)
-            self.update_status_label.setText("İndirme tamamlandı; paket doğrulanıyor…")
+            self.update_status_label.setText(t("İndirme tamamlandı; paket doğrulanıyor…"))
             self.update_stats_label.setText(
                 t("Sağlama toplamı denetleniyor, birkaç dakika sürebilir."))
             self.btn_update_cancel.setEnabled(False)
@@ -3018,7 +3018,7 @@ class MainWindow(QMainWindow):
             # Kurulum başlatılamazsa program kapanmamalı: kullanıcıya indirilen
             # dosyanın yerini söyle, asılı kalmasın.
             log.exception("Kurulum başlatılamadı")
-            self.status_label.setText("Güncelleme indirildi; kurulum başlatılamadı.")
+            self.status_label.setText(t("Güncelleme indirildi; kurulum başlatılamadı."))
             self._show_update_error(t("Kurulum başlatılamadı; kurulum dosyasını elle çalıştırabilirsiniz."))
             QMessageBox.warning(
                 self,
@@ -3050,13 +3050,9 @@ class MainWindow(QMainWindow):
         kod = self.ui_lang_combo.currentData() if hasattr(self, "ui_lang_combo") else "en"
         ui_set_language(kod or "en")
         self._set_option("ui_language", kod or "en")
-        try:
-            from PySide6.QtWidgets import QMessageBox
-            QMessageBox.information(
-                self, t("Arayüz dili"),
-                t("Dil kaydedildi. Değişiklik program yeniden başlatılınca uygulanır."))
-        except Exception:
-            pass
+        QMessageBox.information(
+            self, t("Arayüz dili"),
+            t("Dil kaydedildi. Değişiklik program yeniden başlatılınca uygulanır."))
 
     def _set_outputs_enabled(self, enabled: bool):
         for button in (self.btn_play, self.btn_stop, self.btn_save_wav, self.btn_save_mp3):
@@ -3077,7 +3073,7 @@ class MainWindow(QMainWindow):
         if message:
             self.status_label.setText(message)
         if busy:
-            self.engine_status_pill.setText("ÇALIŞIYOR")
+            self.engine_status_pill.setText(t("ÇALIŞIYOR"))
             self.engine_status_pill.set_tone("info")
             self.progress.setRange(0, 0)
         elif self.engine is not None:
@@ -3178,11 +3174,11 @@ class MainWindow(QMainWindow):
 
         self._synth_cancel_requested = True
         self._synth_worker.request_cancel()
-        self.status_label.setText("Üretim durduruluyor...")
+        self.status_label.setText(t("Üretim durduruluyor..."))
         audio_player.stop()
         if self._synth_dialog:
             self._synth_dialog.cancel_button.setEnabled(False)
-            self._synth_dialog.status_label.setText("Üretim durduruluyor...")
+            self._synth_dialog.status_label.setText(t("Üretim durduruluyor..."))
             self._synth_dialog.detail.appendPlainText("Üretim durduruluyor; model yanıt vermezse işlem zorla kesilecek.")
 
     def _on_synth_chunk_started(self, index: int, total: int, text: str):
@@ -3383,7 +3379,7 @@ class MainWindow(QMainWindow):
         self._compress_files.clear()
         self.compress_file_list.clear()
         self.compress_results.clear()
-        self.status_label.setText("Sıkıştırma listesi temizlendi.")
+        self.status_label.setText(t("Sıkıştırma listesi temizlendi."))
 
     def on_compress_select_output_dir(self):
         directory = QFileDialog.getExistingDirectory(self, t("Sıkıştırılmış dosyalar için çıktı klasörü seç"), self.compress_output_dir or "")
@@ -3397,7 +3393,7 @@ class MainWindow(QMainWindow):
 
     def on_compress_clear_output_dir(self):
         self.compress_output_dir = None
-        self.compress_output_label.setText("(boş = orijinal dosyanın yanına kaydet)")
+        self.compress_output_label.setText(t("(boş = orijinal dosyanın yanına kaydet)"))
         mark_muted(self.compress_output_label)
         self._refresh_widget_style(self.compress_output_label)
         self.compress_output_label.setWordWrap(True)
@@ -3426,7 +3422,7 @@ class MainWindow(QMainWindow):
         self.btn_compress_add.setEnabled(False)
         self.btn_compress_clear.setEnabled(False)
         self.compress_results.clear()
-        self.status_label.setText("Sıkıştırma başlatıldı...")
+        self.status_label.setText(t("Sıkıştırma başlatıldı..."))
         self._compress_ok_count = 0
         self._compress_fail_count = 0
 
@@ -3509,7 +3505,7 @@ class MainWindow(QMainWindow):
             self.btn_compress_start.setEnabled(True)
         self.btn_compress_add.setEnabled(True)
         self.btn_compress_clear.setEnabled(True)
-        self.status_label.setText("Sıkıştırma güvenli şekilde durduruldu.")
+        self.status_label.setText(t("Sıkıştırma güvenli şekilde durduruldu."))
 
     def _reset_progress(self):
         self.progress.setRange(0, 1)
