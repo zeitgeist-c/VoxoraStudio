@@ -31,8 +31,8 @@ class BrandingContractTests(unittest.TestCase):
             "Chatterbox Multilingual • Yerel üretim",
         )
         self.assertEqual(branding.LOG_FILENAME, "VoxoraStudio.log")
-        self.assertEqual(branding.__version__, "0.7.3")
-        self.assertEqual(branding.PACKAGE_STEM, "VoxoraStudio-0.7.3")
+        self.assertEqual(branding.__version__, "0.7.4")
+        self.assertEqual(branding.PACKAGE_STEM, "VoxoraStudio-0.7.4")
         # Kurulum sabit klasore yazar; EXE adı sürüm taşımaz ki kısayollar kırılmasın.
         self.assertEqual(branding.EXECUTABLE_NAME, "VoxoraStudio.exe")
 
