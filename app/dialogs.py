@@ -92,7 +92,7 @@ class ModelLoadDialog(QDialog):
 
         actions, action_layout = _dialog_actions(self)
         self.close_button = ActionButton(
-            "Kapat",
+            t("Kapat"),
             actions,
             variant="primary",
             icon_name="close",
@@ -111,7 +111,9 @@ class ModelLoadDialog(QDialog):
 
     def _tick(self):
         self._seconds += 1
-        self.title_label.setText(f"Ses motoru hazırlanıyor... ({self._seconds} sn)")
+        self.title_label.setText(
+            t("Ses motoru hazırlanıyor... ({seconds} sn)", seconds=self._seconds)
+        )
 
     def add_status(self, message: str):
         self.status_label.setText(message)
@@ -134,7 +136,7 @@ class ModelLoadDialog(QDialog):
         self.progress.setRange(0, 1)
         self.progress.setValue(0)
         self.title_label.setText(t("Model yüklenemedi"))
-        self.state_pill.setText("Hata")
+        self.state_pill.setText(t("Hata"))
         self.state_pill.set_tone("danger")
         self.add_status(message)
         self.close_button.setEnabled(True)
@@ -197,14 +199,14 @@ class VoiceGuideDialog(QDialog):
 
         actions, action_layout = _dialog_actions(self)
         self.btn_copy = ActionButton(
-            "Metni Kopyala",
+            t("Metni Kopyala"),
             actions,
             variant="secondary",
             icon_name="copy",
         )
         self.btn_copy.setProperty("dialogAction", "copy")
         self.btn_close = ActionButton(
-            "Tamam",
+            t("Tamam"),
             actions,
             variant="primary",
             icon_name="check",
@@ -256,7 +258,9 @@ class SynthesisDialog(QDialog):
         self.body_card = SectionCard(parent=self)
         self.body_card.setProperty("context", "dialogBody")
 
-        self.status_label = QLabel(t(f"Metin {self.total_chunks} parçaya bölündü."), self.body_card)
+        self.status_label = QLabel(
+            t("Metin {parts} parçaya bölündü.", parts=self.total_chunks), self.body_card
+        )
         self.status_label.setObjectName("dialogStatus")
         self.status_label.setWordWrap(True)
         self.body_card.content_layout.addWidget(self.status_label)
@@ -286,7 +290,7 @@ class SynthesisDialog(QDialog):
         self.cancel_button.setProperty("dialogAction", "cancel")
         self.cancel_button.clicked.connect(self._request_cancel)
         self.close_button = ActionButton(
-            "Kapat",
+            t("Kapat"),
             actions,
             variant="primary",
             icon_name="close",
@@ -306,14 +310,17 @@ class SynthesisDialog(QDialog):
 
     def _tick(self):
         self._seconds += 1
-        self.title_label.setText(f"Ses üretiliyor... ({self._seconds} sn)")
+        self.title_label.setText(
+            t("Ses üretiliyor... ({seconds} sn)", seconds=self._seconds)
+        )
 
     def _request_cancel(self):
         self.cancel_button.setEnabled(False)
-        self.state_pill.setText("Durduruluyor")
+        self.state_pill.setText(t("Durduruluyor"))
         self.state_pill.set_tone("warning")
         self.status_label.setText(t("Durdurma isteği alındı. Üretim kesiliyor..."))
-        self.detail.appendPlainText("Durdurma isteği alındı. Gerekirse işlem zorla kesilecek.")
+        self.detail.appendPlainText(
+            t("Durdurma isteği alındı. Gerekirse işlem zorla kesilecek."))
         self.cancel_requested.emit()
 
     def chunk_started(self, index: int, total: int, text: str):
@@ -322,8 +329,11 @@ class SynthesisDialog(QDialog):
             preview = preview[:117] + "..."
         self.progress.setRange(0, total * 1000)
         self.progress.setValue((index - 1) * 1000)
-        self.status_label.setText(f"Parça {index}/{total} işleniyor...")
-        self.detail.appendPlainText(f"Parça {index}/{total} başladı: {preview}")
+        self.status_label.setText(
+            t("Parça {index}/{total} işleniyor...", index=index, total=total))
+        self.detail.appendPlainText(
+            t("Parça {index}/{total} başladı: {preview}",
+              index=index, total=total, preview=preview))
 
     def sampling_progress(
         self,
@@ -348,8 +358,12 @@ class SynthesisDialog(QDialog):
     def chunk_done(self, done: int, total: int, seconds: float):
         self.progress.setRange(0, total * 1000)
         self.progress.setValue(done * 1000)
-        self.status_label.setText(f"Parça {done}/{total} tamamlandı ({seconds:.1f} sn).")
-        self.detail.appendPlainText(f"Parça {done}/{total} tamamlandı: {seconds:.1f} sn")
+        self.status_label.setText(
+            t("Parça {done}/{total} tamamlandı ({seconds} sn).",
+              done=done, total=total, seconds=f"{seconds:.1f}"))
+        self.detail.appendPlainText(
+            t("Parça {done}/{total} tamamlandı: {seconds} sn",
+              done=done, total=total, seconds=f"{seconds:.1f}"))
 
     def finish_ok(self, message: str):
         self._timer.stop()
@@ -367,8 +381,9 @@ class SynthesisDialog(QDialog):
     def finish_error(self, message: str):
         self._timer.stop()
         was_cancelled = "durdur" in message.lower()
-        self.title_label.setText("Üretim durduruldu" if was_cancelled else t("Üretim başarısız"))
-        self.state_pill.setText("Durduruldu" if was_cancelled else "Hata")
+        self.title_label.setText(
+            t("Üretim durduruldu") if was_cancelled else t("Üretim başarısız"))
+        self.state_pill.setText(t("Durduruldu") if was_cancelled else t("Hata"))
         self.state_pill.set_tone("warning" if was_cancelled else "danger")
         self.status_label.setText(message)
         self.detail.appendPlainText(message)

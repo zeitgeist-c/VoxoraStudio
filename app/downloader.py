@@ -88,8 +88,8 @@ def free_space_for(path: Path | str, needed_bytes: int) -> None:
     # 64 MB emniyet payı: geçici dosya + arşiv açılışı.
     if free < needed_bytes + 64 * 1024 * 1024:
         raise DownloadError(
-            t(f"Yeterli disk alanı yok: {needed_bytes / 1024 ** 3:.1f} GB gerekiyor, ") +
-            t(f"{free / 1024 ** 3:.1f} GB boş.")
+            t("Yeterli disk alanı yok: {gb} GB gerekiyor, ", gb=f"{needed_bytes / 1024 ** 3:.1f}") +
+            t("{gb} GB boş.", gb=f"{free / 1024 ** 3:.1f}")
         )
 
 
@@ -195,7 +195,7 @@ def download_file(
                             received += len(block)
                             if expected_size and offset > expected_size:
                                 raise DownloadError(
-                                    t(f"İndirilen dosya beklenenden büyük: {target.name}")
+                                    t("İndirilen dosya beklenenden büyük: {name}", name=target.name)
                                 )
                             report()
             report("verifying", force=True)
@@ -217,7 +217,7 @@ def download_file(
                 if isinstance(exc, DownloadError):
                     raise
                 raise DownloadError(
-                    t(f"İndirme tamamlanamadı: {target.name}\n{exc}")
+                    t("İndirme tamamlanamadı: {name}\n{exc}", name=target.name, exc=exc)
                 ) from exc
             log.warning("İndirme yeniden denenecek (%d/%d): %s", attempt + 1, _ATTEMPTS, exc)
             # İptal duyarlı bekleme (5, 10 sn).
@@ -227,7 +227,7 @@ def download_file(
             offset = part.stat().st_size if part.is_file() else 0
             completed_base = offset
             received = 0
-    raise DownloadError(t(f"İndirme tamamlanamadı: {target.name}"))
+    raise DownloadError(t("İndirme tamamlanamadı: {name}", name=target.name))
 
 
 def _matches(path: Path, expected_size: int, expected_sha256: str) -> bool:
@@ -366,7 +366,7 @@ def _hf_manifest(repo_id: str) -> dict:
     except urllib.error.HTTPError as exc:
         if exc.code == 404:
             raise DownloadError(t("Model deposu bulunamadı: {repo_id}", repo_id=repo_id)) from None
-        raise DownloadError(t(f"Model bilgisi alınamadı ({exc.code}): {repo_id}")) from None
+        raise DownloadError(t("Model bilgisi alınamadı ({code}): {repo}", code=exc.code, repo=repo_id)) from None
     except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
         raise DownloadError(
             t("Model bilgisi alınamadı: {repo_id}\n{exc}\n", repo_id=repo_id, exc=exc) +

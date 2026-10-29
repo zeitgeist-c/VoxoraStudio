@@ -607,7 +607,7 @@ def apply_delta(archive: Path, current_version: str,
     manifest = delta_mod.read_manifest(archive)
     if not delta_mod.can_apply(manifest, current_version):
         raise UpdateError(
-            t(f"Delta paketi sürüm {manifest.base_version} için hazırlanmış; ") +
+            t("Delta paketi sürüm {base} için hazırlanmış; ", base=manifest.base_version) +
             t("kurulu sürüm {current_version}. Tam kurulum gerekiyor.", current_version=current_version))
     staged = delta_mod.stage(archive, manifest)
     marker = write_delta_marker(staged, manifest, package_root())

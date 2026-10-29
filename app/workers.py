@@ -20,6 +20,15 @@ from pathlib import Path
 import numpy as np
 from PyQt6.QtCore import QThread, pyqtSignal
 
+try:
+    from i18n import t as _t
+except Exception:  # pragma: no cover - katalog yoksa ham metin
+    def _t(key, **kwargs):
+        try:
+            return key.format(**kwargs)
+        except Exception:
+            return key
+
 import audio_compressor
 from tts_engine import TTSEngine
 
@@ -112,7 +121,7 @@ class SynthWorker(QThread):
             total = len(self.chunks)
             for index, text_chunk in enumerate(self.chunks, start=1):
                 if self._cancel_requested:
-                    self.cancelled.emit("Üretim kullanıcı tarafından durduruldu.")
+                    self.cancelled.emit(_t("Üretim kullanıcı tarafından durduruldu."))
                     return
 
                 self.chunk_started.emit(index, total, text_chunk)
@@ -129,7 +138,7 @@ class SynthWorker(QThread):
                     engine_settings = {k: v for k, v in raw.items() if k in allowed}
                     wav, s = self.engine.synthesize(text_chunk, **engine_settings)
                 if self._cancel_requested:
-                    self.cancelled.emit("Üretim kullanıcı tarafından durduruldu.")
+                    self.cancelled.emit(_t("Üretim kullanıcı tarafından durduruldu."))
                     return
                 elapsed = time.perf_counter() - started_at
                 waves.append(np.asarray(wav, dtype=np.float32).reshape(-1))
