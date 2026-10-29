@@ -1,6 +1,6 @@
 # VoxoraStudio — local multilingual text-to-speech studio
 
-> Türkçe: [README.tr.md](./README.tr.md)
+> Turkish: [README.tr.md](./README.tr.md)
 
 **Type text, pick a voice, hear it. Nothing leaves your machine.**
 
@@ -55,20 +55,20 @@ The default workspace, split into three columns.
 
 **Left — text**
 - The text box, with a live counter: characters, words, chunks, estimated duration.
-- `Yapıştır` and `Temizle`.
-- The active configuration strip under the box: engine, language, speed (`0.90x`), pause length (`0.35 sn`), voice mode (`Tek ses`).
+- `Paste` and `Clear`.
+- The active configuration strip under the box: engine, language, speed (`0.90x`), pause length (`0.35 s`), voice mode (`Single voice`).
 
 **Right — voice profile and result**
-- **Ses Profili** — the active engine card (`EMA Lightning`, *sabit ses, referans gerekmez*), with `Seç`, `Dinle`, `Kaldır`, `Rehber`.
-- **Sonuç** — the waveform appears here after generation, with `Oynat`, `Durdur`, `WAV`, `MP3`.
+- **Voice Profile** — the active engine card (`EMA Lightning`, *fixed voice, no reference needed*), with `Select`, `Listen`, `Remove`, `Guide`.
+- **Result** — the waveform appears here after generation, with `Play`, `Stop`, `WAV`, `MP3`.
 
 **Bottom — batch queue**
-- `+ Metin Ekle`, `Dosyadan Yükle`, `Tümünü Üret`, `Temizle`.
+- `+ Add Text`, `Load from File`, `Produce All`, `Clear`.
 - Each queued line is generated in order; the queue survives a restart.
 
-`Ses Üret` in the top right starts the run. The status bar at the bottom always shows the engine and the device it is using — `HAZIR · Hazır · EMA Lightning (cpu)`.
+`Produce Voice` in the top right starts the run. The status bar at the bottom always shows the engine and the device it is using — `READY · Ready · EMA Lightning (cpu)`.
 
-The header also carries a running total (`Toplam: 0 üretim`) so you know how much you have produced without opening the Archive.
+The header also carries a running total (`Total: 0 productions`) so you know how much you have produced without opening the Archive.
 
 ### 2. Archive
 
@@ -77,10 +77,10 @@ The header also carries a running total (`Toplam: 0 üretim`) so you know how mu
 Every production, newest first.
 
 - Search box and a list of files.
-- **Kayıt Ayrıntısı** on the right: the summary of the selected production and its actions.
-- `Yeniden Üret` — regenerate from the stored text.
-- `Metni Geri Al` — put the original text back into the Production box.
-- `Çal`, `Klasörde Göster`, `Sil`, `Toplu Sil`.
+- **Recording Detail** on the right: the summary of the selected production and its actions.
+- `Regenerate` — regenerate from the stored text.
+- `Restore Text` — put the original text back into the Production box.
+- `Play`, `Show in Folder`, `Delete`, `Bulk Delete`.
 
 Deleting moves files to the Recycle Bin rather than destroying them. Each entry keeps its source text, so a regenerated take uses exactly the text that produced the original.
 
@@ -91,9 +91,9 @@ Deleting moves files to the Recycle Bin rather than destroying them. Each entry 
 Two utilities rather than one page.
 
 **Compress (Opus)**
-- Source files: WAV, MP3, FLAC, OGG. `Dosya Ekle`, `Listeyi Temizle`.
+- Source files: WAV, MP3, FLAC, OGG. `Add File`, `Clear List`.
 - Bitrate selection — `Normal (48 kbps)` and the higher options.
-- `Sonuçlar` shows what was produced where.
+- `Results` shows what was produced where.
 
 **System info** — engine availability, device, and the hardware facts the app checks before enabling an engine.
 
@@ -111,11 +111,11 @@ One card per engine, with what it costs and whether it can run here.
 | **Chatterbox Multilingual** | 3.5 GB | 16, plus voice cloning | not downloaded |
 | **VoxCPM2** | 5.2 GB | 30, plus voice design | not published for this machine |
 
-Each card shows a state badge — `Kurulu (programla gelir)`, `İndirilmedi`, `Henüz yayınlanmadı` — with `İndir` and `Kaldır`.
+Each card shows a state badge — `Installed (ships with the app)`, `Not downloaded`, `Not published yet` — with `Download` and `Remove`.
 
-VoxCPM2 is gated on hardware: *"Yalnız NVIDIA ekran kartı olan bilgisayarlarda çalışır. Bu bilgisayarda NVIDIA ekran kartı / CUDA bulunamadı."* The card says so plainly instead of offering a download that could not run.
+VoxCPM2 is gated on hardware: *"Runs only on computers with an NVIDIA graphics card. No NVIDIA graphics card / CUDA found on this computer."* The card says so plainly instead of offering a download that could not run.
 
-The **Model klasörü** footer shows where weights live, how much space they take (`Kullanılan: 33 MB`), free disk space, and `Klasörü aç` / `Yenile`. Installation and uninstallation never touch this folder, so downloaded engines survive updates.
+The **Model folder** footer shows where weights live, how much space they take (`Used: 33 MB`), free disk space, and `Open folder` / `Refresh`. Installation and uninstallation never touch this folder, so downloaded engines survive updates.
 
 ### 5. Settings
 
@@ -123,17 +123,17 @@ The **Model klasörü** footer shows where weights live, how much space they tak
 
 Five sections down the left, each with its own panel.
 
-**Ses (Voice)**
+**Voice**
 - Engine, preset, language, and the five dials: expression, creativity, pause, speed, clarity, repetition reduction.
-- `Uygula` applies the change. Presets (`Anlatıcı` and the others) set a known-good combination so you do not have to tune from scratch.
+- `Apply` applies the change. Presets (`Narrator` and the others) set a known-good combination so you do not have to tune from scratch.
 
-**Çıktı (Output)** — format, quality, output folder.
+**Output** — format, quality, output folder.
 
-**Görünüm (Appearance)** — theme and layout.
+**Appearance** — theme and layout.
 
-**Güncelleme (Update)** — check for updates; the update verifies SHA-256 and replaces the program in place while keeping settings, outputs and models.
+**Update** — check for updates; the update verifies SHA-256 and replaces the program in place while keeping settings, outputs and models.
 
-**Sıfırla (Reset)** — return settings to defaults. This resets preferences, not your productions.
+**Reset** — return settings to defaults. This resets preferences, not your productions.
 
 ---
 
@@ -157,7 +157,7 @@ The installer creates desktop and Start Menu shortcuts. Uninstalling keeps your 
 | **Chatterbox Multilingual** | 16 | yes | no | CPU works; slower on long text |
 | **VoxCPM2** | 30 | yes | yes | NVIDIA/CUDA required |
 
-None of them is downloaded without you pressing `İndir`. Every card states size and requirement before the download starts.
+None of them is downloaded without you pressing `Download`. Every card states size and requirement before the download starts.
 
 ## Where things live
 
