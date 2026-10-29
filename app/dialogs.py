@@ -5,6 +5,7 @@ while sharing the same cards, headers and action hierarchy as the main window.
 All visual styling lives in :mod:`app.theme`.
 """
 from __future__ import annotations
+from i18n import t, set_language as ui_set_language, language as ui_language, LANGUAGES as UI_LANGUAGES
 
 from PyQt6.QtCore import QTimer, pyqtSignal
 from PyQt6.QtWidgets import (
@@ -43,7 +44,7 @@ class ModelLoadDialog(QDialog):
         super().__init__(parent)
         self.setObjectName("modelLoadDialog")
         self.setWindowIcon(application_icon())
-        self.setWindowTitle("Model hazırlanıyor")
+        self.setWindowTitle(t("Model hazırlanıyor"))
         self.setModal(False)
         self.resize(600, 390)
 
@@ -51,10 +52,10 @@ class ModelLoadDialog(QDialog):
         root.setContentsMargins(24, 22, 24, 22)
         root.setSpacing(18)
 
-        self.state_pill = StatusPill("Hazırlanıyor", "info", self)
+        self.state_pill = StatusPill(t("Hazırlanıyor"), "info", self)
         self.header = PageHeader(
-            "Ses motoru hazırlanıyor...",
-            "Yerel üretim motoru kullanıma hazırlanıyor.",
+            t("Ses motoru hazırlanıyor..."),
+            t("Yerel üretim motoru kullanıma hazırlanıyor."),
             self.state_pill,
             self,
         )
@@ -68,7 +69,7 @@ class ModelLoadDialog(QDialog):
         self.body_card.setProperty("context", "dialogBody")
 
         self.status_label = QLabel(
-            "İlk çalıştırmada model dosyaları indirilebilir; bu birkaç dakika sürebilir.",
+            t("İlk çalıştırmada model dosyaları indirilebilir; bu birkaç dakika sürebilir."),
             self.body_card,
         )
         self.status_label.setObjectName("dialogStatus")
@@ -146,7 +147,7 @@ class VoiceGuideDialog(QDialog):
         super().__init__(parent)
         self.setObjectName("voiceGuideDialog")
         self.setWindowIcon(application_icon())
-        self.setWindowTitle("Ses Örneği Rehberi")
+        self.setWindowTitle(t("Ses Örneği Rehberi"))
         self.resize(680, 520)
 
         root = QVBoxLayout(self)
@@ -154,8 +155,8 @@ class VoiceGuideDialog(QDialog):
         root.setSpacing(18)
 
         self.header = PageHeader(
-            "Daha iyi benzerlik için ses örneği",
-            "Temiz ve doğal bir referans, üretilen sesin karakterini belirler.",
+            t("Daha iyi benzerlik için ses örneği"),
+            t("Temiz ve doğal bir referans, üretilen sesin karakterini belirler."),
             parent=self,
         )
         self.header.setProperty("context", "dialog")
@@ -164,16 +165,16 @@ class VoiceGuideDialog(QDialog):
         root.addWidget(self.header)
 
         guidance_card = SectionCard(
-            "Kayıt standardı",
-            "Önerilen süre 5–20 saniye; ideal hedef 10–15 saniye temiz, tek kişilik konuşmadır.",
+            t("Kayıt standardı"),
+            t("Önerilen süre 5–20 saniye; ideal hedef 10–15 saniye temiz, tek kişilik konuşmadır."),
             self,
         )
         guidance_card.setProperty("context", "dialogBody")
         tips = QLabel(
-            "• Tek kişi konuşsun, arka plan sessiz olsun.\n"
-            "• Müzik, yankı ve mikrofon patlaması olmasın.\n"
-            "• Üreteceğin tarza yakın bir tonla oku.\n"
-            "• Çok hızlı okuma; doğal duraklamalar bırak.",
+            t("• Tek kişi konuşsun, arka plan sessiz olsun.\n") +
+            t("• Müzik, yankı ve mikrofon patlaması olmasın.\n") +
+            t("• Üreteceğin tarza yakın bir tonla oku.\n") +
+            t("• Çok hızlı okuma; doğal duraklamalar bırak."),
             guidance_card,
         )
         tips.setObjectName("dialogGuidance")
@@ -182,8 +183,8 @@ class VoiceGuideDialog(QDialog):
         root.addWidget(guidance_card)
 
         sample_card = SectionCard(
-            "Okunacak örnek metin",
-            "Kaydı alırken aşağıdaki metni doğal bir ritimle oku.",
+            t("Okunacak örnek metin"),
+            t("Kaydı alırken aşağıdaki metni doğal bir ritimle oku."),
             self,
         )
         sample_card.setProperty("context", "dialogBody")
@@ -231,7 +232,7 @@ class SynthesisDialog(QDialog):
         self.setObjectName("synthesisDialog")
         self.setWindowIcon(application_icon())
         self.total_chunks = max(total_chunks, 1)
-        self.setWindowTitle("Ses üretiliyor")
+        self.setWindowTitle(t("Ses üretiliyor"))
         self.setModal(False)
         self.resize(600, 410)
 
@@ -239,10 +240,10 @@ class SynthesisDialog(QDialog):
         root.setContentsMargins(24, 22, 24, 22)
         root.setSpacing(18)
 
-        self.state_pill = StatusPill("Üretiliyor", "info", self)
+        self.state_pill = StatusPill(t("Üretiliyor"), "info", self)
         self.header = PageHeader(
-            "Ses üretimi başladı",
-            "Metin, yerel ses motoruyla parça parça işleniyor.",
+            t("Ses üretimi başladı"),
+            t("Metin, yerel ses motoruyla parça parça işleniyor."),
             self.state_pill,
             self,
         )
@@ -255,7 +256,7 @@ class SynthesisDialog(QDialog):
         self.body_card = SectionCard(parent=self)
         self.body_card.setProperty("context", "dialogBody")
 
-        self.status_label = QLabel(f"Metin {self.total_chunks} parçaya bölündü.", self.body_card)
+        self.status_label = QLabel(t(f"Metin {self.total_chunks} parçaya bölündü."), self.body_card)
         self.status_label.setObjectName("dialogStatus")
         self.status_label.setWordWrap(True)
         self.body_card.content_layout.addWidget(self.status_label)
@@ -277,7 +278,7 @@ class SynthesisDialog(QDialog):
 
         actions, action_layout = _dialog_actions(self)
         self.cancel_button = ActionButton(
-            "Üretimi Durdur",
+            t("Üretimi Durdur"),
             actions,
             variant="destructive",
             icon_name="stop",
@@ -340,8 +341,8 @@ class SynthesisDialog(QDialog):
         self.progress.setValue(min(value, total_chunks * 1000))
         rate_text = f" - {rate}" if rate else ""
         self.status_label.setText(
-            f"Parça {index}/{total_chunks}: %{percent} ({current}/{total_steps}) | "
-            f"Geçen: {elapsed} | Kalan: {remaining}{rate_text}"
+            t("Parça {index}/{total_chunks}: %{percent} ({current}/{total_steps}) | ", index=index, total_chunks=total_chunks, percent=percent, current=current, total_steps=total_steps) +
+            t("Geçen: {elapsed} | Kalan: {remaining}{rate_text}", elapsed=elapsed, remaining=remaining, rate_text=rate_text)
         )
 
     def chunk_done(self, done: int, total: int, seconds: float):
@@ -366,7 +367,7 @@ class SynthesisDialog(QDialog):
     def finish_error(self, message: str):
         self._timer.stop()
         was_cancelled = "durdur" in message.lower()
-        self.title_label.setText("Üretim durduruldu" if was_cancelled else "Üretim başarısız")
+        self.title_label.setText("Üretim durduruldu" if was_cancelled else t("Üretim başarısız"))
         self.state_pill.setText("Durduruldu" if was_cancelled else "Hata")
         self.state_pill.set_tone("warning" if was_cancelled else "danger")
         self.status_label.setText(message)

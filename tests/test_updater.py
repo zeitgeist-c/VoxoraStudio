@@ -287,7 +287,7 @@ class CleanupTests(unittest.TestCase):
                 result = updater.cleanup_updates_dir()
             self.assertFalse(stale.exists())
             self.assertTrue(keep.is_file())      # yabancı dosyaya dokunulmaz
-            self.assertIn("silindi", result)
+            self.assertIn("cleaned", result)
 
     def test_cleanup_noop_on_empty_dir(self):
         with tempfile.TemporaryDirectory() as tmp:

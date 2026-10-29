@@ -12,6 +12,7 @@ EMA programla geldiği için sihirbazın varsayılan seçeneği odur: indirme yo
 hemen kullanılabilir.
 """
 from __future__ import annotations
+from i18n import t, set_language as ui_set_language, language as ui_language, LANGUAGES as UI_LANGUAGES
 
 import json
 import logging
@@ -90,7 +91,7 @@ class FirstRunDialog(QDialog):
         super().__init__(parent)
         self.setObjectName("firstRunDialog")
         self.setWindowIcon(application_icon())
-        self.setWindowTitle("Voxora Studio — İlk kurulum")
+        self.setWindowTitle(t("Voxora Studio — İlk kurulum"))
         self.setModal(False)  # ana pencere kullanılabilir kalsın
         self.resize(720, 520)
         self._choice = ""
@@ -104,15 +105,15 @@ class FirstRunDialog(QDialog):
         step.setObjectName("dialogStep")
         root.addWidget(step)
 
-        title = QLabel("Ses motorunuzu seçin")
+        title = QLabel(t("Ses motorunuzu seçin"))
         title.setObjectName("dialogTitle")
         root.addWidget(title)
 
         lead = QLabel(
-            "Program kuruldu. Model ağırlıkları kurulum paketinde gelmez — "
-            "seçtiğiniz motorun dosyaları indirilir. Sonradan "
-            "<b>Modeller</b> sekmesinden değiştirebilir veya ikinci motoru "
-            "ekleyebilirsiniz."
+            t("Program kuruldu. Model ağırlıkları kurulum paketinde gelmez — ") +
+            t("seçtiğiniz motorun dosyaları indirilir. Sonradan ") +
+            t("<b>Modeller</b> sekmesinden değiştirebilir veya ikinci motoru ") +
+            t("ekleyebilirsiniz.")
         )
         lead.setObjectName("dialogSubtitle")
         lead.setWordWrap(True)
@@ -150,7 +151,7 @@ class FirstRunDialog(QDialog):
             cost = QLabel(
                 "Programla birlikte gelir — indirme yok"
                 if spec.bundled
-                else f"{spec.size_label()} — bağlantınıza göre birkaç dakika"
+                else t(f"{spec.size_label()} — bağlantınıza göre birkaç dakika")
             )
             cost.setObjectName("modelNote")
             text_col.addWidget(cost)
@@ -174,7 +175,7 @@ class FirstRunDialog(QDialog):
         if first_usable and not self._choice:
             self._choice = first_usable
 
-        folder_card = SectionCard("Model klasörü", "İndirilen ağırlıklar burada tutulur.", parent=self)
+        folder_card = SectionCard(t("Model klasörü"), t("İndirilen ağırlıklar burada tutulur."), parent=self)
         from app import paths as app_paths
 
         folder = QLabel(str(app_paths.models_dir()))
@@ -186,12 +187,12 @@ class FirstRunDialog(QDialog):
 
         actions = QHBoxLayout()
         actions.setSpacing(8)
-        hint = QLabel("İndirmeyi atlarsanız program açılır; üretim için model gerekir.")
+        hint = QLabel(t("İndirmeyi atlarsanız program açılır; üretim için model gerekir."))
         hint.setObjectName("modelNote")
         hint.setWordWrap(True)
         actions.addWidget(hint, stretch=1)
         self.btn_later = ActionButton("Sonra", variant="ghost")
-        self.btn_start = ActionButton("İndir ve başla", variant="primary", icon_name="download")
+        self.btn_start = ActionButton(t("İndir ve başla"), variant="primary", icon_name="download")
         actions.addWidget(self.btn_later)
         actions.addWidget(self.btn_start)
         root.addLayout(actions)
