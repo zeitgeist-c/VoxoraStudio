@@ -191,7 +191,7 @@ class FirstRunDialog(QDialog):
         hint.setObjectName("modelNote")
         hint.setWordWrap(True)
         actions.addWidget(hint, stretch=1)
-        self.btn_later = ActionButton("Sonra", variant="ghost")
+        self.btn_later = ActionButton(t("Sonra"), variant="ghost")
         self.btn_start = ActionButton(t("İndir ve başla"), variant="primary", icon_name="download")
         actions.addWidget(self.btn_later)
         actions.addWidget(self.btn_start)
