@@ -160,4 +160,13 @@ RU5 = {
     'Kuyruk durduruldu. {n} metin kaldı.': 'Очередь остановлена. Осталось текстов: {n}.',
     '{n} geçmiş kaydı {action}.': 'Записей истории: {n} {action}.',
     '{name} • {dur} • {sr} Hz': '{name} • {dur} • {sr} Гц',
+    'Cihaz: {dev} • Motor: {eng}': 'Устройство: {dev} • Движок: {eng}',
+    'En güncel sürümdesiniz ({v}).': 'У вас последняя версия ({v}).',
+    'Kuyruk durduruldu (hata). {n} metin kaldı.': 'Очередь остановлена (ошибка). Осталось текстов: {n}.',
+    'Kuyruk temizlendi.': 'Очередь очищена.',
+    'Metin temizlendi.': 'Текст очищен.',
+    'Ses hazır • {dur} • {sr} Hz': 'Голос готов • {dur} • {sr} Гц',
+    'Ses hazır; otomatik kayıt tamamlanamadı: {err}': 'Голос готов; автосохранение не удалось: {err}',
+    '{label} — sabit ses (referans gerekmez)': '{label} — фиксированный голос (эталон не нужен)',
+    '{name}: \'{sample}\'': '{name}: \'{sample}\'',
 }

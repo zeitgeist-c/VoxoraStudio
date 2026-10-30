@@ -160,4 +160,13 @@ PL5 = {
     'Kuyruk durduruldu. {n} metin kaldı.': 'Zatrzymano kolejkę. Zostało: {n}.',
     '{n} geçmiş kaydı {action}.': 'Rekordów historii: {n} {action}.',
     '{name} • {dur} • {sr} Hz': '{name} • {dur} • {sr} Hz',
+    'Cihaz: {dev} • Motor: {eng}': 'Urządzenie: {dev} • Silnik: {eng}',
+    'En güncel sürümdesiniz ({v}).': 'Masz najnowszą wersję ({v}).',
+    'Kuyruk durduruldu (hata). {n} metin kaldı.': 'Zatrzymano kolejkę (błąd). Zostało: {n}.',
+    'Kuyruk temizlendi.': 'Wyczyszczono kolejkę.',
+    'Metin temizlendi.': 'Wyczyszczono tekst.',
+    'Ses hazır • {dur} • {sr} Hz': 'Głos gotowy • {dur} • {sr} Hz',
+    'Ses hazır; otomatik kayıt tamamlanamadı: {err}': 'Głos gotowy; autozapis nieudany: {err}',
+    '{label} — sabit ses (referans gerekmez)': '{label} — stały głos (bez referencji)',
+    '{name}: \'{sample}\'': '{name}: \'{sample}\'',
 }

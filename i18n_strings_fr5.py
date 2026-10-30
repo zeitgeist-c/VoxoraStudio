@@ -161,4 +161,13 @@ FR5 = {
     'Kuyruk durduruldu. {n} metin kaldı.': 'File arrêtée. {n} textes restants.',
     '{n} geçmiş kaydı {action}.': '{n} enregistrements {action}.',
     '{name} • {dur} • {sr} Hz': '{name} • {dur} • {sr} Hz',
+    'Cihaz: {dev} • Motor: {eng}': 'Appareil : {dev} • Moteur : {eng}',
+    'En güncel sürümdesiniz ({v}).': 'Vous avez la dernière version ({v}).',
+    'Kuyruk durduruldu (hata). {n} metin kaldı.': 'File arrêtée (erreur). {n} textes restants.',
+    'Kuyruk temizlendi.': 'File effacée.',
+    'Metin temizlendi.': 'Texte effacé.',
+    'Ses hazır • {dur} • {sr} Hz': 'Voix prête • {dur} • {sr} Hz',
+    'Ses hazır; otomatik kayıt tamamlanamadı: {err}': 'Voix prête ; enregistrement auto impossible : {err}',
+    '{label} — sabit ses (referans gerekmez)': '{label} — voix fixe (sans référence)',
+    '{name}: \'{sample}\'': '{name} : \'{sample}\'',
 }

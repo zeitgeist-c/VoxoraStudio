@@ -160,4 +160,13 @@ IT5 = {
     'Kuyruk durduruldu. {n} metin kaldı.': 'Coda fermata. {n} testi rimasti.',
     '{n} geçmiş kaydı {action}.': '{n} record cronologia {action}.',
     '{name} • {dur} • {sr} Hz': '{name} • {dur} • {sr} Hz',
+    'Cihaz: {dev} • Motor: {eng}': 'Dispositivo: {dev} • Motore: {eng}',
+    'En güncel sürümdesiniz ({v}).': 'Hai l’ultima versione ({v}).',
+    'Kuyruk durduruldu (hata). {n} metin kaldı.': 'Coda fermata (errore). {n} testi rimasti.',
+    'Kuyruk temizlendi.': 'Coda svuotata.',
+    'Metin temizlendi.': 'Testo cancellato.',
+    'Ses hazır • {dur} • {sr} Hz': 'Voce pronta • {dur} • {sr} Hz',
+    'Ses hazır; otomatik kayıt tamamlanamadı: {err}': 'Voce pronta; salvataggio automatico non riuscito: {err}',
+    '{label} — sabit ses (referans gerekmez)': '{label} — voce fissa (nessun riferimento)',
+    '{name}: \'{sample}\'': '{name}: \'{sample}\'',
 }

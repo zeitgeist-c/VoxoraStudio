@@ -343,6 +343,10 @@ class MainWindow(QMainWindow):
         self._tr_items.append((setter, key, kwargs))
         setter(t(key, **kwargs))
 
+    def _render_stats_counter(self, text: str) -> None:
+        """Ust sayaci guncel production_count ile yazar (canli dil icin)."""
+        self.stats_label.setText(text.format(n=self.production_count))
+
     def _retranslate_ui(self) -> None:
         """Açık arayüzdeki kayıtlı statik metinleri seçili dile göre yenile."""
         for setter, key, kwargs in list(self._tr_items):
@@ -427,9 +431,8 @@ class MainWindow(QMainWindow):
         topbar_row.addStretch(1)
         self.stats_label = StatusPill("", "neutral")
         self._bind_text(
-            self.stats_label.setText,
-            "Toplam: {count} üretim",
-            count=self.production_count,
+            self._render_stats_counter,
+            "Toplam: {n} üretim",
         )
         topbar_row.addWidget(self.stats_label)
         shell.addWidget(self.topbar)
@@ -1692,7 +1695,7 @@ class MainWindow(QMainWindow):
                     "Ses Profili",
                     t("{label} sabit bir sesle okur; referans ses kullanılmaz.", label=spec.label),
                 )
-                self.voice_label.setText(f"{spec.label} — sabit ses (referans gerekmez)")
+                self.voice_label.setText(t("{label} — sabit ses (referans gerekmez)", label=spec.label))
             else:
                 self.voice_card.set_text(
                     "Ses Profili", t("Referans ses yoksa varsayılan ses kullanılır.")
@@ -1881,7 +1884,7 @@ class MainWindow(QMainWindow):
         original = self.text_edit.toPlainText()
         cleaned = self._clean_text(original)
         self.text_edit.setPlainText(cleaned)
-        self.status_label.setText("Metin temizlendi.")
+        self.status_label.setText(t("Metin temizlendi."))
 
     def _clean_text(self, text: str) -> str:
         text = text.replace("\r\n", "\n").replace("\r", "\n")
@@ -2346,7 +2349,7 @@ class MainWindow(QMainWindow):
             return
         if self.engine:
             self.device_label.setText(
-                f"Cihaz: {self.engine.device_name} • Motor: {self.engine.display_name}"
+                t("Cihaz: {dev} • Motor: {eng}", dev=self.engine.device_name, eng=self.engine.display_name)
             )
         else:
             self.device_label.setText(t("Cihaz: hazırlanıyor"))
@@ -2536,7 +2539,7 @@ class MainWindow(QMainWindow):
             return
         self._queue.clear()
         self._refresh_queue_list()
-        self.status_label.setText("Kuyruk temizlendi.")
+        self.status_label.setText(t("Kuyruk temizlendi."))
 
     def _process_next_queue_item(self):
         """Kuyruktaki bir sonraki metni text_edit'e al ve on_generate çağır."""
@@ -2822,7 +2825,7 @@ class MainWindow(QMainWindow):
         code = self.language_combo.currentData()
         name = LANGUAGES.get(code, code)
         sample = LANGUAGE_SAMPLES.get(code, "")
-        self.language_combo.setToolTip(f"{name}: '{sample}'")
+        self.language_combo.setToolTip(t("{name}: '{sample}'", name=name, sample=sample))
 
     def on_reset_all_settings(self):
         reply = QMessageBox.question(
@@ -2943,7 +2946,7 @@ class MainWindow(QMainWindow):
         self._save_current_settings()
         if info is None:
             if self._update_manual:
-                self.update_status_label.setText(f"En güncel sürümdesiniz ({__version__}).")
+                self.update_status_label.setText(t("En güncel sürümdesiniz ({v}).", v=__version__))
                 self.btn_update_check.setEnabled(True)
             return
         self._update_info = info
@@ -3315,9 +3318,9 @@ class MainWindow(QMainWindow):
         if self.last_output_path:
             self.playback_hint.setText(t("{name} • {dur} • {sr} Hz", name=filename, dur=duration_text, sr=sr))
         elif save_error:
-            self.playback_hint.setText(f"Ses hazır; otomatik kayıt tamamlanamadı: {save_error}")
+            self.playback_hint.setText(t("Ses hazır; otomatik kayıt tamamlanamadı: {err}", err=save_error))
         else:
-            self.playback_hint.setText(f"Ses hazır • {duration_text} • {sr} Hz")
+            self.playback_hint.setText(t("Ses hazır • {dur} • {sr} Hz", dur=duration_text, sr=sr))
         if self._synth_dialog:
             self._synth_dialog.finish_ok(message)
         audio_player.play_tensor(wav, sr)
@@ -3338,7 +3341,7 @@ class MainWindow(QMainWindow):
         # Kuyruk: iptal edildi, kalan entry'ler korunur
         if self._queue_running:
             self._queue_running = False
-            self.status_label.setText(f"Kuyruk durduruldu. {len(self._queue)} metin kaldı.")
+            self.status_label.setText(t("Kuyruk durduruldu. {n} metin kaldı.", n=len(self._queue)))
 
     def _on_synth_failed(self, msg: str):
         if self._synth_cancel_requested:
@@ -3354,7 +3357,7 @@ class MainWindow(QMainWindow):
         # Kuyruk: hata sonrası kilit açılır (kalan metinler korunur).
         if self._queue_running:
             self._queue_running = False
-            self.status_label.setText(f"Kuyruk durduruldu (hata). {len(self._queue)} metin kaldı.")
+            self.status_label.setText(t("Kuyruk durduruldu (hata). {n} metin kaldı.", n=len(self._queue)))
 
     def _auto_save_generated_audio(self, wav, sr, text: str) -> str:
         """Üretimi seçilen biçimde çıktı klasörüne yaz (Ayarlar → Çıktı).
@@ -3420,7 +3423,7 @@ class MainWindow(QMainWindow):
             bitrate = self._quality_by_format.get(OUTPUT_FORMAT_MP3) or DEFAULT_MP3_BITRATE
             self._export_compressed(self.last_wav, self.last_sr, Path(file_path), OUTPUT_FORMAT_MP3, bitrate)
             self._add_history_entry(file_path, self.last_text or self.text_edit.toPlainText(), f"{len(self.last_wav) / self.last_sr:.1f} sn")
-            self.status_label.setText(f"Kaydedildi: {file_path}")
+            self.status_label.setText(t("Kaydedildi: {path}", path=file_path))
         except Exception as e:
             QMessageBox.warning(
                 self,

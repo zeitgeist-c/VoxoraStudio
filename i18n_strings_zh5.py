@@ -161,4 +161,13 @@ ZH5 = {
     'Kuyruk durduruldu. {n} metin kaldı.': '队列已停止。剩余 {n} 个文本。',
     '{n} geçmiş kaydı {action}.': '{n} 条历史记录{action}。',
     '{name} • {dur} • {sr} Hz': '{name} • {dur} • {sr} Hz',
+    'Cihaz: {dev} • Motor: {eng}': '设备：{dev} • 引擎：{eng}',
+    'En güncel sürümdesiniz ({v}).': '您已是最新版本（{v}）。',
+    'Kuyruk durduruldu (hata). {n} metin kaldı.': '队列已停止（错误）。剩余 {n} 个文本。',
+    'Kuyruk temizlendi.': '队列已清空。',
+    'Metin temizlendi.': '文本已清空。',
+    'Ses hazır • {dur} • {sr} Hz': '语音就绪 • {dur} • {sr} Hz',
+    'Ses hazır; otomatik kayıt tamamlanamadı: {err}': '语音就绪；自动保存失败：{err}',
+    '{label} — sabit ses (referans gerekmez)': '{label} — 固定语音（无需参考）',
+    '{name}: \'{sample}\'': '{name}：\'{sample}\'',
 }
