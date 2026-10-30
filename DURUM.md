@@ -1,9 +1,9 @@
 # VoxoraStudio — DURUM (ortak — Desktop + Telegram okur)
 
 **Güncelleme:** 2026-10-30
-**Versiyon:** v0.7.4 — tek repo zeitgeist-c/VoxoraStudio Release
+**Versiyon:** v0.7.5 — tek repo zeitgeist-c/VoxoraStudio Release
 **Branch:** main
-**Son commit:** `eebb525` (release: v0.7.1 …) · etiket `v0.7.1` iki repoda
+**Son commit:** `b737d6d` (release: v0.7.5) · etiket `v0.7.5` tek repo
 **Ağaç:** temiz (yalnız kullanıcıya ait untracked: `.hermes/`, `AGENTS.md`, `DURUM.md`)
 
 ## Arayüz yenileme (v0.5.0, 2026-10-17)
