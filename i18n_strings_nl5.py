@@ -160,4 +160,13 @@ NL5 = {
     'Kuyruk durduruldu. {n} metin kaldı.': 'Wachtrij gestopt. Nog {n} teksten.',
     '{n} geçmiş kaydı {action}.': '{n} geschiedenisrecords {action}.',
     '{name} • {dur} • {sr} Hz': '{name} • {dur} • {sr} Hz',
+    'Cihaz: {dev} • Motor: {eng}': 'Apparaat: {dev} • Engine: {eng}',
+    'En güncel sürümdesiniz ({v}).': 'Je hebt de nieuwste versie ({v}).',
+    'Kuyruk durduruldu (hata). {n} metin kaldı.': 'Wachtrij gestopt (fout). Nog {n} teksten.',
+    'Kuyruk temizlendi.': 'Wachtrij gewist.',
+    'Metin temizlendi.': 'Tekst gewist.',
+    'Ses hazır • {dur} • {sr} Hz': 'Stem klaar • {dur} • {sr} Hz',
+    'Ses hazır; otomatik kayıt tamamlanamadı: {err}': 'Stem klaar; automatisch opslaan mislukt: {err}',
+    '{label} — sabit ses (referans gerekmez)': '{label} — vaste stem (geen referentie nodig)',
+    '{name}: \'{sample}\'': '{name}: \'{sample}\'',
 }

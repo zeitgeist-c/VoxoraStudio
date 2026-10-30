@@ -160,4 +160,13 @@ ES5 = {
     'Kuyruk durduruldu. {n} metin kaldı.': 'Cola detenida. Quedan {n} textos.',
     '{n} geçmiş kaydı {action}.': '{n} registros de historial {action}.',
     '{name} • {dur} • {sr} Hz': '{name} • {dur} • {sr} Hz',
+    'Cihaz: {dev} • Motor: {eng}': 'Dispositivo: {dev} • Motor: {eng}',
+    'En güncel sürümdesiniz ({v}).': 'Tienes la última versión ({v}).',
+    'Kuyruk durduruldu (hata). {n} metin kaldı.': 'Cola detenida (error). Quedan {n} textos.',
+    'Kuyruk temizlendi.': 'Cola vaciada.',
+    'Metin temizlendi.': 'Texto borrado.',
+    'Ses hazır • {dur} • {sr} Hz': 'Voz lista • {dur} • {sr} Hz',
+    'Ses hazır; otomatik kayıt tamamlanamadı: {err}': 'Voz lista; autoguardado fallido: {err}',
+    '{label} — sabit ses (referans gerekmez)': '{label} — voz fija (sin referencia)',
+    '{name}: \'{sample}\'': '{name}: \'{sample}\'',
 }

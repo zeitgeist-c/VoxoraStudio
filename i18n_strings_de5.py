@@ -160,4 +160,13 @@ DE5 = {
     'Kuyruk durduruldu. {n} metin kaldı.': 'Warteschlange gestoppt. {n} Texte übrig.',
     '{n} geçmiş kaydı {action}.': '{n} Verlaufsdatensätze {action}.',
     '{name} • {dur} • {sr} Hz': '{name} • {dur} • {sr} Hz',
+    'Cihaz: {dev} • Motor: {eng}': 'Gerät: {dev} • Engine: {eng}',
+    'En güncel sürümdesiniz ({v}).': 'Sie haben die neueste Version ({v}).',
+    'Kuyruk durduruldu (hata). {n} metin kaldı.': 'Warteschlange gestoppt (Fehler). {n} Texte übrig.',
+    'Kuyruk temizlendi.': 'Warteschlange geleert.',
+    'Metin temizlendi.': 'Text gelöscht.',
+    'Ses hazır • {dur} • {sr} Hz': 'Stimme bereit • {dur} • {sr} Hz',
+    'Ses hazır; otomatik kayıt tamamlanamadı: {err}': 'Stimme bereit; automatisches Speichern fehlgeschlagen: {err}',
+    '{label} — sabit ses (referans gerekmez)': '{label} — feste Stimme (keine Referenz nötig)',
+    '{name}: \'{sample}\'': '{name}: \'{sample}\'',
 }

@@ -160,4 +160,13 @@ PB5 = {
     'Kuyruk durduruldu. {n} metin kaldı.': 'Fila parada. Faltam {n} textos.',
     '{n} geçmiş kaydı {action}.': '{n} registros de histórico {action}.',
     '{name} • {dur} • {sr} Hz': '{name} • {dur} • {sr} Hz',
+    'Cihaz: {dev} • Motor: {eng}': 'Dispositivo: {dev} • Motor: {eng}',
+    'En güncel sürümdesiniz ({v}).': 'Você está na versão mais recente ({v}).',
+    'Kuyruk durduruldu (hata). {n} metin kaldı.': 'Fila parada (erro). Faltam {n} textos.',
+    'Kuyruk temizlendi.': 'Fila limpa.',
+    'Metin temizlendi.': 'Texto limpo.',
+    'Ses hazır • {dur} • {sr} Hz': 'Voz pronta • {dur} • {sr} Hz',
+    'Ses hazır; otomatik kayıt tamamlanamadı: {err}': 'Voz pronta; salvamento automático falhou: {err}',
+    '{label} — sabit ses (referans gerekmez)': '{label} — voz fixa (sem referência)',
+    '{name}: \'{sample}\'': '{name}: \'{sample}\'',
 }

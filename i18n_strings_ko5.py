@@ -160,4 +160,13 @@ KO5 = {
     'Kuyruk durduruldu. {n} metin kaldı.': '대기열 중지. {n}개 남음.',
     '{n} geçmiş kaydı {action}.': '기록 {n}개 {action}.',
     '{name} • {dur} • {sr} Hz': '{name} • {dur} • {sr} Hz',
+    'Cihaz: {dev} • Motor: {eng}': '장치: {dev} • 엔진: {eng}',
+    'En güncel sürümdesiniz ({v}).': '최신 버전입니다({v}).',
+    'Kuyruk durduruldu (hata). {n} metin kaldı.': '대기열 중지(오류). {n}개 남음.',
+    'Kuyruk temizlendi.': '대기열이 지워짐.',
+    'Metin temizlendi.': '텍스트가 지워짐.',
+    'Ses hazır • {dur} • {sr} Hz': '음성 준비됨 • {dur} • {sr} Hz',
+    'Ses hazır; otomatik kayıt tamamlanamadı: {err}': '음성 준비됨. 자동 저장 실패: {err}',
+    '{label} — sabit ses (referans gerekmez)': '{label} — 고정 음성(참조 불필요)',
+    '{name}: \'{sample}\'': '{name}: \'{sample}\'',
 }

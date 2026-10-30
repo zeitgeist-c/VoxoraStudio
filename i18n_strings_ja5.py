@@ -161,4 +161,13 @@ JA5 = {
     'Kuyruk durduruldu. {n} metin kaldı.': 'キュー停止。残り {n} 件。',
     '{n} geçmiş kaydı {action}.': '履歴 {n} 件{action}。',
     '{name} • {dur} • {sr} Hz': '{name} • {dur} • {sr} Hz',
+    'Cihaz: {dev} • Motor: {eng}': 'デバイス: {dev} • エンジン: {eng}',
+    'En güncel sürümdesiniz ({v}).': '最新バージョンです（{v}）。',
+    'Kuyruk durduruldu (hata). {n} metin kaldı.': 'キュー停止（エラー）。残り {n} 件。',
+    'Kuyruk temizlendi.': 'キューをクリア。',
+    'Metin temizlendi.': 'テキストをクリア。',
+    'Ses hazır • {dur} • {sr} Hz': '音声準備完了 • {dur} • {sr} Hz',
+    'Ses hazır; otomatik kayıt tamamlanamadı: {err}': '音声準備完了; 自動保存失敗: {err}',
+    '{label} — sabit ses (referans gerekmez)': '{label} — 固定音声（参照不要）',
+    '{name}: \'{sample}\'': '{name}: \'{sample}\'',
 }

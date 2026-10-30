@@ -144,4 +144,13 @@ EN5 = {
     'Kuyruk durduruldu. {n} metin kaldı.': 'Queue stopped. {n} texts left.',
     '{n} geçmiş kaydı {action}.': '{n} history records {action}.',
     '{name} • {dur} • {sr} Hz': '{name} • {dur} • {sr} Hz',
+    'Cihaz: {dev} • Motor: {eng}': 'Device: {dev} • Engine: {eng}',
+    'En güncel sürümdesiniz ({v}).': 'You are on the latest version ({v}).',
+    'Kuyruk durduruldu (hata). {n} metin kaldı.': 'Queue stopped (error). {n} texts left.',
+    'Kuyruk temizlendi.': 'Queue cleared.',
+    'Metin temizlendi.': 'Text cleared.',
+    'Ses hazır • {dur} • {sr} Hz': 'Voice ready • {dur} • {sr} Hz',
+    'Ses hazır; otomatik kayıt tamamlanamadı: {err}': 'Voice ready; auto-save failed: {err}',
+    '{label} — sabit ses (referans gerekmez)': '{label} — fixed voice (no reference needed)',
+    '{name}: \'{sample}\'': '{name}: \'{sample}\'',
 }
