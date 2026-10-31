@@ -149,7 +149,7 @@ class VoxoraUiTests(unittest.TestCase):
             "Stüdyo Ayarları",
         )
         with (
-            patch.object(main_window, "load_settings", return_value={}) as load_settings,
+            patch.object(main_window, "load_settings", return_value={"ui_language": "tr"}) as load_settings,
             patch.object(main_window, "load_history", return_value=[]) as load_history,
             patch.object(main_window, "save_settings") as save_settings,
             patch.object(main_window, "save_history") as save_history,
@@ -243,7 +243,7 @@ class VoxoraUiTests(unittest.TestCase):
 
     def _headless_window(self):
         patches = (
-            patch.object(main_window, "load_settings", return_value={}),
+            patch.object(main_window, "load_settings", return_value={"ui_language": "tr"}),
             patch.object(main_window, "load_history", return_value=[]),
             patch.object(main_window, "save_settings"),
             patch.object(main_window, "save_history"),

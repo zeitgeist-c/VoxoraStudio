@@ -92,7 +92,7 @@ class FirstRunDialog(QDialog):
         self.setObjectName("firstRunDialog")
         self.setWindowIcon(application_icon())
         self.setWindowTitle(t("Voxora Studio — İlk kurulum"))
-        self.setModal(False)  # ana pencere kullanılabilir kalsın
+        self.setModal(False)  # keep the main window usable
         self.resize(720, 520)
         self._choice = ""
 
@@ -202,7 +202,7 @@ class FirstRunDialog(QDialog):
         group.buttonToggled.connect(self._on_toggle)
         self._group = group
 
-        # Seçili motorun kurulu olması indirmeyi gereksiz kılar.
+        # A selected engine already installed makes downloading pointless.
         self._sync_start_button()
 
     def _on_toggle(self, button: QRadioButton, checked: bool) -> None:

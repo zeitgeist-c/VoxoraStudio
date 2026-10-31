@@ -41,13 +41,13 @@ __all__ = [
     "migrate_legacy_state",
 ]
 
-#: ``%LOCALAPPDATA%`` altındaki veri klasörü adı.
+#: data folder name under ``%LOCALAPPDATA%``.
 USER_DATA_DIRNAME = "VoxoraStudio"
 
-#: Eski taşınabilir kurulumun state'inin durduğu göreli yol.
+#: relative path where the old portable install kept its state.
 _LEGACY_STATE_REL = Path("_internal") / "state"
 
-#: Göç sırasında yolu yeniden yazılacak ayar anahtarları.
+#: settings keys whose path is rewritten during migration.
 _RELOCATED_KEYS = (
     "output_dir",
     "compress_output_dir",

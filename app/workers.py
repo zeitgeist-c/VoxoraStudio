@@ -168,9 +168,9 @@ class ModelInstallWorker(QThread):
     korur, yeniden başlatıldığında kaldığı yerden devam eder.
     """
 
-    progress = pyqtSignal(int, int, float, float)   # tamamlanan, toplam, hız, kalan
+    progress = pyqtSignal(int, int, float, float)   # done, total, speed, remaining
     message = pyqtSignal(str)
-    ok = pyqtSignal(str, str)                       # motor, ayrıntı
+    ok = pyqtSignal(str, str)                       # engine, details
     failed = pyqtSignal(str, str)                   # motor, hata
     cancelled = pyqtSignal(str)                     # motor
 
@@ -213,7 +213,7 @@ class ModelInstallWorker(QThread):
         elif update.phase == "connecting":
             self.message.emit(f"Bağlanıyor: {filename}")
         elif filename and not filename.endswith(".onnx") and not filename.endswith(".vxp"):
-            # Dosya adı bir aşama metniyse onu göster.
+            # If a file name is a stage text, show it.
             self.message.emit(filename)
         self.progress.emit(
             int(update.completed),
@@ -279,7 +279,7 @@ class CompressWorker(QThread):
                     path, bitrate=self.bitrate, channels=self.channels, output_dir=self.output_dir
                 )
             except Exception as exc:
-                # QThread.run'dan kaçan istisna süreci sessizce sonlandırır; burada durdurup raporla.
+                # An exception escaping QThread.run silently ends the process; stop and report it here.
                 log.exception("Sıkıştırma sırasında beklenmeyen hata: %s", path)
                 result = audio_compressor.CompressionResult(
                     ok=False,
@@ -310,13 +310,13 @@ class UpdateWorker(QThread):
     İptal edilen/bozuk indirme hiçbir zaman çalıştırılabilir dosya bırakmaz.
     """
 
-    checked = pyqtSignal(object)        # UpdateInfo ya da None (zaten güncel)
+    checked = pyqtSignal(object)        # UpdateInfo or None (already current)
     failed = pyqtSignal(str)
     progress = pyqtSignal(int, int, float)  # inen bayt, toplam bayt, bayt/sn
-    phase = pyqtSignal(str)             # "verify" (özet doğrulama)
-    installed = pyqtSignal(str, str)    # sürüm, indirilen dosya yolu
+    phase = pyqtSignal(str)             # "verify" (summary verification)
+    installed = pyqtSignal(str, str)    # version, downloaded file path
 
-    _PROGRESS_INTERVAL = 0.15           # GUI'ye saniyede ~6 güncelleme yeter
+    _PROGRESS_INTERVAL = 0.15           # ~6 GUI updates per second are enough
 
     def __init__(self, current: str, mode: str = "check", info=None,
                  use_delta: bool = False, parent=None):
@@ -367,15 +367,15 @@ class UpdateWorker(QThread):
                 return
             self.failed.emit(str(exc))
             return
-        except Exception as exc:  # disk dolu, izin hatası: GUI'ye raporla
+        except Exception as exc:  # disk full, permission error: report to the GUI
             log.exception("Güncelleme indirmesi başarısız")
             self.failed.emit(f"Güncelleme indirilemedi: {exc}")
             return
         self.installed.emit(info.version, str(target))
 
     def _progress(self, done: int, total: int):
-        # Zaman tabanlı yayın: hız/kalan süre göstergesi canlı kalsın ama GUI
-        # iş parçacığı 256 KB'lık her parçada boğulmasın.
+        # Time-based publishing: keep the speed/remaining indicator live, but never let the GUI
+        # the worker thread must not drown in every 256 KB chunk.
         now = time.monotonic()
         self._meter.add(done, now)
         if done == total or now - self._last_emit >= self._PROGRESS_INTERVAL:

@@ -1,14 +1,16 @@
-"""VoxoraStudio 13 dil sözleşmesi: TR anahtarlı sözlük, EN default.
+"""VoxoraStudio 13-language contract: TR-keyed dictionary, EN default.
 
-Mevcut UI metinleri Türkçe yazıldığından anahtar olarak orijinal Türkçe
-metin kullanılır; İngilizce dahil 12 dil TABLES'ta çevrilir.
-- Yeni kurulumda varsayılan İngilizce; OS dili ezmez.
-- Kayıtlı açık tercih korunur.
-- Bilinmeyen kod EN'ye düşer (release kapısında eksik = kırmızı).
+Current UI texts are written in Turkish, so the original Turkish
+text is used as the key; 12 languages including English are translated in TABLES.
+- Fresh installs default to English; the OS language never wins.
+- A saved explicit preference is kept.
+- Unknown codes fall back to EN (missing = red at the release gate).
 """
 
 import json
 import os
+
+import i18n_strings_tables
 
 LANGUAGES = [
     ("en", "English"),
@@ -59,48 +61,31 @@ def t(key, _fmt=True, **kwargs):
 
 
 TABLES = {}
+for _code, _parts in {
+    "en": ("EN", "EN2", "EN3", "EN4", "EN5"),
+    "de": ("DE1", "DE2", "DE3", "DE4", "DE5"),
+    "es": ("ES1", "ES2", "ES3", "ES4", "ES5"),
+    "fr": ("FR1", "FR2", "FR3", "FR4", "FR5"),
+    "it": ("IT1", "IT2", "IT3", "IT4", "IT5"),
+    "pt-BR": ("PB1", "PB2", "PB3", "PB4", "PB5"),
+    "ru": ("RU1", "RU2", "RU3", "RU4", "RU5"),
+    "pl": ("PL1", "PL2", "PL3", "PL4", "PL5"),
+    "nl": ("NL1", "NL2", "NL3", "NL4", "NL5"),
+    "zh-CN": ("ZH1", "ZH2", "ZH3", "ZH4", "ZH5"),
+    "ja": ("JA1", "JA2", "JA3", "JA4", "JA5"),
+    "ko": ("KO1", "KO2", "KO3", "KO4", "KO5"),
+}.items():
+    _merged = {}
+    for _part in _parts:
+        _merged.update(getattr(i18n_strings_tables, _part))
+    TABLES[_code] = _merged
+TABLES["tr"] = {}
 
-# Paketleme denetimi icin: yuklenemeyen katalog modulleri burada gorunur.
+# Packaging audit hook: a catalogue module that fails to import is listed here.
 LOAD_ERRORS = []
 
 def ui_languages():
     return list(LANGUAGES)
 
 
-def _load():
-    global TABLES
-    if TABLES:
-        return
-    try:
-        _en = {}
-        for _i in (1, 2, 3, 4, 5):
-            try:
-                _ad = "EN%d" % _i if _i > 1 else "EN"
-                _m = __import__("i18n_strings_en%d" % _i, fromlist=[_ad])
-                _p = getattr(_m, _ad, None)
-                if isinstance(_p, dict):
-                    _en.update(_p)
-            except ImportError:
-                LOAD_ERRORS.append("i18n_strings_en%d" % _i)
-        TABLES = {"en": _en, "tr": {}}
-        for _kod, _ad in (("de", "DE"), ("es", "ES"), ("fr", "FR"),
-                           ("it", "IT"), ("pt-BR", "PB"), ("ru", "RU"),
-                           ("pl", "PL"), ("nl", "NL"), ("zh-CN", "ZH"),
-                           ("ja", "JA"), ("ko", "KO")):
-            _bir = {}
-            for _i in (1, 2, 3, 4, 5):
-                try:
-                    _m = __import__("i18n_strings_%s%d" % (_ad.lower(), _i),
-                                     fromlist=["%s%d" % (_ad, _i)])
-                    _parca = getattr(_m, "%s%d" % (_ad, _i), None)
-                    if isinstance(_parca, dict):
-                        _bir.update(_parca)
-                except ImportError:
-                    LOAD_ERRORS.append("i18n_strings_%s%d" % (_ad.lower(), _i))
-            if _bir:
-                TABLES[_kod] = _bir
-    except ImportError:
-        TABLES = {"en": {}, "tr": {}}
 
-
-_load()

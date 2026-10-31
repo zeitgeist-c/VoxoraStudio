@@ -29,14 +29,14 @@ __all__ = [
     "CONFIRM_CHUNK_COUNT",
 ]
 
-# Çıktı biçimi kutucukları (Ayarlar → Çıktı): (anahtar, ad, kısa açıklama)
+# Output format tiles (Settings → Output): (key, name, short description)
 OUTPUT_FORMAT_OPTIONS = (
     (OUTPUT_FORMAT_WAV, "WAV", "kayıpsız · arşiv"),
     (OUTPUT_FORMAT_MP3, "MP3", "her yerde çalar"),
     (OUTPUT_FORMAT_OPUS, "OPUS", "en küçük dosya"),
 )
 
-# Kalite seçenekleri biçime göre: (değer, etiket)
+# Quality options by format: (value, label)
 OUTPUT_QUALITY_OPTIONS = {
     OUTPUT_FORMAT_WAV: (("", "Kayıpsız — kalite seçimi yok"),),
     OUTPUT_FORMAT_MP3: (
@@ -95,13 +95,13 @@ REFERENCE_SAMPLE_TEXT = (
     "Bu kayıt, yeni üretilecek sesin bana daha iyi benzemesine yardımcı olabilir."
 )
 
-# Chatterbox Multilingual V3 önerilerine göre (HF model kartı + resmi kaynak kodu):
-# - cfg_weight: model default 0.5; hızlı/ekspresif için 0.3
-# - temperature: 0.55-0.75 arası doğallık; 0.85+ çeşitlilik
-# - repetition_penalty: model default 1.2; artifact riski için 1.2-1.6
-# - exaggeration: 0.5 nötr; 0.7+ ekspresif (yüksek = hızlanır, cfg düşürülmeli)
+# Per Chatterbox Multilingual V3 recommendations (HF model card + official source):
+# - cfg_weight: model default 0.5; 0.3 for fast/expressive
+# - temperature: 0.55-0.75 for naturalness; 0.85+ for variety
+# - repetition_penalty: model default 1.2; 1.2-1.6 for artifact risk
+# - exaggeration: 0.5 neutral; 0.7+ expressive (high = faster, lower cfg)
 # - speed: pipeline seviyesinde time-stretch; modeli etkilemez
-# - pause: pipeline seviyesinde chunk arası sessizlik
+# - pause: pipeline-level silence between chunks
 PRESETS = {
     "Dengeli":                {"speed": 1.00, "exaggeration": 0.50, "cfg": 0.50, "temperature": 0.65, "repetition": 1.30, "pause": 0.35},
     "Hızlı üretim":           {"speed": 1.18, "exaggeration": 0.45, "cfg": 0.35, "temperature": 0.70, "repetition": 1.30, "pause": 0.20},
@@ -113,18 +113,18 @@ PRESETS = {
     "Sıcak Anlatıcı":         {"speed": 0.92, "exaggeration": 0.65, "cfg": 0.45, "temperature": 0.55, "repetition": 1.40, "pause": 0.50},
 }
 
-# Tema seçenekleri (Ayarlar → Sistem)
+# Theme options (Settings → System)
 THEME_LIGHT = "light"
 THEME_DARK = "dark"
 THEME_SYSTEM = "system"
 
 THEMES = (THEME_LIGHT, THEME_DARK, THEME_SYSTEM)
 
-# Üretim uyarı eşikleri
-WARN_CHUNK_COUNT = 20      # INFO uyarı eşiği
-CONFIRM_CHUNK_COUNT = 50   # Kullanıcı onayı eşiği
+# Production warning thresholds
+WARN_CHUNK_COUNT = 20      # INFO warning threshold
+CONFIRM_CHUNK_COUNT = 50   # User confirmation threshold
 
-# Dil örnek cümleler (tooltip için)
+# Language sample sentences (for tooltips)
 LANGUAGE_SAMPLES = {
     "tr": "Merhaba dünya",
     "en": "Hello world",

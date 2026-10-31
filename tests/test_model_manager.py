@@ -13,10 +13,12 @@ from pathlib import Path
 from unittest.mock import patch
 
 from app import downloader, engine_pack, engines, hardware, model_manager
+from i18n import set_language as _set_test_language
 
 
 class ModelManagerTests(unittest.TestCase):
     def setUp(self):
+        _set_test_language("tr")
         self._tmp = tempfile.TemporaryDirectory()
         self.root = Path(self._tmp.name)
         self._patches = [
@@ -27,6 +29,7 @@ class ModelManagerTests(unittest.TestCase):
             p.start()
 
     def tearDown(self):
+        _set_test_language("en")
         for p in self._patches:
             p.stop()
         self._tmp.cleanup()

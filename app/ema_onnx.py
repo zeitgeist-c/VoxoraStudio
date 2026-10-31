@@ -41,22 +41,22 @@ __all__ = [
     "resolve_models_dir",
 ]
 
-#: Ağırlık deposu (Apache-2.0).
+#: weight store (Apache-2.0).
 REPO = "ozcancelik/ema-lightning-onnx"
 
-#: Paketlemek/indirmek için gereken dört dosya.
+#: the four files needed to package/download.
 FILES = ("text.onnx", "sound.onnx", "decoder.onnx", "meta.json")
 
 SAMPLE_RATE = 48_000
 FRAMES_PER_SECOND = 25
-HOP = 1920            # kare başına çözücü örneği
-WINDOW = 100          # ilk pencereden sonra kare sayısı
+HOP = 1920            # solver instance per frame
+WINDOW = 100          # frame count after the first window
 FIRST_WINDOW = 25
 CONTEXT = 8
 MAX_FRAMES = 3000
 SEED = 0
 
-# --- metin bölme (ema_lightning.chunker portu) -------------------------------
+# --- text splitting (ema_lightning.chunker port) -------------------------------
 LETTERS_PER_SECOND = 18.0
 MAX_SECONDS = 10.0
 MAX_LETTERS = 250
@@ -98,7 +98,7 @@ def _finish(piece: str) -> str:
     return piece.rstrip(",;:- ") + "."
 
 
-# --- metin önişlemcisi (ema_lightning.frontend portu) ------------------------
+# --- text preprocessor (ema_lightning.frontend port) ------------------------
 _UNSAFE = re.compile(
     "[\x00-\x08\x0b-\x1f\x7f-\x9f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]"
 )
@@ -136,7 +136,7 @@ class Frontend:
             return self.normalizer.normalize(
                 text, ambiguity_policy="fallback").normalized_text
         except Exception:
-            # Tek bir cümleyi kaybetmektense ham metni okumak yeğdir.
+            # Rather than lose one sentence, read the raw text.
             return text
 
     def alphabet(self, text: str) -> str:
@@ -250,9 +250,9 @@ class EmaOnnxEngine:
     yükleme bedeli ödenmez.
     """
 
-    #: Motorun hız parametresi kendi içinde uygulanır; dışarıdan time-stretch yok.
+    #: the engine applies its speed parameter internally; no external time-stretch.
     accepts_speed = True
-    #: Bu motor için dil seçimi yok (tek dil).
+    #: no language choice for this engine (single language).
     single_language = True
     sample_rate = SAMPLE_RATE
 
@@ -285,7 +285,7 @@ class EmaOnnxEngine:
         with open(Path(root) / "meta.json", encoding="utf-8") as handle:
             self._meta = json.load(handle)
         options = ort.SessionOptions()
-        # DirectML ölçüldü ve reddedildi (CPU'dan 15 kat yavaş); her zaman CPU.
+        # DirectML measured and rejected (15x slower than CPU); always CPU.
         self._sessions = {
             name: ort.InferenceSession(
                 str(Path(root) / f"{name}.onnx"),

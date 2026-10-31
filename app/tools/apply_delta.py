@@ -33,14 +33,14 @@ def _apply(staged: Path, target: Path, manifest_path: Path) -> list[str]:
         relative = Path(*name.replace("\\", "/").split("/"))
         source = staged / relative
         destination = (target / relative).resolve()
-        # Güvenlik: hedef klasör dışına yazma yok.
+        # Security: never write outside the target folder.
         if target.resolve() not in destination.parents and destination != target.resolve():
             raise SystemExit(f"hedef dışı yol: {name}")
         if not source.is_file():
             raise SystemExit(f"kaynak eksik: {name}")
         destination.parent.mkdir(parents=True, exist_ok=True)
-        # Çalışan EXE kendini silemez (WinError 5); aynı birimde yeniden
-        # adlandırma izinlidir. Eski kopyayı `.old` yapıp sonra artığı sil.
+        # A running EXE cannot delete itself (WinError 5); on the same volume re-
+        # renaming is allowed. Rename the old copy to `.old`, then delete the leftover.
         stale = destination.with_name(destination.name + ".old")
         if stale.exists():
             try:
@@ -81,10 +81,10 @@ def main(argv: list[str]) -> int:
         result_path.write_text(
             json.dumps({"ok": True, "written": written}, ensure_ascii=False),
             encoding="utf-8")
-        # staged klasörünü BURADA silme: sonuç dosyası onun içinde ve çağıran
-        # süreç henüz okumadı. Temizliği çağıran yapar (kendi `finally`'si).
+        # never delete the staged folder HERE: the result file is inside it and the caller
+        # the process has not read it yet. The caller does the cleanup (its own `finally`).
         return 0
-    except Exception as exc:  # noqa: BLE001 - sonuç dosyasına yazılır
+    except Exception as exc:  # noqa: BLE001 - written to the result file
         try:
             result_path.write_text(
                 json.dumps({"ok": False, "error": f"{exc}"}, ensure_ascii=False),

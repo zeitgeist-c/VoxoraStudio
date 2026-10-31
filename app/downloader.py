@@ -44,9 +44,9 @@ __all__ = [
 _CHUNK = 256 * 1024
 _TIMEOUT = 60
 _USER_AGENT = "VoxoraStudio/1.0 (+https://github.com/zeitgeist-c/VoxoraStudio)"
-#: Her dosya için deneme sayısı (kaldığı yerden devam ederek).
+#: attempts per file (resuming where it left off).
 _ATTEMPTS = 3
-#: İlerleme sinyali en fazla bu sıklıkta (saniye) yayınlanır.
+#: progress signal emitted at most this often (seconds).
 _PROGRESS_INTERVAL = 0.15
 
 
@@ -84,8 +84,8 @@ def free_space_for(path: Path | str, needed_bytes: int) -> None:
     try:
         free = shutil.disk_usage(probe).free
     except OSError:
-        return  # ölçülemiyorsa engelleme
-    # 64 MB emniyet payı: geçici dosya + arşiv açılışı.
+        return  # block when unmeasurable
+    # 64 MB safety margin: temp file + archive extraction.
     if free < needed_bytes + 64 * 1024 * 1024:
         raise DownloadError(
             t("Yeterli disk alanı yok: {gb} GB gerekiyor, ", gb=f"{needed_bytes / 1024 ** 3:.1f}") +
@@ -176,7 +176,7 @@ def download_file(
                 with _open(url, offset) as response:
                     status = getattr(response, "status", 200)
                     if offset and status == 200:
-                        # Sunucu Range'i yok saydı: baştan başla.
+                        # The server ignored Range: start over.
                         offset = 0
                         completed_base = 0
                         received = 0
@@ -206,8 +206,8 @@ def download_file(
         except Cancelled:
             raise
         except (urllib.error.URLError, TimeoutError, OSError, DownloadError) as exc:
-            # Bozuk içerik bir sonraki denemede de bozuk iner: yarım dosyayı at ki
-            # yeniden deneme temiz bir indirme yapsın.
+            # Corrupt content downloads corrupt again next time: drop the half file so
+            # so the retry makes a clean download.
             if isinstance(exc, DownloadError) and part.is_file():
                 part.unlink(missing_ok=True)
                 offset = 0
@@ -220,7 +220,7 @@ def download_file(
                     t("İndirme tamamlanamadı: {name}\n{exc}", name=target.name, exc=exc)
                 ) from exc
             log.warning("İndirme yeniden denenecek (%d/%d): %s", attempt + 1, _ATTEMPTS, exc)
-            # İptal duyarlı bekleme (5, 10 sn).
+            # Cancellation-aware wait (5, 10 s).
             for _ in range(5 * (attempt + 1)):
                 check()
                 time.sleep(0.2)
@@ -263,7 +263,7 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-# --- Hugging Face model ağırlıkları -------------------------------------------
+# --- Hugging Face model weights -------------------------------------------
 def download_hf_model(
     repo_id: str,
     destination: Path | str,
@@ -308,9 +308,9 @@ def download_hf_model(
     if not rows:
         raise DownloadError(t("Model deposunda indirilecek dosya bulunamadı: {repo_id}", repo_id=repo_id))
 
-    # Depo manifesti UZAKTAN gelir: ``rfilename`` değeri ``../`` ya da sürücü
-    # yolu içerirse dosya model klasörünün dışına yazılırdı (path traversal).
-    # İndirmeden önce her adı hedef kökün altına sabitle.
+    # The repo manifest arrives REMOTELY: if ``rfilename`` contains ``../`` or a drive
+    # a path in it would write the file outside the model folder (path traversal).
+    # Pin every name under the target root before downloading.
     for row in rows:
         row["path"] = _safe_relative(row["path"], target_dir)
 

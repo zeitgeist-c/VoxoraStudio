@@ -321,8 +321,8 @@ def _stylesheet(theme: str) -> str:
     s = t["spacing"]
     h = t["control"]
 
-    # Açılır kutu ve sayı kutusu okları: QSS alt-kontrolleri biçimlendirildiğinde
-    # Qt kendi okunu çizmez; görsel verilmezse alanlar düz metin gibi görünür.
+    # Combo and spin box arrows: once QSS sub-controls are styled,
+    # Qt draws no arrow of its own; without artwork the fields look like plain text.
     suffix = "" if t["name"] == "dark" else "-light"
     combo_arrow = asset_path(f"spin-down{suffix}.svg").replace("\\", "/")
     spin_up_arrow = asset_path(f"spin-up{suffix}.svg").replace("\\", "/")

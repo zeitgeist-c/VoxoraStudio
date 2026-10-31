@@ -45,17 +45,17 @@ USER_AGENT = f"{TECHNICAL_NAME}/{__version__}"
 UPDATES_DIRNAME = "updates"
 INSTALLER_SUFFIX = "-Setup.exe"
 DELTA_SUFFIX = "-delta.vxd"
-#: Delta asset adı: ``VoxoraStudio-<hedef>-delta-<taban>.vxd``
+#: delta asset name: ``VoxoraStudio-<target>-delta-<base>.vxd``
 DELTA_RE = re.compile(
     rf"^{re.escape(TECHNICAL_NAME)}-(?P<target>\d+\.\d+\.\d+)-delta-"
     rf"(?P<base>\d+\.\d+\.\d+)\.vxd$")
 
-#: Kurulum dosyası adı: ``VoxoraStudio-0.6.0-Setup.exe``
+#: installer file name: ``VoxoraStudio-0.6.0-Setup.exe``
 INSTALLER_RE = re.compile(
     rf"^{re.escape(TECHNICAL_NAME)}-(\d+\.\d+\.\d+){re.escape(INSTALLER_SUFFIX)}$")
 
-#: Sessiz kurulum bayrakları. ``/RESTARTAPPLICATIONS`` uygulamayı geri açar;
-#: ``/NORESTART`` Windows'u yeniden başlatma teklifini engeller.
+#: silent install flags. ``/RESTARTAPPLICATIONS`` reopens the app;
+#: ``/NORESTART`` suppresses the Windows restart prompt.
 SILENT_FLAGS = (
     "/VERYSILENT",
     "/SUPPRESSMSGBOXES",
@@ -66,7 +66,7 @@ SILENT_FLAGS = (
 
 log = logging.getLogger(__name__)
 
-#: Açılış temizliğinin sonucu (varsa): durum satırında kullanıcıya gösterilir.
+#: startup cleanup result (if any): shown to the user in the status bar.
 last_cleanup_result = ""
 
 
@@ -79,15 +79,15 @@ class UpdateInfo:
     version: str
     asset_name: str
     download_url: str
-    sha256: str          # beklenen özet; yayında yoksa ""
+    sha256: str          # expected digest; "" when absent from the release
     size: int
     page_url: str
-    #: Aynı sürüm için delta paketi (varsa ve bu kuruluma uyuyorsa).
+    #: delta package for the same version (if present and fitting this install).
     delta_name: str = ""
     delta_url: str = ""
     delta_sha256: str = ""
     delta_size: int = 0
-    #: Yayında bu kurulumun sürümünü taban alan delta var mı?
+    #: is there a published delta based on this install's version?
     delta_base: str = ""
 
 
@@ -200,7 +200,7 @@ def parse_release(payload: dict, version_prefix: str = "v",
     """
     tag = str(payload.get("tag_name") or "")
     version = tag[len(version_prefix):] if tag.startswith(version_prefix) else tag
-    parse_version(version)  # karşılaştıramayacağımız etiketi baştan reddet
+    parse_version(version)  # reject upfront any label we cannot compare
     wanted = f"{TECHNICAL_NAME}-{version}{INSTALLER_SUFFIX}"
     info: UpdateInfo | None = None
     for asset in payload.get("assets") or []:
@@ -405,7 +405,7 @@ class _SHELLEXECUTEINFOW(ctypes.Structure):
     ]
 
 
-#: ShellExecuteEx hata kodları (kullanıcıya anlaşılır metin için).
+#: ShellExecuteEx error codes (for user-readable text).
 _ERROR_CANCELLED = 1223
 
 
@@ -474,7 +474,7 @@ def spawn_installer(installer: Path, restart: bool = True) -> int:
     flags = list(SILENT_FLAGS)
     if not restart:
         flags = [flag for flag in flags if flag != "/RESTARTAPPLICATIONS"]
-    if sys.platform != "win32":  # pragma: no cover - Windows dışı yalnız test
+    if sys.platform != "win32":  # pragma: no cover - non-Windows test only
         creation = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
         process = subprocess.Popen([str(installer), *flags],
                                    creationflags=creation, close_fds=True)
@@ -726,8 +726,8 @@ def run_pending_delta() -> Path | None:
         return None
     problem = validate_pending_delta(payload)
     if problem:
-        # Fiş kullanıcının yazabildiği klasörde: doğrulanmadan yükseltilmiş
-        # işçiye verilmez. Bozuk fiş silinir, sonraki açılış temiz başlar.
+        # The job file lives in a user-writable folder: never hand it to an elevated
+        # never handed to the worker. Delete the corrupt job file; next launch starts clean.
         log.error("Delta fişi reddedildi: %s", problem)
         marker.unlink(missing_ok=True)
         return None
@@ -918,7 +918,7 @@ def apply_pending_payload(staged: Path, target: Path, files: list,
                    encoding="utf-8")
     try:
         if _already_elevated():
-            # Çağıran zaten yönetici: UAC tetiklemeden doğrudan çalıştır.
+            # The caller is already admin: run directly without triggering UAC.
             subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy",
                             "Bypass", "-WindowStyle", "Hidden", "-File",
                             str(ps1)], check=False)
@@ -958,7 +958,7 @@ def apply_delta_marker(marker: Path, result_file: Path) -> int:
         payload = json.loads(marker.read_text(encoding="utf-8"))
         problem = validate_pending_delta(payload)
         if problem:
-            # Bu kip yükseltilmiş çalışabilir: fiş doğrulanmadan uygulanmaz.
+            # This mode may run elevated: never apply an unverified job file.
             raise ValueError(problem)
         staged = Path(payload["staged"])
         target = Path(payload["target"])
@@ -970,7 +970,7 @@ def apply_delta_marker(marker: Path, result_file: Path) -> int:
         marker.unlink(missing_ok=True)
         _shutil.rmtree(staged, ignore_errors=True)
         return 0
-    except Exception as exc:  # noqa: BLE001 - sonuç dosyasına yazılır
+    except Exception as exc:  # noqa: BLE001 - written to the result file
         try:
             result_file.write_text(json.dumps({"ok": False, "error": f"{exc}"},
                                               ensure_ascii=False), encoding="utf-8")

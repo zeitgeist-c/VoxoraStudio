@@ -48,7 +48,7 @@ class _Base(unittest.TestCase):
 
     def window(self) -> MainWindow:
         patches = (
-            patch.object(main_window, "load_settings", return_value={}),
+            patch.object(main_window, "load_settings", return_value={"ui_language": "tr"}),
             patch.object(main_window, "load_history", return_value=[]),
             patch.object(main_window, "save_settings"),
             patch.object(main_window, "save_history"),

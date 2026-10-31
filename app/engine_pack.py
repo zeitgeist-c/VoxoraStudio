@@ -58,12 +58,12 @@ __all__ = [
     "add_engine_to_path",
 ]
 
-#: Manifest biçim sürümü. Okunamayan sürüm reddedilir (sessiz yanlış kurulum yok).
+#: manifest format version. Unreadable versions are rejected (no silent wrong installs).
 FORMAT_VERSION = 1
 MANIFEST_NAME = "manifest.json"
 PAYLOAD_PREFIX = "payload/"
 
-#: Aynı anda kurulabilecek en büyük paket (güvenlik sınırı, 8 GB).
+#: largest installable package at once (safety limit, 8 GB).
 MAX_PACK_BYTES = 8 * 1024 ** 3
 
 _CHUNK = 1 << 20  # 1 MB
@@ -176,7 +176,7 @@ def installed_version(engine: str) -> str:
     except (OSError, json.JSONDecodeError):
         return ""
     version = str(data.get("engine_version") or "")
-    # Dosyalar gerçekten duruyor mu: elle silinmiş klasörü "kurulu" sayma.
+    # Do the files really exist: never count a hand-deleted folder as "installed".
     packages = site_packages_dir(engine)
     if not version or not packages.is_dir():
         return ""
@@ -220,7 +220,7 @@ def add_engine_to_path(engine: str) -> bool:
     return True
 
 
-# --- doğrulama ----------------------------------------------------------------
+# --- verification ----------------------------------------------------------------
 def _sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with open(path, "rb") as handle:
@@ -318,15 +318,15 @@ def install_pack(
     target = engine_root(manifest.engine)
     target.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(prefix=f".{manifest.engine}-", dir=target.parent))
-    # Payload doğrudan site-packages altına açılır: motor yüklenirken sys.path'e
-    # eklenen klasör burasıdır.
+    # The payload extracts straight under site-packages: the directory added to sys.path while
+    # the added folder is this one.
     packages_dir = staging / "site-packages"
 
     try:
         with zipfile.ZipFile(path) as archive:
-            # YALNIZ manifestte listelenen dosyalar açılır. Manifest dışı bir
-            # girdi (ör. site-packages'a düşen ``*.pth``) Python açılışında kod
-            # çalıştırır; doğrulanmamış dosya bu klasöre hiç inmemeli.
+            # ONLY files listed in the manifest are extracted. An off-manifest
+            # an input (e.g. a ``*.pth`` landing in site-packages) runs code at Python startup;
+            # it would execute; an unverified file must never land in this folder.
             for row in manifest.files:
                 relative = str(row["path"])
                 name = f"{PAYLOAD_PREFIX}{relative}"
@@ -335,7 +335,7 @@ def install_pack(
                 with archive.open(name) as source, open(destination, "wb") as sink:
                     shutil.copyfileobj(source, sink, _CHUNK)
 
-        # Açılan dosyaları yeniden doğrula: disk hatası/yer sıkıntısı sessiz kalmasın.
+        # Re-verify extracted files: disk errors/space shortages must not stay silent.
         total = manifest.file_count
         for index, row in enumerate(manifest.files, start=1):
             target_file = _safe_join(packages_dir, row["path"])
@@ -366,7 +366,7 @@ def install_pack(
         try:
             os.replace(staging, target)
         except OSError:
-            # Yeni klasör yerine konamadıysa eskisini geri getir.
+            # When the new folder cannot take its place, bring the old one back.
             if old is not None and not target.exists():
                 os.replace(old, target)
             raise
@@ -398,7 +398,7 @@ def _safe_join(root: Path, relative: str) -> Path:
     return candidate
 
 
-# --- üretim (build zamanı) ----------------------------------------------------
+# --- production (build time) ----------------------------------------------------
 def build_pack(
     source_dir: Path | str,
     output_path: Path | str,
@@ -417,7 +417,7 @@ def build_pack(
     for file_path in sorted(source.rglob("*")):
         if not file_path.is_file():
             continue
-        # PyInstaller/pip artıkları pakete girmez.
+        # PyInstaller/pip leftovers never enter the package.
         if "__pycache__" in file_path.parts or file_path.suffix in (".pyc", ".pyo"):
             continue
         relative = file_path.relative_to(source).as_posix()

@@ -32,7 +32,7 @@ __all__ = ["VoxCpmAdapter", "SAMPLE_RATE", "REPO_ID", "WEIGHT_FILES"]
 
 REPO_ID = "openbmb/VoxCPM2"
 SAMPLE_RATE = 48_000
-#: Yükleme için gereken asgari dosyalar (ağırlık indirmesi bunları ister).
+#: minimum files to load (weight downloads require them).
 WEIGHT_FILES = (
     "config.json",
     "model.safetensors",
@@ -92,8 +92,8 @@ class VoxCpmAdapter:
         self._status("VoxCPM2 modeli CUDA üzerinde yükleniyor…")
         self._model = VoxCPM.from_pretrained(
             str(root),
-            load_denoiser=False,          # ModelScope bağımlılığını getirmesin
-            optimize=(self._device == "cuda"),  # CPU'da torch.compile anlamsız/hata
+            load_denoiser=False,          # Must not pull in the ModelScope dependency
+            optimize=(self._device == "cuda"),  # torch.compile on CPU is meaningless/errors
             device=self._device,
         )
         self._status("VoxCPM2 hazır.")

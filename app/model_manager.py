@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app import downloader, engine_pack, engines as engine_registry
+from i18n import t
 
 log = logging.getLogger(__name__)
 
@@ -36,7 +37,7 @@ __all__ = [
     "runtime_installed",
 ]
 
-#: Dosyaları pakette gelen motor (indirme gerekmez).
+#: engine whose files ship in the package (no download needed).
 LOCAL_ENGINE = "ema"
 
 MANIFEST_NAME = "engine_packs.json"
@@ -49,7 +50,7 @@ def _manifest_path() -> Path:
     bundled = app_paths.package_root() / "assets" / MANIFEST_NAME
     if bundled.is_file():
         return bundled
-    # Geliştirme: depo kökü/assets
+    # Development: repo root/assets
     return Path(__file__).resolve().parent.parent / "assets" / MANIFEST_NAME
 
 
@@ -144,11 +145,11 @@ class EngineState:
         if self.installed:
             return "Kurulu"
         if self.partial:
-            missing = "ağırlıklar" if self.runtime_ok else "motor dosyaları"
-            return f"Yarım kurulum — {missing} eksik"
+            missing = t("ağırlıklar") if self.runtime_ok else t("motor dosyaları")
+            return t("Yarım kurulum — {missing} eksik", missing=missing)
         if not self.download_available:
-            return "Henüz yayınlanmadı"
-        return "İndirilmedi"
+            return t("Henüz yayınlanmadı")
+        return t("İndirilmedi")
 
 
 def state_for(engine: str) -> EngineState:
@@ -218,7 +219,7 @@ def install_engine(
                 filename=phase, phase="download",
             ))
 
-    # 1) Çalışma zamanı paketi
+    # 1) Runtime package
     if not runtime_installed(engine):
         announce(f"{spec.label} motor dosyaları indiriliyor")
         pack_path = engine_pack.engine_root(engine).parent / f".{engine}.vxp.download"
@@ -238,7 +239,7 @@ def install_engine(
         )
         pack_path.unlink(missing_ok=True)
 
-    # 2) Ağırlıklar
+    # 2) Weights
     if not _weights_ready(engine):
         announce(f"{spec.label} model ağırlıkları indiriliyor")
         downloader.download_hf_model(

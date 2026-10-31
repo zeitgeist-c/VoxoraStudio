@@ -35,12 +35,12 @@ __all__ = [
     "summary",
 ]
 
-#: CUDA'lı bir motor için gereken en az VRAM (GB). VoxCPM2 kartında ~8 GB ister;
-#: Windows masaüstü 1-1,5 GB yediği için 8'in altındaki kart "sınırda" sayılır.
+#: minimum VRAM (GB) for a CUDA engine. The VoxCPM2 card wants ~8 GB;
+#: the Windows desktop eats 1-1.5 GB, so cards below 8 are "borderline".
 CUDA_COMFORT_VRAM_GB = 8.0
 
-#: nvidia-smi çağrısı için üst sınır. Sürücü yoksa komut hemen döner; takılan bir
-#: sürücüde program açılışını kilitlememek için kısa tutulur.
+#: upper bound for the nvidia-smi call. Without a driver it returns at once; a stuck
+#: kept short so it never blocks app startup on a hung driver.
 _SMI_TIMEOUT = 12
 
 
@@ -48,22 +48,22 @@ _SMI_TIMEOUT = 12
 class HardwareProfile:
     """Bu bilgisayarın ses motoru açısından fotoğrafı."""
 
-    #: Çalışan bir NVIDIA sürücüsü var mı (``nvidia-smi`` yanıt veriyor mu).
+    #: whether a working NVIDIA driver exists (does ``nvidia-smi`` answer).
     cuda: bool = False
-    #: Sürücünün bildirdiği kart adı ("" = bilinmiyor).
+    #: card name reported by the driver ("" = unknown).
     gpu_name: str = ""
     #: Toplam VRAM, GB (0.0 = bilinmiyor).
     vram_gb: float = 0.0
-    #: NVIDIA dışı bir GPU görüldü mü (AMD / Intel / Qualcomm).
+    #: whether a non-NVIDIA GPU was seen (AMD / Intel / Qualcomm).
     other_gpu: bool = False
     other_gpu_name: str = ""
     #: Sistem RAM'i, GB.
     ram_gb: float = 0.0
-    #: Mantıksal işlemci sayısı.
+    #: logical processor count.
     cpu_threads: int = 0
-    #: Kullanıcı veri diskinde boş alan, GB.
+    #: free space on the user data disk, GB.
     disk_free_gb: float = 0.0
-    #: Tespit sırasında oluşan notlar (kullanıcıya değil, loga).
+    #: notes produced during detection (to the log, not the user).
     notes: tuple[str, ...] = field(default=(), repr=False)
 
     @property
@@ -90,7 +90,7 @@ def _run(args: list[str], timeout: int = _SMI_TIMEOUT) -> str:
             capture_output=True,
             text=True,
             timeout=timeout,
-            # noconsole pakette alt süreç konsol penceresi açmasın.
+            # noconsole packages must not open a console window for child processes.
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0,
         )
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError, ValueError) as exc:
@@ -175,9 +175,9 @@ def _other_gpu(force: bool = False) -> tuple[bool, str]:
     return (False, "")
 
 
-#: Tek PowerShell çağrısında okunan Windows sistem bilgisi (GPU adları + RAM).
-#: ``detect`` iki ayrı CIM sorgusu yapıyordu; her PowerShell başlatması ~250 ms
-#: sürüyor ve pencere açılışında bu bedel iki kez ödeniyordu.
+#: Windows system info read in a single PowerShell call (GPU names + RAM).
+#: ``detect`` ran two separate CIM queries; each PowerShell launch costs ~250 ms
+#: and that cost was paid twice on every window open.
 _WININFO_CMD = (
     "$ErrorActionPreference='SilentlyContinue';"
     "$g=(Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name) -join '|';"
@@ -237,7 +237,7 @@ def free_disk_gb(path: str | None = None) -> float:
         from app import paths as app_paths
 
         target = path or str(app_paths.user_data_root())
-    except Exception:  # paths yüklenemezse ev dizinine bak
+    except Exception:  # when paths fail to load, look at the home directory
         target = path or os.path.expanduser("~")
     probe = target
     while probe and not os.path.isdir(probe):

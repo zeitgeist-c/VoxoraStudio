@@ -138,7 +138,7 @@ def stage(archive: Path, manifest: DeltaManifest,
                 expected = str(entry.get("sha256") or "")
                 if expected and _sha256_of(target).lower() != expected.lower():
                     raise DeltaError(f"Delta dosyası doğrulanamadı: {name}")
-        # Yardımcının okuyacağı manifest (yalnız doğrulanmış dosyalar).
+        # The manifest the helper will read (verified files only).
         (stage_dir / MANIFEST_NAME).write_text(
             json.dumps({
                 "version": manifest.version,
@@ -178,9 +178,9 @@ def apply_staged(stage_dir: Path, manifest: DeltaManifest,
         if not source.is_file():
             raise DeltaError(f"Hazırlanmış dosya eksik: {name}")
         target.parent.mkdir(parents=True, exist_ok=True)
-        # Çalışan EXE kendini silemez (WinError 5): önce yerinden uzaklaştır,
-        # sonra taşı, en son artığı sil. Windows çalışan bir görüntüyü silmeye
-        # izin vermez ama aynı birimde YENİDEN ADLANDIRMAYA izin verir.
+        # A running EXE cannot delete itself (WinError 5): first relocate it,
+        # then move it, delete the leftover last. Windows refuses to delete a running image;
+        # but it allows RENAMING on the same volume.
         stale = target.with_name(target.name + ".old")
         if stale.exists():
             try:
@@ -197,7 +197,7 @@ def apply_staged(stage_dir: Path, manifest: DeltaManifest,
         try:
             shutil.move(str(source), str(target))
         except OSError:
-            # Geri al: eski dosya yerine dönsün, kurulum yarım kalmasın.
+            # Roll back: the old file returns, the install never stays half-done.
             if stale.exists() and not target.exists():
                 stale.rename(target)
             raise
@@ -216,11 +216,11 @@ def apply_staged(stage_dir: Path, manifest: DeltaManifest,
             target.unlink(missing_ok=True)
         except OSError:
             log.warning("Delta: silinemedi (kilit?): %s", target)
-    # Silinen dosyaların boş bıraktığı klasörleri temizle (en derinden yukarı).
-    # Önemli: 0.7.0 delta'sı 5610 dosyayı siler (torch gider); dosyaları değil
-    # de klasörleri bırakmak 354 boş klasörün kurulumda kalması demektir.
-    # Yalnızca BOŞ klasörler silinir; silinen dosyaların üst klasörleri dışına
-    # asla çıkılmaz (kullanıcı verisi, _internal kökü dokunulmaz).
+    # Clean the folders emptied by deleted files (deepest first).
+    # Important: the 0.7.0 delta deletes 5610 files (torch goes); do not leave the files,
+    # leaving de folders means 354 empty folders stay installed.
+    # Only EMPTY folders are deleted; never outside the deleted files' parent folders;
+    # never leave it (user data, _internal root untouched).
     _prune_empty_parents(root, [str(name) for name in manifest.removed])
     return written
 
@@ -239,25 +239,25 @@ def _prune_empty_parents(root: Path, removed_names: list[str]) -> None:
             with os.scandir(folder) as entries:
                 return next(entries, None) is None
         except FileNotFoundError:
-            return True   # zaten silinmiş -> boş say
+            return True   # already deleted -> count as empty
         except OSError:
-            return False  # erişilemiyor -> dokunma
+            return False  # unreachable -> do not touch
 
     def _parents_of(name: str):
         parts = PurePosixPath(name).parts
         for depth in range(len(parts) - 1, 0, -1):
             yield root.joinpath(*parts[:depth])
 
-    # Silinen dosyaların üst klasörlerini topla (yinelenmeden).
+    # Collect the parent folders of deleted files (deduplicated).
     candidates: set[Path] = set()
     for name in removed_names:
         for folder in _parents_of(name):
             if folder in candidates:
                 break
             candidates.add(folder)
-    # Post-order (önce en derin) sil: bir klasör yalnızca boş klasörler
-    # içerdiğinde bile silinebilmeli — "dolu" görünmesinin sebebi içteki
-    # boş klasörler olabilir. Yukarıdan tarama bu yüzden 45 klasör bırakıyordu.
+    # Post-order (deepest first) delete: a folder holding only empty folders
+    # must be deletable even then — the "non-empty" look comes from inner
+    # may be empty folders. Top-down scanning left 45 folders behind for this reason.
     def _prune(folder: Path) -> bool:
         """Klasörü alt klasörleriyle sil; tamamen boşsa True döner."""
         try:

@@ -13,11 +13,11 @@ TECHNICAL_TAGLINE = "Chatterbox Multilingual • Yerel üretim"
 
 LOG_FILENAME = f"{TECHNICAL_NAME}.log"
 PACKAGE_STEM = f"{TECHNICAL_NAME}-{__version__}"
-#: EXE adı BİLİNÇLİ olarak sürüm taşımaz. Kurulum sabit klasöre
-#: (``{autopf}\VoxoraStudio``) yazar ve kısayollar bu adı gösterir; sürümlü ad
-#: her güncellemede kısayolları ve güncelleme yolunu kırardı.
+#: the EXE name DELIBERATELY carries no version. Setup writes to the fixed folder
+#: (``{autopf}\VoxoraStudio``) and shortcuts show that name; a versioned name
+#: a versioned name would break shortcuts and the update path on every update.
 EXECUTABLE_NAME = f"{TECHNICAL_NAME}.exe"
-#: Sürümlü paket klasörü adı (yalnız build çıktısı; kurulum bunu kullanmaz).
+#: versioned package folder name (build output only; setup does not use it).
 PACKAGE_FOLDER = PACKAGE_STEM
 INSTALLER_NAME = f"{PACKAGE_STEM}-Setup.exe"
 

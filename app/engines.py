@@ -17,6 +17,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from i18n import t
+
 EVEN_PACKAGE = "package"
 EVEN_DOWNLOAD = "download"
 
@@ -25,38 +27,38 @@ EVEN_DOWNLOAD = "download"
 class EngineSpec:
     """Bir ses motorunun tüm yetenekleri ve dağıtım bilgisi."""
 
-    #: Ayar dosyasında saklanan anahtar (``chatterbox``, ``ema``, ``voxcpm2``).
+    #: key stored in the settings file (``chatterbox``, ``ema``, ``voxcpm2``).
     key: str
-    #: Arayüzde görünen ad.
+    #: display name in the UI.
     label: str
-    #: Kısa açıklama (tek satır, motor kutusunun altında).
+    #: short description (one line, under the engine card).
     tagline: str
-    #: Okuduğu diller (ISO 639-1). Boş demet = dil seçimi yok, tek dil.
+    #: languages it reads (ISO 639-1). Empty tuple = no language choice, single language.
     languages: tuple[str, ...]
     #: Referans sesle klonlama.
     cloning: bool
-    #: Tarif yazarak yeni ses üretme (VoxCPM2'ye özgü).
+    #: generate new voices by writing a description (VoxCPM2 only).
     voice_design: bool
-    #: Çıktı örnekleme hızı (Hz).
+    #: output sample rate (Hz).
     sample_rate: int
-    #: Hız ayarı motorun kendi parametresiyle mi uygulanır (True) yoksa
-    #: dışarıdan time-stretch ile mi (False).
+    #: whether speed applies through the engine's own parameter (True) or
+    #: via external time-stretch (False).
     speed_native: bool
-    #: Paketle birlikte mi gelir, kullanıcı mı indirir.
+    #: whether it ships with the package or the user downloads it.
     delivery: str
-    #: Model ağırlıklarının indirme boyutu (MB, yaklaşık).
+    #: model weight download size (MB, approximate).
     model_size_mb: int
-    #: Motor kodunun (Python kütüphaneleri) indirme boyutu (MB).
+    #: engine code (Python libraries) download size (MB).
     runtime_size_mb: int
-    #: CUDA (NVIDIA sürücüsü) zorunlu mu.
+    #: whether CUDA (NVIDIA driver) is mandatory.
     requires_cuda: bool
-    #: CUDA zorunlu değilse CPU'da kullanılabilir mi.
+    #: usable on CPU when CUDA is not mandatory.
     cpu_ok: bool
-    #: Lisans adı (kullanıcıya gösterilir).
+    #: license name (shown to the user).
     license: str
-    #: Arayüz sırası (küçük önce).
+    #: UI order (small first).
     order: int
-    #: Ek uyarı (donanım/dil kısıtı).
+    #: extra warning (hardware/language constraint).
     notice: str = ""
 
     @property
@@ -79,7 +81,7 @@ class EngineSpec:
         return f"{self.total_download_mb} MB"
 
 
-#: Tüm motorlar. Sıra ``order`` ile belirlenir.
+#: all engines. Order is set by ``order``.
 ENGINES: dict[str, EngineSpec] = {
     "ema": EngineSpec(
         key="ema",
@@ -111,8 +113,8 @@ ENGINES: dict[str, EngineSpec] = {
         sample_rate=24_000,
         speed_native=False,
         delivery=EVEN_DOWNLOAD,
-        # Gerçek indirme: 6 dosya = 2,99 GB (HF deposu 12,9 GB, çoğu alternatif
-        # format). Runtime (torch+transformers+librosa yığını) sıkıştırılmış ~400 MB.
+        # Real download: 6 files = 2.99 GB (HF repo 12.9 GB, mostly alternative
+        # format). Runtime (torch+transformers+librosa stack) compressed ~400 MB.
         model_size_mb=3060,
         runtime_size_mb=400,
         requires_cuda=False,
@@ -146,7 +148,7 @@ ENGINES: dict[str, EngineSpec] = {
     ),
 }
 
-#: Varsayılan motor: paketle gelen, her bilgisayarda çalışan motor.
+#: default engine: ships with the package, runs on every computer.
 DEFAULT_ENGINE = "ema"
 
 
@@ -177,18 +179,18 @@ def availability(
     if spec_.requires_cuda and not cuda:
         return (
             False,
-            "Bu bilgisayarda NVIDIA ekran kartı / CUDA bulunamadı. "
-            "Bu motor yalnız CUDA'lı bilgisayarlarda çalışır.",
+            t("Bu bilgisayarda NVIDIA ekran kartı / CUDA bulunamadı. "
+              "Bu motor yalnız CUDA'lı bilgisayarlarda çalışır."),
         )
     needed_gb = spec_.total_download_mb / 1000
     if disk_free_gb and disk_free_gb < needed_gb:
         return (
             False,
-            f"Yeterli disk alanı yok: {needed_gb:.1f} GB gerekiyor, "
-            f"{disk_free_gb:.1f} GB boş.",
+            t("Yeterli disk alanı yok: {needed:.1f} GB gerekiyor, "
+              "{free:.1f} GB boş.", needed=needed_gb, free=disk_free_gb),
         )
     if spec_.notice and not spec_.requires_cuda and cuda:
-        # CUDA'lı makinede "CPU'da yavaş" uyarısı anlamsız; gerekçe değil.
+        # On a CUDA machine the "slow on CPU" warning is meaningless; not a reason.
         return (True, "")
     return (True, "")
 
