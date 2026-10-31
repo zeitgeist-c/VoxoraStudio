@@ -234,12 +234,18 @@ class VoxoraUiTests(unittest.TestCase):
             self.app.processEvents()
 
     def test_history_delete_dialog_texts_warn_when_no_trash(self):
-        info_ok, btn_ok = main_window.history_delete_dialog_texts(True)
-        self.assertIn("Geri Dönüşüm", info_ok)
-        self.assertEqual(btn_ok, "Geri Dönüşüm'e Taşı")
-        info_no, btn_no = main_window.history_delete_dialog_texts(False)
-        self.assertIn("KALICI", info_no)
-        self.assertEqual(btn_no, "Kalıcı Sil")
+        from i18n import set_language as _set_lang, language as _get_lang
+        prev = _get_lang()
+        _set_lang("tr")
+        try:
+            info_ok, btn_ok = main_window.history_delete_dialog_texts(True)
+            self.assertIn("Geri Dönüşüm", info_ok)
+            self.assertEqual(btn_ok, "Geri Dönüşüm'e Taşı")
+            info_no, btn_no = main_window.history_delete_dialog_texts(False)
+            self.assertIn("KALICI", info_no)
+            self.assertEqual(btn_no, "Kalıcı Sil")
+        finally:
+            _set_lang(prev)
 
     def _headless_window(self):
         patches = (

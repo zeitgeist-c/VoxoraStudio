@@ -1,25 +1,25 @@
-"""İki sürüm arasındaki farkı taşıyan delta güncelleme paketi.
+"""Delta update package carrying the diff between two versions.
 
-Neden: her sürümde 1.25 GB'lık paketin yalnız birkaç dosyası değişiyor.
-Ölçüm (0.5.4 → 0.5.5): 7164 dosyadan **3'ü** değişmişti; kalan 1149 MB aynı
-byte'lardı. Tam setup 364-382 MB indiriyor, delta ise yalnız değişenleri.
+Why: only a few files of the 1.25 GB package change per release.
+Measured (0.5.4 → 0.5.5): **3** of 7164 files changed; the remaining 1149 MB were
+identical bytes. The full setup downloads 364-382 MB, the delta only the changed files.
 
-Paket biçimi (``.vxd`` — aslında ZIP):
+Package format (``.vxd`` — actually a ZIP):
 
-    manifest.json          sürüm, taban sürüm, dosya listeleri, sha256'lar
-    files/<göreli yol>     yeni ve değişmiş dosyalar (sıkıştırılmış)
+    manifest.json          version, base version, file lists, sha256s
+    files/<relative path>  new and changed files (compressed)
 
-``manifest.json`` alanları:
-    version        hedef sürüm
-    base_version   üzerine uygulanabileceği en yakın (veya tek) taban sürüm
-    files          [{path, sha256, size}] — yazılacak/değişecek dosyalar
-    removed        [path] — silinecek dosyalar
-    total_bytes    files toplam boyutu (doğrulama için)
+``manifest.json`` fields:
+    version        target version
+    base_version   nearest (or single) base version it applies onto
+    files          [{path, sha256, size}] — files to write/change
+    removed        [path] — files to delete
+    total_bytes    total files size (for verification)
 
-Kullanım (build tarafı):
-    python scripts/make_delta_package.py <eski_paket_klasörü> <yeni_paket_klasörü>
+Usage (build side):
+    python scripts/make_delta_package.py <old_package_dir> <new_package_dir>
 
-Kullanım (uygulama tarafı): ``app.delta.apply_delta``
+Usage (app side): ``app.delta.apply_delta``
 """
 from __future__ import annotations
 
@@ -46,7 +46,7 @@ def sha256_of(path: Path) -> str:
 
 
 def package_files(root: Path) -> dict[str, Path]:
-    """Paket kökündeki taşınacak dosyalar: göreli POSIX yol -> tam yol."""
+    """Files to move at the package root: relative POSIX path -> full path."""
     files: dict[str, Path] = {}
     for path in root.rglob("*"):
         if not path.is_file():
@@ -62,10 +62,10 @@ def package_files(root: Path) -> dict[str, Path]:
 
 
 def _normalize_name(name: str) -> str:
-    """Sürümlü EXE/BAT adlarını sabit ada indir (sürümler arası eşleşme için).
+    """Reduce versioned EXE/BAT names to the fixed name (for cross-version matching).
 
-    v0.5.x paketleri ``VoxoraStudio-0.5.5.exe`` taşıyordu; v0.6.0'dan itibaren
-    ad ``VoxoraStudio.exe``. Karşılaştırma ve delta yolları sabit adı kullanır.
+    v0.5.x packages carried ``VoxoraStudio-0.5.5.exe``; since v0.6.0 the name
+    is ``VoxoraStudio.exe``. Compare and delta paths use the fixed name.
     """
     lowered = name.lower()
     for versioned in (".exe", ".bat"):
@@ -79,10 +79,10 @@ def _normalize_name(name: str) -> str:
 
 
 def compare(old_root: Path, new_root: Path) -> tuple[list, list, list]:
-    """(değişen, eklenen, silinen) listelerini döndür.
+    """Return (changed, added, removed) lists.
 
-    Dönen öğeler: değişen/eklenen ``(göreli_yol, sha256, boyut)``, silinen
-    ``göreli_yol``. Dosya adları normalize edilir (bkz. `_normalize_name`).
+    Returned items: changed/added ``(relative_path, sha256, size)``, removed
+    ``relative_path``. File names are normalized (see `_normalize_name`).
     """
     old_files = {_normalize_name(k): v for k, v in package_files(old_root).items()}
     new_files = {_normalize_name(k): v for k, v in package_files(new_root).items()}
@@ -104,17 +104,17 @@ def compare(old_root: Path, new_root: Path) -> tuple[list, list, list]:
 
 
 def build_delta(old_root: Path, new_root: Path, dest: Path | None = None) -> Path:
-    """İki paket arasındaki farkı ``.vxd`` dosyasına yaz."""
+    """Write the diff between two packages to a ``.vxd`` file."""
     old_root, new_root = old_root.resolve(), new_root.resolve()
     for label, root in (("eski", old_root), ("yeni", new_root)):
         if not root.is_dir():
-            raise SystemExit(f"{label} paket klasörü yok: {root}")
+            raise SystemExit(f"{label} package folder missing: {root}")
 
     old_version = _version_of(old_root)
     new_version = _version_of(new_root)
     changed, added, removed = compare(old_root, new_root)
     if not changed and not added and not removed:
-        raise SystemExit("İki paket arasında fark yok; delta üretilmedi.")
+        raise SystemExit("No diff between the two packages; no delta produced.")
 
     dest = dest or new_root.parent / f"VoxoraStudio-{new_version}-delta.vxd"
     new_files = {_normalize_name(k): v for k, v in package_files(new_root).items()}
@@ -135,18 +135,18 @@ def build_delta(old_root: Path, new_root: Path, dest: Path | None = None) -> Pat
     mb = dest.stat().st_size / 1_048_576
     print(f"{dest}  ({len(manifest['files'])} dosya, {mb:.1f} MB)")
     print(f"  taban {old_version} -> hedef {new_version}")
-    print(f"  değişen {len(changed)}, yeni {len(added)}, silinen {len(removed)}")
+    print(f"  changed {len(changed)}, yeni {len(added)}, silinen {len(removed)}")
     return dest
 
 
 def _version_of(root: Path) -> str:
-    """Paket klasörü adından sürüm (``VoxoraStudio-0.6.0`` -> ``0.6.0``)."""
+    """Version from the package folder name (``VoxoraStudio-0.6.0`` -> ``0.6.0``)."""
     name = root.name
     if "-" not in name:
-        raise SystemExit(f"Sürümlü paket klasörü beklenirdi: {root}")
+        raise SystemExit(f"Expected a versioned package folder: {root}")
     version = name.rsplit("-", 1)[-1]
     if not all(part.isdigit() for part in version.split(".")):
-        raise SystemExit(f"Klasör adından sürüm okunamadı: {root}")
+        raise SystemExit(f"Could not read the version from the folder name: {root}")
     return version
 
 

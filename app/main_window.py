@@ -358,6 +358,9 @@ class MainWindow(QMainWindow):
 
     def _refresh_combo_texts(self) -> None:
         """Rebuild combo-box visible texts on language change (selection kept)."""
+        pause = getattr(self, "pause_spin", None)
+        if pause is not None:
+            pause.setSuffix(t(" sn"))
         combo = getattr(self, "theme_combo", None)
         if combo is not None:
             current = combo.currentData()
@@ -563,7 +566,7 @@ class MainWindow(QMainWindow):
         # Left column: text studio (main focus)
         left_col = QVBoxLayout()
         left_col.setSpacing(14)
-        editor_card = SectionCard("Metin", t("Metni yazın ya da yapıştırın; üretim tek tıkla."))
+        editor_card = SectionCard(t("Metin"), t("Metni yazın ya da yapıştırın; üretim tek tıkla."))
         editor_toolbar = QHBoxLayout()
         editor_toolbar.setSpacing(8)
         self.text_stats_label = QLabel(t("0 karakter • 0 kelime • 0 parça • ~0 sn"))
@@ -612,7 +615,7 @@ class MainWindow(QMainWindow):
         # Right column: voice profile + result
         right_col = QVBoxLayout()
         right_col.setSpacing(14)
-        voice_card = SectionCard("Ses Profili", t("Referans ses yoksa varsayılan ses kullanılır."))
+        voice_card = SectionCard(t("Ses Profili"), t("Referans ses yoksa varsayılan ses kullanılır."))
         self.voice_card = voice_card
         self.voice_label = QLabel(t("Ses örneği seçilmedi"))
         self.voice_label.setWordWrap(True)
@@ -706,7 +709,7 @@ class MainWindow(QMainWindow):
         cat_list = QVBoxLayout()
         cat_list.setSpacing(6)
         self._settings_cat_buttons = []
-        cat_items = [("Ses", "sliders", 0), (t("Çıktı"), "folder", 1), (t("Görünüm"), "settings", 2), (t("Güncelleme"), "upload", 3), (t("Sıfırla"), "reset", 4)]
+        cat_items = [(t("Ses"), "sliders", 0), (t("Çıktı"), "folder", 1), (t("Görünüm"), "settings", 2), (t("Güncelleme"), "upload", 3), (t("Sıfırla"), "reset", 4)]
         for label, icon_name, index in cat_items:
             button = QPushButton(label)
             button.setIcon(navigation_icon(icon_name))
@@ -788,16 +791,20 @@ class MainWindow(QMainWindow):
         self.pause_spin.setSingleStep(0.05)
         self.pause_spin.setDecimals(2)
         self.pause_spin.setValue(0.35)
-        self.pause_spin.setSuffix(" sn")
+        self.pause_spin.setSuffix(t(" sn"))
 
-        settings_grid.addWidget(QLabel("Ses motoru"), 0, 0)
+        lbl_engine_lbl = QLabel()
+        self._bind_text(lbl_engine_lbl.setText, "Ses motoru")
+        settings_grid.addWidget(lbl_engine_lbl, 0, 0)
         settings_grid.addWidget(self.engine_combo, 0, 1)
         lbl_hazır_ayar_lbl = QLabel()
         self._bind_text(lbl_hazır_ayar_lbl.setText, "Hazır ayar")
         settings_grid.addWidget(lbl_hazır_ayar_lbl, 1, 0)
         settings_grid.addWidget(self.preset_combo, 1, 1)
         settings_grid.addWidget(self.btn_apply_preset, 1, 2, 1, 2)
-        settings_grid.addWidget(QLabel("Dil"), 2, 0)
+        lbl_dil_lbl = QLabel()
+        self._bind_text(lbl_dil_lbl.setText, "Dil")
+        settings_grid.addWidget(lbl_dil_lbl, 2, 0)
         settings_grid.addWidget(self.language_combo, 2, 1)
         lbl_hız_lbl = QLabel()
         self._bind_text(lbl_hız_lbl.setText, "Hız")
@@ -807,15 +814,21 @@ class MainWindow(QMainWindow):
         self._bind_text(lbl_i_fade_lbl.setText, "İfade")
         settings_grid.addWidget(lbl_i_fade_lbl, 3, 0)
         settings_grid.addWidget(self.exaggeration_spin, 3, 1)
-        settings_grid.addWidget(QLabel("Netlik"), 3, 2)
+        lbl_cfg_lbl = QLabel()
+        self._bind_text(lbl_cfg_lbl.setText, "Netlik")
+        settings_grid.addWidget(lbl_cfg_lbl, 3, 2)
         settings_grid.addWidget(self.cfg_spin, 3, 3)
         lbl_yaratıcılık_lbl = QLabel()
         self._bind_text(lbl_yaratıcılık_lbl.setText, "Yaratıcılık")
         settings_grid.addWidget(lbl_yaratıcılık_lbl, 4, 0)
         settings_grid.addWidget(self.temperature_spin, 4, 1)
-        settings_grid.addWidget(QLabel("Tekrar azaltma"), 4, 2)
+        lbl_rep_lbl = QLabel()
+        self._bind_text(lbl_rep_lbl.setText, "Tekrar azaltma")
+        settings_grid.addWidget(lbl_rep_lbl, 4, 2)
         settings_grid.addWidget(self.repetition_spin, 4, 3)
-        settings_grid.addWidget(QLabel("Duraklama"), 5, 0)
+        lbl_pause_lbl = QLabel()
+        self._bind_text(lbl_pause_lbl.setText, "Duraklama")
+        settings_grid.addWidget(lbl_pause_lbl, 5, 0)
         settings_grid.addWidget(self.pause_spin, 5, 1)
         settings_grid.setColumnStretch(1, 1)
         settings_grid.setColumnStretch(3, 1)
@@ -1744,13 +1757,13 @@ class MainWindow(QMainWindow):
         if hasattr(self, "voice_card"):
             if not spec.cloning:
                 self.voice_card.set_text(
-                    "Ses Profili",
+                    t("Ses Profili"),
                     t("{label} sabit bir sesle okur; referans ses kullanılmaz.", label=spec.label),
                 )
                 self.voice_label.setText(t("{label} — sabit ses (referans gerekmez)", label=spec.label))
             else:
                 self.voice_card.set_text(
-                    "Ses Profili", t("Referans ses yoksa varsayılan ses kullanılır.")
+                    t("Ses Profili"), t("Referans ses yoksa varsayılan ses kullanılır.")
                 )
                 if self.voice_prompt_path:
                     self._set_voice_prompt(self.voice_prompt_path, save=False)
@@ -1987,7 +2000,7 @@ class MainWindow(QMainWindow):
         if spec.single_language:
             self.settings_summary_label.setText(
                 f"{spec.label} • {language} • {speed:.2f}x • " +
-                f"Duraklama {pause:.2f} sn • Tek ses"
+                t("Duraklama {pause} sn", pause=f"{pause:.2f}") + " • " + t("Tek ses")
             )
             return
         preset = self.preset_combo.currentData()
@@ -1996,8 +2009,8 @@ class MainWindow(QMainWindow):
         else:
             voice = t("Ses tasarımı")
         self.settings_summary_label.setText(
-            f"{spec.label} • {language} • {preset} • {speed:.2f}x • " +
-            f"Duraklama {pause:.2f} sn • {voice}"
+            f"{spec.label} • {language} • {t(preset)} • {speed:.2f}x • " +
+            t("Duraklama {pause} sn", pause=f"{pause:.2f}") + f" • {voice}"
         )
 
     def _load_saved_settings(self):

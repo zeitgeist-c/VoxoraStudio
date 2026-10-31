@@ -141,9 +141,9 @@ class EngineState:
 
     def status_text(self) -> str:
         if self.bundled:
-            return "Kurulu (programla gelir)"
+            return t("Kurulu (programla gelir)")
         if self.installed:
-            return "Kurulu"
+            return t("Kurulu")
         if self.partial:
             missing = t("ağırlıklar") if self.runtime_ok else t("motor dosyaları")
             return t("Yarım kurulum — {missing} eksik", missing=missing)

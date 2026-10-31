@@ -167,16 +167,15 @@ def install_directml_if_needed(target: str) -> None:
 
 
 def requirements_packages(target: str) -> list[str]:
-    """requirements.txt satırlarını kurulacak paket listesine çevir.
+    """Turn requirements.txt lines into a package list to install.
 
-    torch/torchaudio burada kurulmaz (sürüm ve wheel kaynağı ``install_torch``
-    kararına bağlı). DirectML hedefinde ``onnxruntime`` de atlanır:
-    ``onnxruntime-directml`` AYNI ``onnxruntime`` modülünü sağlar. İkisi birlikte
-    kurulunca iki ayrı dist-info aynı 620 dosyayı paylaşıyor; modül DirectML
-    sürümü (1.24.4) kalırken metadata düz sürümü (1.31.1) gösteriyor. Sonuç:
-    ``pip install -r requirements.txt`` DirectML wheel'ini sessizce ezip
-    ``DmlExecutionProvider``'ı kaldırıyor ve denetim araçları yanlış sürümü
-    tarıyor.
+    torch/torchaudio are never installed here (version and wheel source depend on
+    the ``install_torch`` decision). On a DirectML target ``onnxruntime`` is skipped too:
+    ``onnxruntime-directml`` provides the SAME ``onnxruntime`` module. Installed together,
+    two separate dist-infos share the same 620 files; the module stays the DirectML
+    build (1.24.4) while metadata reports the plain build (1.31.1). Result:
+    ``pip install -r requirements.txt`` silently overwrites the DirectML wheel,
+    removes ``DmlExecutionProvider``, and audit tools scan the wrong version.
     """
     skip = {"torch", "torchaudio", DIRECTML_PACKAGE}
     if target == "directml":

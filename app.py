@@ -1,7 +1,7 @@
 """
-Voxora Studio - PyQt6 uygulaması giriş noktası.
+Voxora Studio - PyQt6 app entry point.
 
-Sınıflar `app/` paketine taşındı:
+Classes moved into the `app/` package:
   - app.constants: LANGUAGES, PRESETS, REFERENCE_SAMPLE_TEXT
   - app.dialogs: ModelLoadDialog, VoiceGuideDialog, SynthesisDialog
   - app.workers: TqdmProgressBridge, SynthWorker, EngineLoader
@@ -25,7 +25,7 @@ log = logging.getLogger(__name__)
 
 
 def _log_uncaught(exc_type, exc_value, exc_tb):
-    """Yakalanmayan istisnayı loga yaz; --noconsole çalıştırmada da iz kalsın."""
+    """Log uncaught exceptions; keep a trace on --noconsole runs too."""
     log.critical("Yakalanmayan istisna", exc_info=(exc_type, exc_value, exc_tb))
 
 
@@ -64,7 +64,7 @@ def main():
             import ctypes
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_USER_MODEL_ID)
         except Exception:
-            log.debug("Windows AppUserModelID ayarlanamadı.", exc_info=True)
+            log.debug("Could not set the Windows AppUserModelID.", exc_info=True)
     app = QApplication([])
     app.setApplicationName(TECHNICAL_NAME)
     app.setApplicationDisplayName(DISPLAY_NAME)

@@ -1,11 +1,11 @@
 @echo off
-REM Voxora Studio build - .exe + kurulum dosyasi uretimi
-REM Cikti: dist\VoxoraStudio-X.Y.Z\VoxoraStudio.exe  (sabit EXE adi)
+REM Voxora Studio build - produce the .exe + setup file
+REM Output: dist\VoxoraStudio-X.Y.Z\VoxoraStudio.exe  (fixed EXE name)
 REM        dist\installer\VoxoraStudio-X.Y.Z-Setup.exe
 REM
-REM EXE adi neden surumsuz: kurulum sabit klasore ({autopf}\VoxoraStudio) yazar,
-REM kisayollar VoxoraStudio.exe'yi gosterir. Surumlu EXE adi her surumde
-REM kisayollari ve guncelleme yolunu kirardi.
+REM Why the EXE name carries no version: setup writes to a fixed folder ({autopf}\VoxoraStudio),
+REM shortcuts point at VoxoraStudio.exe.'yi gosterir. Surumlu EXE adi her surumde
+REM A versioned EXE name would break shortcuts and the update path on every release.
 
 cd /d "%~dp0"
 set "PROJECT_ROOT=%CD%"
@@ -19,40 +19,39 @@ if defined VOXORA_BUILD_PYTHON (
 for /f "tokens=2 delims== " %%V in ('findstr /b "__version__" app\version.py') do set "APP_VERSION=%%~V"
 set "PACKAGE_STEM=VoxoraStudio-%APP_VERSION%"
 set "APP_EXE=VoxoraStudio.exe"
-REM Ajan/arac PATH'indeki yabanci DLL'ler pakete sizmasin (Qt acilisini bozabilir).
+REM Foreign DLLs from an agent/tool PATH must not leak into the package (can break Qt startup).
 set "PATH=%SystemRoot%\System32;%SystemRoot%;%SystemRoot%\System32\Wbem;%SystemRoot%\System32\WindowsPowerShell\v1.0;%CD%\.venv\Scripts"
 set "ISCC=%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe"
 if not exist "%ISCC%" set "ISCC=%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
 if not exist "%ISCC%" set "ISCC=%ProgramFiles%\Inno Setup 6\ISCC.exe"
 
 if not exist "%PYEXE%" (
-    echo [HATA] Sanal ortam bulunamadi. Once setup.bat calistir.
+    echo [ERROR] Virtualenv not found. Run setup.bat first.
     pause
     exit /b 1
 )
 
 echo ============================================================
-echo Voxora Studio .exe + kurulum build  (v%APP_VERSION%)
+echo Voxora Studio .exe + setup build  (v%APP_VERSION%)
 echo ============================================================
 echo.
 
-echo [1/5] Gerekli import'lar dogrulaniyor...
-REM EMA-ONNX-only build: torch/chatterbox/torchaudio PAKETE GIRMEZ.
-REM Indirilebilir motorlar (.vxp) kendi kutuphanelerini getirir.
-"%PYEXE%" -c "import PyQt6, sounddevice, soundfile, pydub, send2trash, numpy, onnxruntime, PyInstaller, normalizer_tr; print('[OK] Tum importlar basarili (torch yok, EMA ONNX)')"
+echo [1/6] Verifying required imports...
+REM EMA-ONNX-only build: torch/chatterbox/torchaudio NEVER ENTER the package.
+REM Downloadable engines (.vxp) bring their own libraries.
+"%PYEXE%" -c "import PyQt6, sounddevice, soundfile, pydub, send2trash, numpy, onnxruntime, PyInstaller, normalizer_tr; print('[OK] All imports fine (no torch, EMA ONNX)')"
 if errorlevel 1 (
-    echo [HATA] Import dogrulamasi basarisiz. Once setup.bat calistir.
+    echo [ERROR] Import check failed. Run setup.bat first.
     pause
     exit /b 1
 )
 
 echo.
-echo [2/5] PyInstaller ile build baslatiliyor...
-echo NOT: Bu islem ~10-20 dakika surebilir.
+echo [2/6] Starting the PyInstaller build...
+echo NOTE: this takes ~10-20 minutes.
 echo.
 
-REM Dinamik dil kataloglarini hidden-import olarak ekle (AUD-VOX-001).
-for /f "delims=" %%a in ('"%PYEXE%" scripts\catalog_hidden_imports.py') do set CATALOG_ARGS=%%a
+REM Language catalogue is a single static module now; no extra hidden imports needed.
 
 "%PYEXE%" -m PyInstaller ^
     --noconfirm ^
@@ -70,7 +69,6 @@ for /f "delims=" %%a in ('"%PYEXE%" scripts\catalog_hidden_imports.py') do set C
     --hidden-import "send2trash" ^
     --hidden-import "numpy" ^
     --hidden-import "onnxruntime" ^
-    %CATALOG_ARGS% ^
     --collect-all "normalizer_tr" ^
     --exclude-module "matplotlib" ^
     --exclude-module "pandas" ^
@@ -96,7 +94,7 @@ for /f "delims=" %%a in ('"%PYEXE%" scripts\catalog_hidden_imports.py') do set C
     "app.py"
 
 if errorlevel 1 (
-    echo [HATA] Build basarisiz. Yukaridaki hata mesajini kontrol et.
+    echo [ERROR] Build failed. Check the error message above.
     pause
     exit /b 1
 )
@@ -105,60 +103,60 @@ if errorlevel 1 (
 if errorlevel 1 exit /b 1
 
 if not exist "dist\VoxoraStudio\%APP_EXE%" (
-    echo [HATA] Beklenen EXE yok: dist\VoxoraStudio\%APP_EXE%
+    echo [ERROR] Expected EXE missing: dist\VoxoraStudio\%APP_EXE%
     pause
     exit /b 1
 )
 
 echo.
-echo [3/5] Paket klasoru surumleniyor...
-REM `move /y` klasor hedefte "Erisim engellendi" verebiliyor (Defender taramasi);
-REM Python shutil.move ayni isi guvenilir yapar.
-REM DIKKAT: hedef klasor onceden varsa shutil.move onu IC ICE acar
-REM (dist\X\VoxoraStudio\...). Bu yuzden hedef ONCE silinir, sonra tasinir.
-"%PYEXE%" -c "import shutil;from pathlib import Path;src=Path(r'dist\VoxoraStudio');dst=Path(r'dist\%PACKAGE_STEM%');shutil.rmtree(dst, ignore_errors=True);assert not dst.exists(), 'hedef silinemedi: '+str(dst);shutil.move(str(src), str(dst));print('paket:', dst)" 
+echo [3/6] Versioning the package folder...
+REM `move /y` can report "Access denied" on a folder target (Defender scan);
+REM Python shutil.move does the same job reliably.
+REM NOTE: when the target folder exists, shutil.move opens it INSIDE
+REM (dist\X\VoxoraStudio\...). So the target is deleted FIRST, then moved.
+"%PYEXE%" -c "import shutil;from pathlib import Path;src=Path(r'dist\VoxoraStudio');dst=Path(r'dist\%PACKAGE_STEM%');shutil.rmtree(dst, ignore_errors=True);assert not dst.exists(), 'target not deleted: '+str(dst);shutil.move(str(src), str(dst));print('package:', dst)" 
 if errorlevel 1 (
-    echo [HATA] dist\VoxoraStudio -^> dist\%PACKAGE_STEM% tasinamadi.
+    echo [ERROR] dist\VoxoraStudio -^> dist\%PACKAGE_STEM% move failed.
     pause
     exit /b 1
 )
 
-REM Kullanici verisi pakete sizmaz (state/logs/outputs artik program klasorunde degil).
+REM No user data leaks into the package (state/logs/outputs no longer live in the program folder).
 if exist "dist\%PACKAGE_STEM%\_internal\state" rmdir /s /q "dist\%PACKAGE_STEM%\_internal\state"
 if exist "dist\%PACKAGE_STEM%\_internal\logs" rmdir /s /q "dist\%PACKAGE_STEM%\_internal\logs"
 if exist "dist\%PACKAGE_STEM%\_internal\outputs" rmdir /s /q "dist\%PACKAGE_STEM%\_internal\outputs"
 
 echo.
-echo [4/5] Kurulum dosyasi derleniyor (Inno Setup)...
+echo [4/6] Compiling the setup file (Inno Setup)...
 if not exist "%ISCC%" (
-    echo [HATA] Inno Setup bulunamadi. Kur: winget install JRSoftware.InnoSetup
+    echo [ERROR] Inno Setup not found. Install: winget install JRSoftware.InnoSetup
     pause
     exit /b 1
 )
 if not exist "dist\installer" mkdir "dist\installer"
 "%ISCC%" /Qp "installer\VoxoraStudio.iss" /DAppVersion=%APP_VERSION% /DSourceDir="%CD%\dist\%PACKAGE_STEM%"
 if errorlevel 1 (
-    echo [HATA] Kurulum dosyasi derlenemedi.
+    echo [ERROR] Setup file failed to compile.
     pause
     exit /b 1
 )
 
 echo.
-echo [5/6] Saglama toplami ve boyut...
+echo [5/6] Checksum and size...
 "%PYEXE%" -c "import hashlib,pathlib; p=pathlib.Path(r'dist\installer\VoxoraStudio-%APP_VERSION%-Setup.exe'); h=hashlib.sha256(p.read_bytes()).hexdigest(); print(f'{p}  {p.stat().st_size/1048576:.1f} MB'); print('SHA256', h)"
 
 echo.
-echo [6/6] Delta guncelleme paketi (varsa onceki surumle fark)...
+echo [6/6] Delta update package (diff against the previous version, if any)...
 "%PYEXE%" scripts\make_delta_candidates.py "%APP_VERSION%"
 
 echo.
 echo ============================================================
-echo Build tamam.
-echo   Paket klasoru : dist\%PACKAGE_STEM%\%APP_EXE%
-echo   Kurulum dosyasi: dist\installer\VoxoraStudio-%APP_VERSION%-Setup.exe
+echo Build done.
+echo   Package folder : dist\%PACKAGE_STEM%\%APP_EXE%
+echo   Setup file: dist\installer\VoxoraStudio-%APP_VERSION%-Setup.exe
 echo ============================================================
 echo.
-echo Kurulum: kurulum dosyasini cift tiklayin. Program Files'a kurulur,
-echo ayarlar ve ciktilar %%LOCALAPPDATA%%\VoxoraStudio altinda tutulur.
+echo Install: double-click the setup file. Program Files'a kurulur,
+echo settings and outputs stay under %%LOCALAPPDATA%%\VoxoraStudio.
 echo.
 pause

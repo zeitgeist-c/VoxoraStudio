@@ -1,16 +1,16 @@
-; Voxora Studio — Windows kurulum betiği (Inno Setup 6+)
+; Voxora Studio — Windows setup script (Inno Setup 6+)
 ;
-; Derleme (build.bat içinden):
+; Build (from build.bat):
 ;   ISCC.exe installer\VoxoraStudio.iss /DAppVersion=0.6.0 /DSourceDir=dist\VoxoraStudio-0.6.0
 ;
-; Yerleşim (v0.6.0 ile gelen yapı):
-;   Program : {autopf}\VoxoraStudio              (yalnız kod; kurulum siler/yazar)
-;   Veri    : {localappdata}\VoxoraStudio        (ayar, geçmiş, çıktı, log)
-;   Modeller: {userprofile}\.cache\huggingface   (uygulama yönetir; kurulum dokunmaz)
+; Layout (as shipped since v0.6.0):
+;   Program : {autopf}\VoxoraStudio              (code only; setup deletes/writes)
+;   Data    : {localappdata}\VoxoraStudio        (settings, history, output, log)
+;   Models  : {userprofile}\.cache\huggingface   (managed by the app; setup never touches)
 ;
-; Yönetici izni: {autopf} = Program Files (tüm kullanıcılar). Bu yüzden her
-; güncellemede Windows bir kez onay ister; karşılığında program klasörü tek
-; sabit yerdedir ve kısayollar kurulum tarafından yönetilir.
+; Admin rights: {autopf} = Program Files (all users). So every
+; update asks Windows for approval once; in return the program folder stays in one
+; fixed place and shortcuts are managed by setup.
 
 #ifndef AppVersion
   #define AppVersion "0.0.0"
@@ -39,10 +39,10 @@ DefaultDirName={autopf}\VoxoraStudio
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
 DisableDirPage=auto
-; Program Files'a yazan kurulum: yönetici izni gerekir (tüm kullanıcılar).
+; Setup writing to Program Files: admin rights required (all users).
 PrivilegesRequired=admin
-; /CURRENTUSER ile yönetici izni olmadan da kurulabilir (test ve taşınabilir
-; doğrulama için); varsayılan yine tüm kullanıcılar.
+; It can also install without admin rights via /CURRENTUSER (for test and portable
+; verification); the default stays all users.
 PrivilegesRequiredOverridesAllowed=commandline dialog
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
@@ -57,14 +57,14 @@ SolidCompression=yes
 LZMAUseSeparateProcess=yes
 WizardStyle=modern
 WizardSizePercent=110
-; Çalışan uygulamayı Restart Manager ile düzgünce kapat; kurulum sonunda geri aç.
+; Close the running app cleanly via Restart Manager; reopen it when setup finishes.
 CloseApplications=yes
 RestartApplications=yes
-; Kaldırmada kullanıcı verisine ve model önbelleğine dokunma (bkz. [Code]).
-; Uninstall, kurulumun yazdığı dosyaları {app} altında bırakmadan siler.
+; On uninstall never touch user data or the model cache (see [Code]).
+; Uninstall removes everything setup wrote under {app}, leaving nothing behind.
 ChangesAssociations=no
 AllowNoIcons=yes
-; --- 13 dil kurulum arayüzü: English ilk ve varsayılan ---
+; --- 13-language setup UI: English first and default ---
 LanguageDetectionMethod=none
 ShowLanguageDialog=yes
 
@@ -142,38 +142,38 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Name: "startmenuicon"; Description: "{cm:StartMenuShortcut}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: checkedonce
 
 [Files]
-; Ana program: PyInstaller onedir çıktısı (EXE + _internal).
+; Main program: PyInstaller onedir output (EXE + _internal).
 Source: "{#SourceDir}\VoxoraStudio.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourceDir}\_internal\*"; DestDir: "{app}\_internal"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [InstallDelete]
-; Güncelleme "temiz kurulum" gibi davranır: eski sürümün dosyaları önce silinir,
-; sonra yenisi yazılır. Böylece kaldırılan bir modülün artığı (artık yüklenmeyen
-; DLL, silinmiş eklenti) yeni sürümde geride kalmaz.
-; `unins000.exe` ve `unins000.dat` BİLİNÇLİ olarak korunur; silinirse kaldırma
-; kaydı bozulur. Kullanıcı verisi {app} altında değil, etkilenmez.
+; An update behaves like a "clean install": the old version files are deleted first,
+; then the new ones are written. That way a removed module leaves no residue
+; (an unloaded DLL, a deleted plugin) in the new version.
+; `unins000.exe` and `unins000.dat` are DELIBERATELY preserved; deleting them would
+; break the uninstall record. User data is not under {app}, unaffected.
 Type: filesandordirs; Name: "{app}\_internal"
 Type: files; Name: "{app}\VoxoraStudio.exe"
-; Eski sürümlü EXE/BAT adları (v0.5.x ve öncesi taşınabilir yerleşiminden kalma).
+; Old versioned EXE/BAT names (left from the pre-v0.5.x portable layout).
 Type: files; Name: "{app}\VoxoraStudio-*.exe"
 Type: files; Name: "{app}\VoxoraStudio-*.bat"
 Type: filesandordirs; Name: "{app}\logs"
 
 [Icons]
-; Kısayollar her kurulumda yeniden yazılır: bayat yol kalmaz.
+; Shortcuts are rewritten on every install: no stale path survives.
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExe}"; WorkingDir: "{app}"; Tasks: startmenuicon
 Name: "{group}\{#AppName} kaldır"; Filename: "{uninstallexe}"; Tasks: startmenuicon
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
-; Kurulum (güncelleme) sonunda programı aç. `skipifsilent` YOK: uygulama içi
-; güncelleme sessiz kurulum kullanır ve programın geri açılması gerekir.
-; `runasoriginaluser` ile kurulum yönetici izniyle çalışsa bile program normal
-; kullanıcı olarak başlar (Program Files'a yazma izni gerekmez).
+; Open the program when setup (update) finishes. No `skipifsilent`: the in-app
+; updater runs a silent install and the program must reopen.
+; With `runasoriginaluser` the program starts as the normal
+; user even when setup ran elevated (no Program Files write needed).
 Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall runasoriginaluser
 
 [UninstallDelete]
-; Kurulumun ürettiği artıklar (kullanıcı verisi DEĞİL).
+; Leftovers produced by setup (NOT user data).
 Type: filesandordirs; Name: "{app}\_internal"
 Type: filesandordirs; Name: "{app}\logs"
 

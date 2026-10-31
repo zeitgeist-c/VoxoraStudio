@@ -1,12 +1,12 @@
 r"""
-Voxora Studio smoke test - hafif ve --full modlu.
+Voxora Studio smoke test - light and --full modes.
 
-Default (light): unit test suite + import + ortam.
---full: light + TTS motor + sentez (ağ bağımlı).
+Default (light): unit test suite + imports + environment.
+--full: light + TTS engine + synthesis (network dependent).
 
-Çalıştırma:
+Run:
   .venv\Scripts\python.exe smoke_test.py             # light
-  .venv\Scripts\python.exe smoke_test.py --full      # full (TTS motor + sentez)
+  .venv\Scripts\python.exe smoke_test.py --full      # full (TTS engine + synthesis)
 """
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ def _section(title: str) -> None:
 
 
 def run_unit_tests() -> bool:
-    """tests/ dizinindeki unittest keşfi."""
+    """unittest discovery inside tests/."""
     _section("1/4 Unit test suite")
     result = subprocess.run(
         [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v"],
@@ -46,7 +46,7 @@ def run_unit_tests() -> bool:
 
 
 def check_critical_imports() -> bool:
-    """Kritik paket importları."""
+    """Critical package imports."""
     _section("2/4 Kritik import'lar")
     failed = []
     for name in CRITICAL_IMPORTS:
@@ -58,12 +58,12 @@ def check_critical_imports() -> bool:
             print(f"  [HATA] {name}: {e}")
             failed.append(name)
     if failed:
-        print(f"Eksik paketler: {failed}. Düzeltme: setup.bat çalıştır.")
+        print(f"Eksik paketler: {failed}. Fix: run setup.bat.")
     return not failed
 
 
 def check_local_imports() -> bool:
-    """Yerel modül importları."""
+    """Local module imports."""
     print("\n  Yerel modüller:")
     failed = []
     for name in LOCAL_IMPORTS:
@@ -95,7 +95,7 @@ def check_environment() -> bool:
         try:
             __import__(name)
         except Exception as e:
-            print(f"  [BİLGİ] {name} yok: {e}")
+            print(f"  [INFO] {name} yok: {e}")
             continue
 
         try:
@@ -111,7 +111,7 @@ def check_environment() -> bool:
                     f"donanım_adayı={hardware_candidate}, provider_kurulu={actual}"
                 )
             except Exception as e:
-                print(f"  [BİLGİ] gpu_detect atlandı: {e}")
+                print(f"  [INFO] gpu_detect atlandı: {e}")
         except Exception as e:
             print(f"  onnxruntime error: {e}")
 
@@ -120,19 +120,19 @@ def check_environment() -> bool:
         w = perth.PerthImplicitWatermarker()
         print(f"  perth watermarker: {type(w).__module__}")
     except Exception as e:
-        print(f"  [BİLGİ] perth watermarker yok: {e}")
+        print(f"  [INFO] no perth watermarker: {e}")
 
     try:
         from chatterbox.mtl_tts import ChatterboxMultilingualTTS  # noqa: F401
         print("  chatterbox import: OK")
     except Exception as e:
-        print(f"  [BİLGİ] chatterbox import: {e}")
+        print(f"  [INFO] chatterbox import: {e}")
 
     try:
         import ema_lightning
         print(f"  ema-lightning import: OK ({ema_lightning.__version__})")
     except Exception as e:
-        print(f"  [BİLGİ] ema-lightning import: {e}")
+        print(f"  [INFO] ema-lightning import: {e}")
 
     bundled_ffmpeg = Path(__file__).resolve().parent / "bin" / "ffmpeg.exe"
     ffmpeg = "Var" if shutil.which("ffmpeg") or bundled_ffmpeg.is_file() else "Yok"
@@ -141,14 +141,14 @@ def check_environment() -> bool:
 
 
 def run_integration_test(keep_output: bool) -> bool:
-    """TTS motor + kısa sentez (ağır)."""
+    """TTS engine + short synthesis (heavy)."""
     _section("4/4 TTS entegrasyon (--full)")
     out_path = None
     try:
         from config import DEFAULT_OUTPUT_DIR
         from tts_engine import TTSEngine
         import soundfile as sf
-        print("Motor yükleniyor (ilk çalışma model indirebilir)...")
+        print("Loading engine (first run may download a model)...")
         engine = TTSEngine()
         print(f"  engine: {type(engine.engine).__name__} device: {engine.device_name}")
         text = "Merhaba dünya. Bu bir Türkçe ses sentezi testidir."
@@ -161,14 +161,14 @@ def run_integration_test(keep_output: bool) -> bool:
         print(f"OK: {out_path} ({seconds} sn @ {sr} Hz)")
         return True
     except Exception:
-        print("[HATA] Entegrasyon başarısız:")
+        print("[ERROR] Integration failed:")
         traceback.print_exc()
         return False
     finally:
         if out_path and os.path.exists(out_path) and not keep_output:
             try:
                 os.remove(out_path)
-                print(f"  (çıktı silindi: {out_path})")
+                print(f"  (output deleted: {out_path})")
             except Exception:
                 pass
 
@@ -176,11 +176,11 @@ def run_integration_test(keep_output: bool) -> bool:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Voxora Studio smoke test")
     parser.add_argument("--full", action="store_true",
-                        help="TTS motor + sentez dahil et (ağır, network gerekir)")
+                        help="Include TTS engine + synthesis (heavy, needs network)")
     parser.add_argument("--no-units", action="store_true",
                         help="Unit test suite atla")
     parser.add_argument("--keep-output", action="store_true",
-                        help="smoke_test.wav çıktısını silme (sadece --full ile)")
+                        help="Keep the smoke_test.wav output (--full only)")
     args = parser.parse_args()
 
     failures = 0
@@ -188,7 +188,7 @@ def main() -> int:
     if not args.no_units:
         if not run_unit_tests():
             failures += 1
-            print("[HATA] Unit test'ler başarısız.")
+            print("[ERROR] Unit tests failed.")
     if not check_critical_imports():
         failures += 1
     if not check_local_imports():
@@ -198,11 +198,11 @@ def main() -> int:
         if not run_integration_test(args.keep_output):
             failures += 1
 
-    _section("ÖZET")
+    _section("SUMMARY")
     if failures == 0:
-        print("TÜM KONTROLLER BAŞARILI.")
+        print("ALL CHECKS PASSED.")
         return 0
-    print(f"{failures} BAŞARISIZLIK VAR.")
+    print(f"{failures} FAILURES PRESENT.")
     return 1
 
 

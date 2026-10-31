@@ -1,15 +1,15 @@
-"""dist altındaki önceki sürümlere karşı delta paketleri üretir.
+"""Produce delta packages against previous versions under dist.
 
-Build'in son adımı: yeni sürüm klasörünü, ``dist`` altında bulunan tüm eski
-``VoxoraStudio-X.Y.Z`` klasörleriyle karşılaştırır ve her biri için
-``VoxoraStudio-<yeni>-delta-<eski>.vxd`` üretir.
+Last build step: compare the new version folder against every old
+``VoxoraStudio-X.Y.Z`` folder under ``dist`` and produce a
+``VoxoraStudio-<new>-delta-<old>.vxd`` for each.
 
-Böylece yayına hem tam setup hem de (yaygın) önceki sürümlerden hızlı
-güncelleme paketleri konabilir; istemci kendi taban sürümüne uyan delta'yı
-seçer, uymuyorsa tam setup iner.
+That way a release can ship both the full setup and fast
+update packages from (common) previous versions; the client picks the delta
+fitting its base version, or downloads the full setup.
 
-Kullanım:
-    python scripts/make_delta_candidates.py <yeni_sürüm>
+Usage:
+    python scripts/make_delta_candidates.py <new_version>
 """
 from __future__ import annotations
 
@@ -28,12 +28,12 @@ MAX_BASES = 3
 
 def main(argv: list[str]) -> int:
     if len(argv) != 2:
-        print("kullanım: make_delta_candidates.py <yeni_sürüm>", file=sys.stderr)
+        print("usage: make_delta_candidates.py <new_version>", file=sys.stderr)
         return 2
     new_version = argv[1]
     new_root = DIST / f"VoxoraStudio-{new_version}"
     if not new_root.is_dir():
-        print(f"[delta] yeni paket yok, atlandı: {new_root}")
+        print(f"[delta] no new package, skipped: {new_root}")
         return 0
 
     def _version_key(path: Path) -> tuple:
@@ -52,7 +52,7 @@ def main(argv: list[str]) -> int:
     ]
     candidates.sort(key=_version_key, reverse=True)
     if not candidates:
-        print("[delta] karşılaştırılacak eski sürüm yok; delta üretilmedi.")
+        print("[delta] no old version to compare; no delta produced.")
         return 0
     produced = 0
     for base in candidates[:MAX_BASES]:
@@ -63,7 +63,7 @@ def main(argv: list[str]) -> int:
             produced += 1
         except SystemExit as exc:
             print(f"[delta] {base_version}: {exc}")
-    print(f"[delta] {produced} paket üretildi.")
+    print(f"[delta] {produced} package produced.")
     return 0
 
 

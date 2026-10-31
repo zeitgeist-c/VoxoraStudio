@@ -1,9 +1,9 @@
 """
-Voxora Studio - GPU tespit yardımcıları (Windows).
+Voxora Studio - GPU detection helpers (Windows).
 
-DirectML kurulum kararı: has_directml_capable_gpu() = has_amd_gpu() and not has_nvidia_gpu()
+DirectML install decision: has_directml_capable_gpu() = has_amd_gpu() and not has_nvidia_gpu()
 
-setup_env.py ve smoke_test.py bu modülden import eder.
+setup_env.py and smoke_test.py import from this module.
 """
 from __future__ import annotations
 
@@ -15,9 +15,9 @@ AMD_MARKERS = ["amd ", "radeon", "rx ", "ati ", "arc", "adreno"]
 
 
 def _list_video_controllers() -> str:
-    """Windows WMI: Win32_VideoController adlarını küçük harf olarak döndürür.
+    """Windows WMI: returns Win32_VideoController names lowercased.
 
-    Hata durumunda (PowerShell yok, timeout, izin) boş string döner.
+    On failure (no PowerShell, timeout, permissions) returns an empty string.
     """
     try:
         result = subprocess.run(
@@ -37,9 +37,9 @@ def _list_video_controllers() -> str:
 
 
 def has_nvidia_gpu() -> bool:
-    """NVIDIA ekran kartı var mı?
+    """Is an NVIDIA graphics card present?
 
-    Önce nvidia-smi ile hızlı kontrol; başarısızsa WMI marker taraması.
+    Fast check via nvidia-smi first; WMI marker scan on failure.
     """
     nvidia_smi = shutil.which("nvidia-smi")
     if nvidia_smi:
@@ -51,18 +51,18 @@ def has_nvidia_gpu() -> bool:
 
 
 def has_amd_gpu() -> bool:
-    """AMD Radeon, Intel Arc, Qualcomm Adreno tespiti.
+    """AMD Radeon, Intel Arc, Qualcomm Adreno detection.
 
-    DirectML bu üreticilerin hepsinde çalışır.
+    DirectML runs on all of these vendors.
     """
     names = _list_video_controllers()
     return any(m in names for m in AMD_MARKERS)
 
 
 def has_directml_capable_gpu() -> bool:
-    """DirectML paketini kurmak gerekli mi?
+    """Is installing the DirectML package needed?
 
-    NVIDIA varsa CUDA tercih edilir; bu durumda DirectML atlanır.
-    Aksi halde AMD/Arc/Adreno varsa DirectML kurulur.
+    With NVIDIA, CUDA is preferred and DirectML is skipped.
+    Otherwise DirectML is installed when AMD/Arc/Adreno is present.
     """
     return has_amd_gpu() and not has_nvidia_gpu()

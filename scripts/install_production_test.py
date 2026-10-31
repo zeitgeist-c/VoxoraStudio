@@ -4,7 +4,7 @@ Kurulum sonrası doğrulama: ayarlar ve çıktı kullanıcı veri klasörüne ya
 program klasörüne hiçbir kullanıcı verisi düşmemeli.
 
 Kullanım:
-    python scripts/kurulum_uretim_testi.py "C:\\...\\VoxoraStudio"
+    python scripts/install_production_test.py "C:\\...\\VoxoraStudio"
 """
 from __future__ import annotations
 
@@ -47,7 +47,7 @@ while time.time() - t0 < 300:
             ready = True
             break
     time.sleep(2)
-print("EMA motor hazır:", ready)
+print("EMA engine ready:", ready)
 if not ready:
     subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)], capture_output=True)
     sys.exit(1)
@@ -107,12 +107,12 @@ while time.time() - t0 < 400:
 
 if produced:
     time.sleep(2)
-    print(f"ÜRETİM: {produced.name} | {produced.stat().st_size} bayt")
-    print("biçim (mp3 beklentisi):",
-          "DOĞRU" if produced.suffix.lower() == ".mp3" else f"BEKLENMEDİK ({produced.suffix})")
+    print(f"PRODUCTION: {produced.name} | {produced.stat().st_size} bayt")
+    print("format (mp3 expected):",
+          "CORRECT" if produced.suffix.lower() == ".mp3" else f"UNEXPECTED ({produced.suffix})")
     # Çıktı gerçekten kullanıcı veri klasöründe mi?
-    print("çıktı veri klasöründe:", produced.resolve().is_relative_to(OUT.resolve()))
-    print("çıktı program klasöründe DEĞİL:",
+    print("output inside the data folder:", produced.resolve().is_relative_to(OUT.resolve()))
+    print("output NOT inside the program folder:",
           not produced.resolve().is_relative_to(ROOT.resolve()))
     ffprobe = shutil.which("ffprobe")
     if ffprobe and produced.stat().st_size:
@@ -123,17 +123,17 @@ if produced:
         print("ffprobe:", " | ".join(info.splitlines()))
     hist = STATE / "history.json"
     if hist.is_file():
-        print("arşiv kaydı:", hist.read_text(encoding="utf-8", errors="replace")[:200])
+        print("archive record:", hist.read_text(encoding="utf-8", errors="replace")[:200])
 else:
-    print("ÜRETİM: çıktı klasöründe dosya yok")
+    print("PRODUCTION: no file in the output folder")
 
 # Program klasörüne kullanıcı verisi sızmış mı?
 leaks = [p for p in ROOT.rglob("*")
          if p.name in ("settings.json", "history.json", "VoxoraStudio.log")
          and p.is_file()]
-print("program klasörüne sızan kullanıcı verisi:", leaks or "YOK")
+print("user data leaked into the program folder:", leaks or "YOK")
 
 text2 = LOG.read_text(encoding="utf-8", errors="replace")[start:]
 bad = [line for line in text2.splitlines() if "Traceback" in line or "[ERROR]" in line]
-print("log:", "TEMİZ" if not bad else " | ".join(bad[:3]))
+print("log:", "CLEAN" if not bad else " | ".join(bad[:3]))
 subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)], capture_output=True)
