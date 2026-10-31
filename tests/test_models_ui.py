@@ -202,6 +202,17 @@ class ModelsPageTests(_Base):
 
 
 class FirstRunTests(_Base):
+    def setUp(self):
+        super().setUp()
+        from i18n import set_language as _set_lang, language as _get_lang
+        self._prev_lang = _get_lang()
+        _set_lang("tr")
+
+    def tearDown(self):
+        from i18n import set_language as _set_lang
+        _set_lang(self._prev_lang)
+        super().tearDown()
+
     def test_should_show_when_nothing_installed(self):
         self.assertTrue(first_run.should_show())
 

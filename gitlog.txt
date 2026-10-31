@@ -1,6 +1,13 @@
 Voxora Studio versiyon günlüğü
 =======================
 
+v0.7.6 (2026-11-01) — English cleanup + UI translation release
+- Setup/packaging/scripts fully English (build.bat, Inno script, dev tools renamed to English).
+- 20+ leftover Turkish UI strings wrapped in t() with 12-language catalog entries; settings summary, model cards, section titles.
+- README screenshots regenerated in English (offscreen, 5 pages).
+- Language-switch refresh covers theme/preset/language combos and pause suffix.
+- i18n consolidated: 60 part files merged into i18n_strings_tables.py (verified identical).
+
 v0.7.1 (2026-10-23) — Delta güncelleme boş klasör düzeltmesi
 - Hata: delta `removed` listesi 5610 dosyayı silince boş kalan 354 klasör (torch artığı, 544 KB) kurulumda kalıyordu. Hem `apply_staged` hem üretim PowerShell işçisi etkileniyordu.
 - Çözüm: post-order (önce en derin) özyinelemeli klasör temizliği; dosya içeren klasöre dokunulmaz. Regresyon: tests/test_delta_cleanup.py.
