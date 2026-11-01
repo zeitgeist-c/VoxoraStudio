@@ -7,9 +7,6 @@ text is used as the key; 12 languages including English are translated in TABLES
 - Unknown codes fall back to EN (missing = red at the release gate).
 """
 
-import json
-import os
-
 import i18n_strings_tables
 
 LANGUAGES = [

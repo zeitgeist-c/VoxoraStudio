@@ -232,17 +232,6 @@ def _prune_empty_parents(root: Path, removed_names: list[str]) -> None:
     değil "boş" sayılır; ``Path.iterdir`` ise ``FileNotFoundError`` fırlatır ve
     ``OSError`` yakalayan blok temizliği sessizce yarıda keser.
     """
-    import os
-
-    def _is_empty(folder: Path) -> bool:
-        try:
-            with os.scandir(folder) as entries:
-                return next(entries, None) is None
-        except FileNotFoundError:
-            return True   # already deleted -> count as empty
-        except OSError:
-            return False  # unreachable -> do not touch
-
     def _parents_of(name: str):
         parts = PurePosixPath(name).parts
         for depth in range(len(parts) - 1, 0, -1):

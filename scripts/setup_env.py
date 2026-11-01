@@ -21,6 +21,10 @@ CUDA_INDEXES = [
 ]
 CPU_INDEX = "https://download.pytorch.org/whl/cpu"
 DIRECTML_PACKAGE = "onnxruntime-directml"
+#: DirectML hedefinde kurulan tek ONNX sürümü (PyPI'deki son 1.x; üstü yok).
+#: ``requirements_packages("directml")`` düz ``onnxruntime``ı atladığı için
+#: bu pin çakışmasız kurulumun tek kaynağıdır.
+DIRECTML_VERSION = "1.24.4"
 PERTH_PACKAGE = "resemble-perth"
 
 
@@ -152,7 +156,7 @@ def install_directml_if_needed(target: str) -> None:
         return
 
     print("[BILGI] AMD/Intel GPU icin DirectML paketi kuruluyor...")
-    pip_install(["--upgrade", DIRECTML_PACKAGE])
+    pip_install(["--upgrade", f"{DIRECTML_PACKAGE}=={DIRECTML_VERSION}"])
     code = (
         "import onnxruntime as ort; "
         "providers=ort.get_available_providers(); "

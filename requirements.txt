@@ -1,35 +1,42 @@
-# Voxora Studio — çalışma zamanı bağımlılıkları
+# Voxora Studio — çalışma zamanı bağımlılıkları (pinli)
 #
 # Tasarım: paket yalnız EMA Lightning motorunu içerir (ONNX, torch gerekmez).
 # Chatterbox ve VoxCPM2 isteğe bağlıdır; kütüphaneleri motor paketi (.vxp)
 # olarak indirilir ve kullanıcı veri klasörüne açılır (app/engine_pack.py).
 # torch, transformers, diffusers, librosa burada YOKTUR — pakete gömülseler
 # kurulum dosyası iki katına çıkardı.
+#
+# Sürümler test edilen kilit setidir; ``requirements-lock.txt`` tam kapanışı,
+# ``sbom.json`` CycloneDX karşılığını verir. Değişiklikten sonra ilgili
+# testler + ``pip-audit -r requirements-lock.txt`` koşturulur.
 
 # --- Ses motoru: EMA Lightning (paketle gelir) -------------------------------
 # ONNX grafikleri + onnxruntime. Ağırlıklar models/ema-onnx altında paketlenir.
-onnxruntime
+# DirectML hedefinde (AMD/Intel GPU) düz onnxruntime KURULMAZ: setup_env
+# onu atlar ve pinli onnxruntime-directml==1.24.4'ü kurar (bkz. DIRECTML_VERSION).
+# İkisi aynı modülü paylaştığı için birlikte kurulmaları dosya çakışmasıdır.
+onnxruntime==1.31.1
 
 # Türkçe metin normalizasyonu (EMA ön işlemcisi: sayı, kısaltma, tarih okuma).
-normalizer_tr
+normalizer_tr==0.8.1
 
 # --- Arayüz -------------------------------------------------------------------
-PyQt6
+PyQt6==6.12.0
 
 # --- Ses verisi ---------------------------------------------------------------
-numpy
-sounddevice
-soundfile
-pydub
+numpy==2.4.6
+sounddevice==0.5.6
+soundfile==0.14.0
+pydub==0.25.1
 
 # --- Dosya işlemleri ---------------------------------------------------------
-send2trash
+send2trash==2.1.0
 
 # --- Güncelleme ---------------------------------------------------------------
-requests
+requests==2.34.2
 
 # --- Model indirme (isteğe bağlı motorlar) -----------------------------------
-huggingface_hub
+huggingface_hub==2.4.0
 
 # --- Paketleme ----------------------------------------------------------------
-PyInstaller
+PyInstaller==6.22.3

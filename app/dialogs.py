@@ -5,7 +5,7 @@ while sharing the same cards, headers and action hierarchy as the main window.
 All visual styling lives in :mod:`app.theme`.
 """
 from __future__ import annotations
-from i18n import t, set_language as ui_set_language, language as ui_language, LANGUAGES as UI_LANGUAGES
+from i18n import t
 
 from PyQt6.QtCore import QTimer, pyqtSignal
 from PyQt6.QtWidgets import (

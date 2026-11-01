@@ -18,3 +18,11 @@ voxcpm
 
 # EMA Lightning'ın PyTorch sürümü (ONNX sürümü pakette; bu yalnız karşılaştırma)
 ema-lightning
+
+# --- Geliştirme araçları (pakete girmez; denetim kapıları bunları kullanır) ---
+# Test çerçevesi: pytest 9.2.0 ile doğrulandı.
+pytest==9.2.0
+# Güvenlik denetimi: pip-audit -r requirements-lock.txt
+pip-audit==2.10.1
+# SBOM üretimi: cyclonedx-py requirements requirements-lock.txt
+cyclonedx-bom==7.6.0

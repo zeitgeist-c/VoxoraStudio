@@ -29,7 +29,7 @@ Kullanım (PyQt6 ile):
 """
 
 from __future__ import annotations
-from i18n import t, set_language as ui_set_language, language as ui_language, LANGUAGES as UI_LANGUAGES
+from i18n import t
 
 import logging
 import os
