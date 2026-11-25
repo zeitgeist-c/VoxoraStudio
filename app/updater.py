@@ -1,14 +1,14 @@
 """Kurulum paketi (setup.exe) üzerinden kendini güncelleme.
 
 Akış:
-  1. ``check_for_update`` → GitHub'daki en yeni sürümü ve ``VoxoraStudio-X.Y.Z-Setup.exe``
+  1. ``check_for_update`` → GitHub'daki en yeni sürümü ve ``VoxoraStudio-X.Y.Z.exe``
      asset'ini bulur (public ayna repo ``VoxoraStudio``).
   2. ``download`` → kurulumu ``%LOCALAPPDATA%\\VoxoraStudio\\updates``e indirir,
      boyut + SHA-256 doğrular. Doğrulanmamış dosya asla çalıştırılmaz.
   3. ``spawn_installer`` → Inno Setup'ı sessiz kipte çalıştırır. Kurulum,
      çalışan uygulamayı Restart Manager ile düzgünce kapatır, program
      klasöründeki eski dosyaları silip yenilerini yazar, kısayolları yeniler.
-  4. Kurulum ``/RESTARTAPPLICATIONS`` ile programı yeniden başlatır.
+  4. Bağımsız bekçi, kurulum tamamlandıktan sonra programı yeniden başlatır.
 
 Neden setup: eski akış ZIP'i kardeş klasöre açıp eski klasörü siliyordu; bu
 her sürümde 1.3 GB'lık ikinci bir kopya ve 540 MB indirme demekti. Setup
@@ -43,7 +43,8 @@ RELEASE_REPO = "zeitgeist-c/VoxoraStudio"
 API_LATEST = f"https://api.github.com/repos/{RELEASE_REPO}/releases/latest"
 USER_AGENT = f"{TECHNICAL_NAME}/{__version__}"
 UPDATES_DIRNAME = "updates"
-INSTALLER_SUFFIX = "-Setup.exe"
+INSTALLER_SUFFIX = ".exe"
+LEGACY_INSTALLER_SUFFIX = "-Setup.exe"
 DELTA_SUFFIX = "-delta.vxd"
 #: delta asset name: ``VoxoraStudio-<target>-delta-<base>.vxd``
 DELTA_RE = re.compile(
@@ -52,16 +53,16 @@ DELTA_RE = re.compile(
 
 #: installer file name: ``VoxoraStudio-0.6.0-Setup.exe``
 INSTALLER_RE = re.compile(
-    rf"^{re.escape(TECHNICAL_NAME)}-(\d+\.\d+\.\d+){re.escape(INSTALLER_SUFFIX)}$")
+    rf"^{re.escape(TECHNICAL_NAME)}-(\d+\.\d+\.\d+)(?:-Setup)?\.exe$")
 
-#: silent install flags. ``/RESTARTAPPLICATIONS`` reopens the app;
-#: ``/NORESTART`` suppresses the Windows restart prompt.
+#: The detached watchdog handles the managed relaunch after setup exits.
 SILENT_FLAGS = (
     "/VERYSILENT",
     "/SUPPRESSMSGBOXES",
     "/NORESTART",
-    "/RESTARTAPPLICATIONS",
+    "/NORESTARTAPPLICATIONS",
     "/CLOSEAPPLICATIONS",
+    "/VOXORA_MANAGED=1",
 )
 
 log = logging.getLogger(__name__)
@@ -203,19 +204,19 @@ def parse_release(payload: dict, version_prefix: str = "v",
     parse_version(version)  # reject upfront any label we cannot compare
     wanted = f"{TECHNICAL_NAME}-{version}{INSTALLER_SUFFIX}"
     info: UpdateInfo | None = None
-    for asset in payload.get("assets") or []:
-        if asset.get("name") != wanted:
-            continue
+    assets = {asset.get("name"): asset for asset in payload.get("assets") or []}
+    legacy = f"{TECHNICAL_NAME}-{version}{LEGACY_INSTALLER_SUFFIX}"
+    asset = assets.get(wanted) or assets.get(legacy)
+    if asset is not None:
         digest = str(asset.get("digest") or "")
         info = UpdateInfo(
             version=version,
-            asset_name=wanted,
+            asset_name=asset["name"],
             download_url=str(asset.get("browser_download_url") or ""),
             sha256=digest.split(":", 1)[1] if ":" in digest else digest,
             size=int(asset.get("size") or 0),
             page_url=str(payload.get("html_url") or ""),
         )
-        break
     if info is None:
         raise UpdateError(t("Yayınlanan en yeni sürümde {wanted} kurulum dosyası yok.", wanted=wanted))
     _attach_delta(info, payload, version, current_version)
@@ -300,6 +301,8 @@ def download(info: UpdateInfo, dest: Path, progress=None, cancel=None,
     class Cancelled(Exception):
         pass
 
+    if not re.fullmatch(r"[0-9a-fA-F]{64}", info.sha256):
+        raise UpdateError(t("Güncelleme paketi için geçerli SHA-256 bilgisi bulunamadı."))
     request = urllib.request.Request(info.download_url,
                                      headers={"User-Agent": USER_AGENT})
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -330,15 +333,12 @@ def download(info: UpdateInfo, dest: Path, progress=None, cancel=None,
     if info.size and written != info.size:
         dest.unlink(missing_ok=True)
         raise UpdateError(t("İndirme dosya tamamlanmadan bitti."))
-    if info.sha256:
-        if phase:
-            phase("verify")
-        actual = _sha256_of(dest)
-        if actual.lower() != info.sha256.lower():
-            dest.unlink(missing_ok=True)
-            raise UpdateError(t("İndirilen dosyanın sağlama toplamı uyuşmuyor."))
-    else:
-        log.warning("Kurulum dosyası için SHA-256 yayınlanmamış: %s", info.asset_name)
+    if phase:
+        phase("verify")
+    actual = _sha256_of(dest)
+    if actual.lower() != info.sha256.lower():
+        dest.unlink(missing_ok=True)
+        raise UpdateError(t("İndirilen dosyanın sağlama toplamı uyuşmuyor."))
     return dest
 
 
@@ -354,7 +354,7 @@ def _member_is_safe(name: str) -> bool:
     return True
 
 
-def _relaunch_script_text(setup_pid: int, exe: Path) -> str:
+def _relaunch_script_text(setup_pid: int) -> str:
     """Kurulum bitince programı yeniden açan bağımsız bekçi betiği.
 
     Neden ayrı bekçi: Inno'nun ``[Run]`` girdisi yükseltilmiş kurulumun çocuğu
@@ -377,11 +377,12 @@ def _relaunch_script_text(setup_pid: int, exe: Path) -> str:
         f'if "%%~A"=="{setup_pid}" set "FOUND=1"\r\n'
         "if not defined FOUND goto launch\r\n"
         "set /a TRIES+=1\r\n"
-        "if %TRIES% GEQ 1800 goto launch\r\n"
+        "if %TRIES% GEQ 1800 goto cleanup\r\n"
         "ping -n 2 127.0.0.1 >NUL\r\n"
         "goto wait\r\n"
         ":launch\r\n"
-        f'start "" "{exe}"\r\n'
+        'start "" "%VOXORA_RELAUNCH_EXE%"\r\n'
+        ":cleanup\r\n"
         'del "%~f0"\r\n')
 
 
@@ -471,9 +472,7 @@ def spawn_installer(installer: Path, restart: bool = True) -> int:
     """
     if not installer.is_file():
         raise UpdateError(t("Kurulum dosyası bulunamadı: {installer}", installer=installer))
-    flags = list(SILENT_FLAGS)
-    if not restart:
-        flags = [flag for flag in flags if flag != "/RESTARTAPPLICATIONS"]
+    flags = SILENT_FLAGS
     if sys.platform != "win32":  # pragma: no cover - non-Windows test only
         creation = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
         process = subprocess.Popen([str(installer), *flags],
@@ -502,10 +501,13 @@ def spawn_relaunch_watchdog(setup_pid: int) -> Path | None:
     try:
         folder = Path(tempfile.gettempdir())
         script = folder / f"voxora-relaunch-{setup_pid}.bat"
-        script.write_text(_relaunch_script_text(setup_pid, exe), encoding="ascii")
+        script.write_text(_relaunch_script_text(setup_pid), encoding="ascii")
         detached = getattr(subprocess, "DETACHED_PROCESS", 0)
-        subprocess.Popen(["cmd", "/c", str(script)], creationflags=detached,
-                         close_fds=True, cwd=str(folder))
+        # Pass the path as Unicode rather than embedding it in a batch code page.
+        env = {**os.environ, "VOXORA_RELAUNCH_EXE": str(exe), "PYINSTALLER_RESET_ENVIRONMENT": "1"}
+        cmd = Path(os.environ["SystemRoot"]) / "System32" / "cmd.exe"
+        subprocess.Popen([str(cmd), "/d", "/c", script.name], creationflags=detached,
+                         close_fds=True, cwd=str(folder), env=env)
     except OSError:
         log.exception("Yeniden başlatma bekçisi kurulamadı")
         return None
@@ -518,7 +520,7 @@ def cleanup_updates_dir() -> str:
 
     Kurulum başladıktan sonra kendi dosyasını silemeyebilir; uygulama bir
     sonraki açılışta bu klasörü temizler. Yalnız bu programın ürettiği
-    ``-Setup.exe`` kalıbındaki dosyalar silinir.
+    Güncel ve eski adlandırmadaki kurulum dosyaları silinir.
     """
     global last_cleanup_result
     folder = updates_dir()

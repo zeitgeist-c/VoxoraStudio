@@ -203,12 +203,12 @@ def capabilities_text(spec_: EngineSpec) -> str:
     """Kullanıcıya tek satır yetenek özeti."""
     parts: list[str] = []
     if spec_.single_language:
-        parts.append("1 dil")
+        parts.append(t("1 dil"))
     else:
-        parts.append(f"{len(spec_.languages)} dil")
+        parts.append(t("{n} dil", n=len(spec_.languages)))
     if spec_.voice_design:
-        parts.append("ses tasarımı")
+        parts.append(t("ses tasarımı"))
     elif spec_.cloning:
-        parts.append("ses klonlama")
+        parts.append(t("ses klonlama"))
     parts.append(f"{spec_.sample_rate // 1000} kHz")
     return " • ".join(parts)

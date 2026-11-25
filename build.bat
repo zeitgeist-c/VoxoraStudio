@@ -1,7 +1,7 @@
 @echo off
 REM Voxora Studio build - produce the .exe + setup file
 REM Output: dist\VoxoraStudio-X.Y.Z\VoxoraStudio.exe  (fixed EXE name)
-REM        dist\installer\VoxoraStudio-X.Y.Z-Setup.exe
+REM        release\VoxoraStudio-X.Y.Z.exe
 REM
 REM Why the EXE name carries no version: setup writes to a fixed folder ({autopf}\VoxoraStudio),
 REM shortcuts point at VoxoraStudio.exe.'yi gosterir. Surumlu EXE adi her surumde
@@ -133,7 +133,7 @@ if not exist "%ISCC%" (
     pause
     exit /b 1
 )
-if not exist "dist\installer" mkdir "dist\installer"
+if not exist "release" mkdir "release"
 "%ISCC%" /Qp "installer\VoxoraStudio.iss" /DAppVersion=%APP_VERSION% /DSourceDir="%CD%\dist\%PACKAGE_STEM%"
 if errorlevel 1 (
     echo [ERROR] Setup file failed to compile.
@@ -143,7 +143,7 @@ if errorlevel 1 (
 
 echo.
 echo [5/6] Checksum and size...
-"%PYEXE%" -c "import hashlib,pathlib; p=pathlib.Path(r'dist\installer\VoxoraStudio-%APP_VERSION%-Setup.exe'); h=hashlib.sha256(p.read_bytes()).hexdigest(); print(f'{p}  {p.stat().st_size/1048576:.1f} MB'); print('SHA256', h)"
+"%PYEXE%" -c "import hashlib,pathlib; p=pathlib.Path(r'release\VoxoraStudio-%APP_VERSION%.exe'); h=hashlib.sha256(p.read_bytes()).hexdigest(); print(f'{p}  {p.stat().st_size/1048576:.1f} MB'); print('SHA256', h)"
 
 echo.
 echo [6/6] Delta update package (diff against the previous version, if any)...
@@ -153,7 +153,7 @@ echo.
 echo ============================================================
 echo Build done.
 echo   Package folder : dist\%PACKAGE_STEM%\%APP_EXE%
-echo   Setup file: dist\installer\VoxoraStudio-%APP_VERSION%-Setup.exe
+echo   Setup file: release\VoxoraStudio-%APP_VERSION%.exe
 echo ============================================================
 echo.
 echo Install: double-click the setup file. Program Files'a kurulur,

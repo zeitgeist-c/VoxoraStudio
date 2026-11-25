@@ -47,7 +47,7 @@ PrivilegesRequiredOverridesAllowed=commandline dialog
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
-OutputDir=..\dist\installer
+OutputDir=..\release
 OutputBaseFilename=VoxoraStudio-{#AppVersion}
 SetupIconFile=..\app\assets\voxora.ico
 UninstallDisplayIcon={app}\{#AppExe}
@@ -147,13 +147,8 @@ Source: "{#SourceDir}\VoxoraStudio.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourceDir}\_internal\*"; DestDir: "{app}\_internal"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [InstallDelete]
-; An update behaves like a "clean install": the old version files are deleted first,
-; then the new ones are written. That way a removed module leaves no residue
-; (an unloaded DLL, a deleted plugin) in the new version.
-; `unins000.exe` and `unins000.dat` are DELIBERATELY preserved; deleting them would
-; break the uninstall record. User data is not under {app}, unaffected.
-Type: filesandordirs; Name: "{app}\_internal"
-Type: files; Name: "{app}\VoxoraStudio.exe"
+; Keep the running version's files for Inno's transactional replacement.
+; Clean up only the old, versioned portable launchers below.
 ; Old versioned EXE/BAT names (left from the pre-v0.5.x portable layout).
 Type: files; Name: "{app}\VoxoraStudio-*.exe"
 Type: files; Name: "{app}\VoxoraStudio-*.bat"
@@ -166,11 +161,9 @@ Name: "{group}\{#AppName} kaldır"; Filename: "{uninstallexe}"; Tasks: startmenu
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
-; Open the program when setup (update) finishes. No `skipifsilent`: the in-app
-; updater runs a silent install and the program must reopen.
-; With `runasoriginaluser` the program starts as the normal
-; user even when setup ran elevated (no Program Files write needed).
-Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall runasoriginaluser
+; Keep direct installs and older clients working. The managed updater has its
+; own relaunch watchdog, so it suppresses this entry.
+Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall runasoriginaluser; Check: ShouldLaunchApp
 
 [UninstallDelete]
 ; Leftovers produced by setup (NOT user data).
@@ -178,6 +171,11 @@ Type: filesandordirs; Name: "{app}\_internal"
 Type: filesandordirs; Name: "{app}\logs"
 
 [Code]
+function ShouldLaunchApp(): Boolean;
+begin
+  Result := ExpandConstant('{param:VOXORA_MANAGED|0}') <> '1';
+end;
+
 // Kaldırma sırasında kullanıcı verisi ve model önbelleği korunur; kullanıcıya
 // nerede olduğu söylenir. Kaldırma yalnız {app} altını temizler.
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);

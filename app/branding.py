@@ -19,7 +19,7 @@ PACKAGE_STEM = f"{TECHNICAL_NAME}-{__version__}"
 EXECUTABLE_NAME = f"{TECHNICAL_NAME}.exe"
 #: versioned package folder name (build output only; setup does not use it).
 PACKAGE_FOLDER = PACKAGE_STEM
-INSTALLER_NAME = f"{PACKAGE_STEM}-Setup.exe"
+INSTALLER_NAME = f"{PACKAGE_STEM}.exe"
 
 __all__ = [
     "APP_USER_MODEL_ID",

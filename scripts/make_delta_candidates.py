@@ -2,7 +2,7 @@
 
 Last build step: compare the new version folder against every old
 ``VoxoraStudio-X.Y.Z`` folder under ``dist`` and produce a
-``VoxoraStudio-<new>-delta-<old>.vxd`` for each.
+``VoxoraStudio-<new>-delta-<old>.vxd`` under ``release`` for each.
 
 That way a release can ship both the full setup and fast
 update packages from (common) previous versions; the client picks the delta
@@ -22,6 +22,7 @@ from scripts.make_delta_package import build_delta  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DIST = REPO_ROOT / "dist"
+RELEASE = REPO_ROOT / "release"
 #: Delta yalnız bu kadar geriye kadar üretilir (yayın boyutu şişmesin).
 MAX_BASES = 3
 
@@ -55,9 +56,10 @@ def main(argv: list[str]) -> int:
         print("[delta] no old version to compare; no delta produced.")
         return 0
     produced = 0
+    RELEASE.mkdir(exist_ok=True)
     for base in candidates[:MAX_BASES]:
         base_version = base.name.rsplit("-", 1)[-1]
-        dest = DIST / f"VoxoraStudio-{new_version}-delta-{base_version}.vxd"
+        dest = RELEASE / f"VoxoraStudio-{new_version}-delta-{base_version}.vxd"
         try:
             build_delta(base, new_root, dest)
             produced += 1

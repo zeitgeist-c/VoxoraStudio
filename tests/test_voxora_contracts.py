@@ -72,13 +72,15 @@ class BrandingContractTests(unittest.TestCase):
         self.assertIn("Filename: \"{app}\\{#AppExe}\"", run_section)
         self.assertNotIn("skipifsilent", run_section)
         self.assertIn("runasoriginaluser", run_section)
+        self.assertIn("Check: ShouldLaunchApp", run_section)
+        self.assertIn("{param:VOXORA_MANAGED|0}", installer)
 
-    def test_install_delete_keeps_uninstaller(self):
-        """Temiz kurulum davranışı kaldırma kaydını bozmamalı."""
+    def test_install_delete_keeps_current_runtime_and_uninstaller(self):
+        """Preserve runtime files until Inno can replace them transactionally."""
         installer = (REPO_ROOT / "installer" / "VoxoraStudio.iss").read_text(encoding="utf-8")
         delete_section = _iss_section(installer, "InstallDelete")
-        self.assertIn('"{app}\\_internal"', delete_section)
-        self.assertIn('"{app}\\VoxoraStudio.exe"', delete_section)
+        self.assertNotIn('"{app}\\_internal"', delete_section)
+        self.assertNotIn('"{app}\\VoxoraStudio.exe"', delete_section)
         self.assertNotIn("unins", delete_section.lower())
 
     def test_installer_targets_version_independent_exe(self):

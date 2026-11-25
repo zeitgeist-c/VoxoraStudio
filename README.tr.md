@@ -6,7 +6,7 @@
 
 VoxoraStudio tamamen kendi bilgisayarında çalışan bir PyQt6 metinden sese stüdyosudur. Kurulumla **EMA Lightning** gelir — Türkçe, tek ses, 48 kHz, CPU'da bile hızlı. **Chatterbox** (16 dil ve ses klonlama) ile **VoxCPM2** (30 dil ve ses tasarımı) yalnız istersen uygulama içinden indirilir.
 
-![VoxoraStudio · Üretim](./docs/screenshots/01-uretim.png)
+![VoxoraStudio · Üretim](./docs/screenshots/01-production.png)
 
 ---
 
@@ -49,7 +49,7 @@ VoxoraStudio tamamen kendi bilgisayarında çalışan bir PyQt6 metinden sese st
 
 ### 1. Üretim
 
-![Üretim](./docs/screenshots/01-uretim.png)
+![Üretim](./docs/screenshots/01-production.png)
 
 Varsayılan çalışma alanı, üç sütuna bölünmüş.
 
@@ -72,7 +72,7 @@ Başlıkta ayrıca bir toplam sayaç (`Toplam: 0 üretim`) durur; Arşiv'i açma
 
 ### 2. Arşiv
 
-![Arşiv](./docs/screenshots/02-arsiv.png)
+![Arşiv](./docs/screenshots/02-archive.png)
 
 Her üretim, en yenisi üstte.
 
@@ -86,7 +86,7 @@ Silmek dosyaları yok etmek yerine Geri Dönüşüm Kutusu'na taşır. Her kayı
 
 ### 3. Araçlar
 
-![Araçlar](./docs/screenshots/03-araclar.png)
+![Araçlar](./docs/screenshots/03-tools.png)
 
 Tek sayfa değil, iki yardımcı.
 
@@ -101,7 +101,7 @@ Sıkıştırma paketteki ffmpeg ile yerelde çalışır; yükleme yok, üçünc�
 
 ### 4. Modeller
 
-![Modeller](./docs/screenshots/04-modeller.png)
+![Modeller](./docs/screenshots/04-models.png)
 
 Motor başına bir kart: ne kadar yer kapladığı ve burada çalışıp çalışamayacağı.
 
@@ -119,7 +119,7 @@ VoxCPM2 donanıma bağlı: *"Yalnız NVIDIA ekran kartı olan bilgisayarlarda ç
 
 ### 5. Ayarlar
 
-![Ayarlar](./docs/screenshots/05-ayarlar.png)
+![Ayarlar](./docs/screenshots/05-settings.png)
 
 Solda beş bölüm, her birinin kendi paneli.
 
@@ -139,7 +139,7 @@ Solda beş bölüm, her birinin kendi paneli.
 
 ## Kurulum
 
-`VoxoraStudio-<sürüm>-Setup.exe` dosyasını çalıştır (~180 MB).
+`VoxoraStudio-<sürüm>.exe` dosyasını çalıştır (~180 MB).
 
 | Ne | Nerede | Güncelleme siler mi? |
 |---|---|---|

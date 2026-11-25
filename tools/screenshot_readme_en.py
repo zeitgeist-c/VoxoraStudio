@@ -40,7 +40,7 @@ def main():
     app.setFont(QFont("Segoe UI", 10))
     out = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "screenshots")
     os.makedirs(out, exist_ok=True)
-    names = ["01-uretim", "02-arsiv", "03-araclar", "04-modeller", "05-ayarlar"]
+    names = ["01-production", "02-archive", "03-tools", "04-models", "05-settings"]
     win = build_window()
     win.resize(1366, 800)
     win.show()

@@ -46,6 +46,14 @@ class ReleasePayloadTests(unittest.TestCase):
         self.assertEqual(info.sha256, "ab12")  # "sha256:" öneki soyulur
         self.assertEqual(info.size, 123)
 
+    def test_prefers_current_installer_name_over_legacy_name(self):
+        legacy = self.payload()
+        current = self.payload(name="VoxoraStudio-0.6.0.exe")
+        legacy["assets"].extend(current["assets"])
+        info = updater.parse_release(legacy)
+        self.assertEqual(info.asset_name, "VoxoraStudio-0.6.0.exe")
+        self.assertTrue(updater.INSTALLER_RE.fullmatch(info.asset_name))
+
     def test_rejects_missing_installer(self):
         with self.assertRaises(updater.UpdateError):
             updater.parse_release(self.payload(name="Other.exe"))
@@ -69,7 +77,7 @@ class InstallerNameTests(unittest.TestCase):
 
     def test_silent_flags(self):
         self.assertIn("/VERYSILENT", updater.SILENT_FLAGS)
-        self.assertIn("/RESTARTAPPLICATIONS", updater.SILENT_FLAGS)
+        self.assertIn("/NORESTARTAPPLICATIONS", updater.SILENT_FLAGS)
         self.assertIn("/NORESTART", updater.SILENT_FLAGS)
 
 
@@ -123,6 +131,14 @@ class DownloadTests(unittest.TestCase):
 
         return mock.patch.object(updater.urllib.request, "urlopen",
                                  lambda *_a, **_k: FakeResponse())
+
+    def test_missing_digest_stops_before_download(self):
+        info = self._info(b"MZ", sha="")
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(updater.urllib.request, "urlopen") as request:
+                with self.assertRaises(updater.UpdateError):
+                    updater.download(info, Path(tmp) / info.asset_name)
+            request.assert_not_called()
 
     def test_hash_mismatch_removes_file(self):
         payload = b"MZsetup-bytes"
@@ -181,11 +197,11 @@ class SpawnInstallerTests(unittest.TestCase):
             self.assertEqual(len(calls), 1)
             self.assertEqual(calls[0][0], installer)
             for flag in ("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART",
-                         "/RESTARTAPPLICATIONS", "/CLOSEAPPLICATIONS"):
+                         "/NORESTARTAPPLICATIONS", "/CLOSEAPPLICATIONS", "/VOXORA_MANAGED=1"):
                 self.assertIn(flag, calls[0][1])
             watchdog.assert_called_once_with(4321)
 
-    def test_restart_false_drops_restart_flag(self):
+    def test_restart_false_keeps_all_relaunch_paths_disabled(self):
         with tempfile.TemporaryDirectory() as tmp:
             installer = Path(tmp) / "VoxoraStudio-0.6.0-Setup.exe"
             installer.write_bytes(b"MZ")
@@ -198,7 +214,8 @@ class SpawnInstallerTests(unittest.TestCase):
             with mock.patch.object(updater, "_shell_execute_runas", fake_runas), \
                  mock.patch.object(updater, "spawn_relaunch_watchdog") as watchdog:
                 updater.spawn_installer(installer, restart=False)
-            self.assertNotIn("/RESTARTAPPLICATIONS", captured["parameters"])
+            self.assertIn("/NORESTARTAPPLICATIONS", captured["parameters"])
+            self.assertIn("/VOXORA_MANAGED=1", captured["parameters"])
             watchdog.assert_not_called()
 
     def test_uac_cancel_is_reported_not_crashed(self):
@@ -229,21 +246,20 @@ class RelaunchWatchdogTests(unittest.TestCase):
     """Sessiz güncelleme sonrası programın gerçekten geri açılması."""
 
     def test_script_waits_for_setup_then_starts_exe(self):
-        exe = Path(r"C:\Program Files\VoxoraStudio\VoxoraStudio.exe")
-        text = updater._relaunch_script_text(1234, exe)
+        text = updater._relaunch_script_text(1234)
         self.assertIn(":wait", text)
         self.assertIn('PID eq 1234', text)
         self.assertIn("goto wait", text)
-        self.assertIn(f'start "" "{exe}"', text)
+        self.assertIn('start "" "%VOXORA_RELAUNCH_EXE%"', text)
         self.assertIn('del "%~f0"', text)
         # Sınırsız bekleme yok; MSYS `find`ine düşen boru yok.
-        self.assertIn("GEQ 1800", text)
+        self.assertIn("GEQ 1800 goto cleanup", text)
         self.assertNotIn("| find ", text)
         self.assertNotIn("timeout /t", text)
 
     def test_watchdog_written_to_temp_and_detached(self):
         with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp) / "Program"
+            root = Path(tmp) / "Şükrü - Program"
             root.mkdir()
             (root / "VoxoraStudio.exe").write_bytes(b"MZ")
             launches = []
@@ -266,6 +282,8 @@ class RelaunchWatchdogTests(unittest.TestCase):
             body = script.read_text(encoding="ascii")
             self.assertIn("PID eq 555", body)
             self.assertEqual(len(launches), 1)
+            self.assertEqual(launches[0][1]["env"]["VOXORA_RELAUNCH_EXE"],
+                             str(root / "VoxoraStudio.exe"))
             self.assertNotIn("CREATE_NO_WINDOW", str(launches[0][1]))
 
     def test_watchdog_skipped_when_exe_missing(self):

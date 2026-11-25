@@ -705,7 +705,7 @@ class MainWindow(QMainWindow):
         settings_layout.setContentsMargins(0, 0, 0, 8)
         settings_layout.setSpacing(14)
 
-        cat_card = SectionCard("Kategoriler", t("Ayar grubunu seçin."))
+        cat_card = SectionCard(t("Kategoriler"), t("Ayar grubunu seçin."))
         cat_list = QVBoxLayout()
         cat_list.setSpacing(6)
         self._settings_cat_buttons = []
@@ -1121,7 +1121,7 @@ class MainWindow(QMainWindow):
         compress_col.setSpacing(14)
 
         self.compress_files_card = SectionCard(
-            "Kaynak Dosyalar",
+            t("Kaynak Dosyalar"),
             t("WAV, MP3, FLAC veya OGG dosyalarını listeye ekleyin."),
         )
         compress_buttons = QHBoxLayout()
@@ -1972,11 +1972,11 @@ class MainWindow(QMainWindow):
         pause = self.pause_spin.value() if hasattr(self, "pause_spin") else 0.0
         min_seconds, max_seconds = self._estimate_duration_range(words, parts, speed, pause)
         if words == 0:
-            duration = "0 sn"
+            duration = t("0 sn")
         elif max_seconds < 60:
-            duration = f"{min_seconds}-{max_seconds} sn"
+            duration = t("{min}-{max} sn", min=min_seconds, max=max_seconds)
         else:
-            duration = f"{min_seconds // 60}-{max_seconds // 60} dk"
+            duration = t("{min}-{max} dk", min=min_seconds // 60, max=max_seconds // 60)
         self.text_stats_label.setText(
             t("{chars} karakter • {words} kelime • {parts} parça • ~{duration}", chars=chars, words=words, parts=parts, duration=duration)
         )

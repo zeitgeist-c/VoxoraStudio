@@ -19,7 +19,6 @@ class FakeLabel:
 
 
 def test_counter_keeps_value_across_languages():
-    import app.main_window as M
     items = []
 
     def fake_bind(setter, key, **kwargs):

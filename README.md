@@ -6,7 +6,7 @@
 
 VoxoraStudio is a PyQt6 text-to-speech studio that runs entirely on your computer. The installer ships with **EMA Lightning** — Turkish, single voice, 48 kHz, fast even on CPU. **Chatterbox** (16 languages plus voice cloning) and **VoxCPM2** (30 languages plus voice design) are downloaded from inside the app, only if you want them.
 
-![VoxoraStudio · Production](./docs/screenshots/01-uretim.png)
+![VoxoraStudio · Production](./docs/screenshots/01-production.png)
 
 ---
 
@@ -49,7 +49,7 @@ VoxoraStudio is a PyQt6 text-to-speech studio that runs entirely on your compute
 
 ### 1. Production
 
-![Production](./docs/screenshots/01-uretim.png)
+![Production](./docs/screenshots/01-production.png)
 
 The default workspace, split into three columns.
 
@@ -72,7 +72,7 @@ The header also carries a running total (`Total: 0 productions`) so you know how
 
 ### 2. Archive
 
-![Archive](./docs/screenshots/02-arsiv.png)
+![Archive](./docs/screenshots/02-archive.png)
 
 Every production, newest first.
 
@@ -86,7 +86,7 @@ Deleting moves files to the Recycle Bin rather than destroying them. Each entry 
 
 ### 3. Tools
 
-![Tools](./docs/screenshots/03-araclar.png)
+![Tools](./docs/screenshots/03-tools.png)
 
 Two utilities rather than one page.
 
@@ -101,7 +101,7 @@ Compression runs locally through the bundled ffmpeg; no upload, no re-encoding b
 
 ### 4. Models
 
-![Models](./docs/screenshots/04-modeller.png)
+![Models](./docs/screenshots/04-models.png)
 
 One card per engine, with what it costs and whether it can run here.
 
@@ -119,7 +119,7 @@ The **Model folder** footer shows where weights live, how much space they take (
 
 ### 5. Settings
 
-![Settings](./docs/screenshots/05-ayarlar.png)
+![Settings](./docs/screenshots/05-settings.png)
 
 Five sections down the left, each with its own panel.
 
@@ -139,7 +139,7 @@ Five sections down the left, each with its own panel.
 
 ## Install
 
-Run `VoxoraStudio-<version>-Setup.exe` (~180 MB).
+Run `VoxoraStudio-<version>.exe` (~180 MB).
 
 | What | Where | Removed by an update? |
 |---|---|---|

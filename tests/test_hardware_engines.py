@@ -89,9 +89,9 @@ class EngineRegistryTests(unittest.TestCase):
         self.assertEqual(engines.spec("yok-boyle-bir-sey").key, engines.DEFAULT_ENGINE)
 
     def test_capabilities_text(self):
-        self.assertIn("1 dil", engines.capabilities_text(engines.spec("ema")))
-        self.assertIn("ses klonlama", engines.capabilities_text(engines.spec("chatterbox")))
-        self.assertIn("ses tasarımı", engines.capabilities_text(engines.spec("voxcpm2")))
+        self.assertIn("1 language", engines.capabilities_text(engines.spec("ema")))
+        self.assertIn("voice cloning", engines.capabilities_text(engines.spec("chatterbox")))
+        self.assertIn("sound design", engines.capabilities_text(engines.spec("voxcpm2")))
         self.assertIn("48 kHz", engines.capabilities_text(engines.spec("voxcpm2")))
 
     def test_size_label_uses_comma(self):
